@@ -187,6 +187,7 @@ class ProjectManager:
             speed = 0.90
             gain = 1.0
             pause = 0.6
+            emotion_tag = None
 
             if is_intro_lead:
                 # Narrator lead-in before dialogue: short pause
@@ -195,6 +196,7 @@ class ProjectManager:
                 speed = 0.90
                 gain = 1.0
                 pause = 0.4
+                emotion_tag = "[tense, suspenseful lead-in narration]"
             elif is_dialogue:
                 if is_child and is_whisper:
                     voice_id = "af_river"
@@ -202,12 +204,14 @@ class ProjectManager:
                     speed = 0.78
                     gain = 0.70
                     pause = 1.2
+                    emotion_tag = "[frightened child whisper, trembling voice]"
                 elif is_whisper:
                     voice_id = "af_river" if is_female else "am_echo"
                     blend_weights = None
                     speed = 0.80
                     gain = 0.75
                     pause = 1.0
+                    emotion_tag = "[whispering in breathy terror, secretive]"
                 elif is_scream:
                     # Screamed / panicked dialogue: faster pace, higher volume
                     voice_id = "af_heart" if is_female else "am_fenrir"
@@ -215,52 +219,70 @@ class ProjectManager:
                     speed = 1.04
                     gain = 1.15
                     pause = 0.8
+                    emotion_tag = "[screaming frantically in sheer panic, adrenaline pumping]"
                 elif is_female:
                     voice_id = "af_heart"
                     blend_weights = None
                     speed = 0.86
                     gain = 1.0
                     pause = 0.8
+                    emotion_tag = "[tense, urgent female dialogue]"
                 elif is_male:
                     voice_id = "am_michael"
                     blend_weights = None
                     speed = 0.88
                     gain = 1.0
                     pause = 0.8
+                    emotion_tag = "[tense, breathless survivor tone]"
                 else:
                     voice_id = "am_michael"
                     blend_weights = None
                     speed = 0.88
                     gain = 1.0
                     pause = 0.8
+                    emotion_tag = "[tense, breathless dialogue]"
             else:
                 # Narration
                 clean_lower = text.lower()
                 if clean_lower.startswith(("day ", "part ", "chapter ", "episode ")):
                     pause = 1.2
+                    emotion_tag = "[slow, deep dramatic horror narration, ominous pause]"
                 elif is_whisper:
                     voice_id = "af_river" if is_female else "am_echo"
                     blend_weights = None
                     speed = 0.80
                     gain = 0.75
                     pause = 0.9
+                    emotion_tag = "[whispering in breathy terror, secretive narration]"
                 elif is_scream:
                     voice_id = "am_fenrir"
                     blend_weights = None
                     speed = 0.96
                     gain = 1.10
                     pause = 0.7
+                    emotion_tag = "[screaming frantically, intense suspense narration]"
                 else:
                     voice_id = default_voice
                     blend_weights = (defaults.get("blend_weights") if (defaults and defaults.get("blend_weights")) else (default_blend_weights if default_is_blend else None))
                     speed = def_speed
                     gain = def_gain
                     pause = def_pause
+                    emotion_tag = "[slow, deep atmospheric horror narration]"
+
+            # Retain user's custom emotion tag if already present
+            if orig and orig.get("emotion_tag"):
+                emotion_tag = orig.get("emotion_tag")
 
             block_data = {
                 "id": item["id"],
                 "text": text,
                 "voice_id": voice_id,
+                "engine": str(orig.get("engine") or (defaults.get("engine") if defaults else "fish_s2")),
+                "emotion_tag": emotion_tag,
+                "reference_audio": str(orig.get("reference_audio") or (defaults.get("reference_audio") if defaults else "")),
+                "reference_text": str(orig.get("reference_text") or (defaults.get("reference_text") if defaults else "")),
+                "temperature": float(orig.get("temperature", 0.7) if orig else 0.7),
+                "top_p": float(orig.get("top_p", 0.85) if orig else 0.85),
                 "speed": round(speed, 2),
                 "gain": round(gain, 2),
                 "pause_after": round(pause, 1),
@@ -271,6 +293,8 @@ class ProjectManager:
                 "fx_filter": str(orig.get("fx_filter", def_filter)) if orig else def_filter,
                 "radio_fx": bool(orig.get("radio_fx", def_radio)) if orig else def_radio
             }
+            if orig and orig.get("character_id"):
+                block_data["character_id"] = orig.get("character_id")
             if blend_weights:
                 block_data["blend_weights"] = blend_weights
 
@@ -402,12 +426,16 @@ class ProjectManager:
                     break
                 nxt_text = (nxt.get("text") or "").strip()
 
-                # Voice & Tone matching
+                # Voice, Character & Emotion matching
+                same_engine = (curr.get("engine", "fish_s2") == nxt.get("engine", "fish_s2"))
                 same_voice = (curr.get("voice_id") == nxt.get("voice_id"))
+                same_char = (curr.get("character_id") == nxt.get("character_id"))
+                same_emotion = (curr.get("emotion_tag") == nxt.get("emotion_tag"))
+                same_ref = (curr.get("reference_audio") == nxt.get("reference_audio"))
                 same_blend = (curr.get("blend_weights") == nxt.get("blend_weights"))
                 same_filter = (curr.get("fx_filter", "none") == nxt.get("fx_filter", "none"))
                 same_pitch = (curr.get("pitch_shift", 0.0) == nxt.get("pitch_shift", 0.0))
-                if not (same_voice and same_blend and same_filter and same_pitch):
+                if not (same_engine and same_voice and same_char and same_emotion and same_ref and same_blend and same_filter and same_pitch):
                     break
 
                 # Never merge colon intro leads

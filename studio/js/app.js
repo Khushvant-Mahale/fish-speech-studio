@@ -17,6 +17,8 @@ const state = {
   isPlayingStory: false,
   isBatchRunning: false,
   nextSentenceTimer: null,
+  activeEngine: "fish_s2",
+  refAudioPlayer: new Audio(),
   config: { remote_worker_url: "", active: false },
   undoStack: [],
   redoStack: [],
@@ -336,7 +338,7 @@ if (document.readyState === "loading") {
 
 async function loadVoices() {
   try {
-    const res = await fetch("/api/voices");
+    const res = await fetch(`/api/voices?engine=${state.activeEngine || 'fish_s2'}`);
     state.voices = await res.json();
     populateVoiceSelects();
   } catch (err) {
@@ -350,8 +352,8 @@ function populateVoiceSelects() {
   if (!state.voices || state.voices.length === 0) return;
 
   const html = state.voices.map(v => {
-    const isDefault = v.id === "blend_fenrir_onyx";
-    return `<option value="${v.id}" ${isDefault ? 'selected' : ''}>${v.flag || '🎙️'} ${v.name} (${v.accent} • ${v.gender})</option>`;
+    const isDefault = v.id === "fish_narrator_dark" || v.id === "blend_fenrir_onyx";
+    return `<option value="${v.id}" ${isDefault ? 'selected' : ''}>${v.flag || '🎙️'} ${v.name} (${v.accent || 'EN'} • ${v.gender || 'Actor'})</option>`;
   }).join("");
 
   if (newProjSelect) newProjSelect.innerHTML = html;
@@ -372,6 +374,9 @@ async function loadConfig() {
   try {
     const res = await fetch("/api/config");
     state.config = await res.json();
+    if (state.config.active_engine) {
+      state.activeEngine = state.config.active_engine;
+    }
     updateEngineUI(state.config.remote_worker_url, state.config.active);
   } catch (err) {
     console.error("Failed to load config", err);
@@ -379,8 +384,25 @@ async function loadConfig() {
 }
 
 function updateEngineUI(remoteUrl, active) {
+  const isFish = (state.activeEngine || "fish_s2") === "fish_s2";
+  const hasApi = Boolean(state.config.fish_api_key);
   const isOnline = Boolean(active && remoteUrl);
-  const badgeText = isOnline ? "🚀 Colab GPU (Active)" : "⚡ Local CPU Engine";
+
+  let badgeText = "🐟 Fish Audio S2 Pro";
+  if (isFish) {
+    if (isOnline) badgeText = "🚀 S2 Pro GPU Active";
+    else if (hasApi) badgeText = "🔑 Fish Cloud API";
+    else badgeText = "🐟 Fish Audio S2 Pro";
+  } else {
+    badgeText = isOnline ? "🚀 Kokoro GPU Active" : "⚡ Kokoro ONNX CPU";
+  }
+
+  // Update engine toggle buttons
+  ["fish", "kokoro"].forEach(eng => {
+    const match = (eng === "fish" && isFish) || (eng === "kokoro" && !isFish);
+    document.getElementById(`btn-dash-engine-${eng}`)?.classList.toggle("active", match);
+    document.getElementById(`btn-studio-engine-${eng}`)?.classList.toggle("active", match);
+  });
 
   // Update top bar buttons on both views
   const btns = [
@@ -391,12 +413,12 @@ function updateEngineUI(remoteUrl, active) {
     if (!btn) return;
     const label = btn.querySelector(".engine-label");
     if (label) label.textContent = badgeText;
-    if (isOnline) {
+    if (isOnline || (isFish && hasApi)) {
       btn.classList.add("gpu-active");
-      btn.title = `Cloud GPU Active: ${remoteUrl}`;
+      btn.title = isOnline ? `Cloud GPU Active: ${remoteUrl}` : "Fish Audio Cloud API Connected";
     } else {
       btn.classList.remove("gpu-active");
-      btn.title = "Configure Cloud GPU (Google Colab / Kaggle)";
+      btn.title = "Configure Cloud GPU (Google Colab / Kaggle) or Fish API";
     }
   });
 
@@ -404,8 +426,56 @@ function updateEngineUI(remoteUrl, active) {
   const statEngineName = document.getElementById("stat-engine-name");
   const statEngineSpeed = document.getElementById("stat-engine-speed");
   const statEngineIcon = document.getElementById("stat-engine-icon");
-  if (statEngineName) statEngineName.textContent = isOnline ? "Colab GPU (Active)" : "Local CPU";
-  if (statEngineSpeed) statEngineSpeed.textContent = isOnline ? "~0.8s per sentence (Fast)" : "~14s per sentence";
+  if (statEngineName) statEngineName.textContent = isFish ? (isOnline ? "S2 Pro GPU" : (hasApi ? "Fish API" : "Fish S2 Pro")) : (isOnline ? "Kokoro GPU" : "Kokoro CPU");
+  if (statEngineSpeed) statEngineSpeed.textContent = (isOnline || hasApi) ? "~0.3s per sentence (Fast)" : "Requires Worker / API";
+  if (statEngineIcon) statEngineIcon.textContent = isFish ? "🐟" : "⚡";
+
+  // Auto-configure parallel concurrency selector
+  const concurrencySelect = document.getElementById("batch-concurrency-select");
+  if (concurrencySelect) {
+    if (isOnline || hasApi) {
+      if (concurrencySelect.value === "1") concurrencySelect.value = "3";
+    } else {
+      concurrencySelect.value = "1";
+    }
+  }
+
+  // Update batch render button
+  const batchBtn = document.getElementById("btn-batch-generate");
+  if (batchBtn && !state.isBatchRunning) {
+    batchBtn.textContent = (isOnline || hasApi) ? "⚡ Render All" : "⚡ Render All";
+  }
+
+  // Update modal controls
+  const urlInput = document.getElementById("colab-url-input");
+  if (urlInput && remoteUrl !== undefined) {
+    urlInput.value = remoteUrl || "";
+  }
+  const keyInput = document.getElementById("fish-api-key-input");
+  if (keyInput && state.config.fish_api_key !== undefined) {
+    keyInput.value = state.config.fish_api_key || "";
+  }
+
+  // Update modal banner
+  const bannerTitle = document.getElementById("banner-title");
+  const bannerDesc = document.getElementById("banner-desc");
+  const bannerEl = document.getElementById("colab-status-banner");
+  if (bannerEl) {
+    if (isOnline) {
+      bannerEl.className = "colab-status-banner online";
+      if (bannerTitle) bannerTitle.textContent = "Status: Cloud GPU Connected";
+      if (bannerDesc) bannerDesc.textContent = `Worker tunnel active at: ${remoteUrl}`;
+    } else if (isFish && hasApi) {
+      bannerEl.className = "colab-status-banner online";
+      if (bannerTitle) bannerTitle.textContent = "Status: Fish Cloud API Connected";
+      if (bannerDesc) bannerDesc.textContent = "Inference routes directly to Fish Audio Cloud servers.";
+    } else {
+      bannerEl.className = "colab-status-banner offline";
+      if (bannerTitle) bannerTitle.textContent = isFish ? "Status: No Worker or API Connected" : "Status: Local CPU Mode";
+      if (bannerDesc) bannerDesc.textContent = isFish ? "Connect Google Colab GPU or paste your Fish API key below." : "Generating on local CPU.";
+    }
+  }
+}
   if (statEngineIcon) statEngineIcon.textContent = isOnline ? "🚀" : "⚡";
 
   // Auto-configure parallel concurrency selector according to GPU vs CPU mode
@@ -500,11 +570,39 @@ function debouncedSave() {
   saveTimeout = setTimeout(saveCurrentProject, 600);
 }
 
+function createBlockSynthesizePayload(block) {
+  const activeEng = block.engine || state.activeEngine || "fish_s2";
+  return {
+    text: block.text,
+    voice_id: block.voice_id,
+    engine: activeEng,
+    emotion_tag: block.emotion_tag || "",
+    reference_audio: block.reference_audio || "",
+    reference_text: block.reference_text || "",
+    temperature: block.temperature !== undefined ? Number(block.temperature) : 0.70,
+    top_p: block.top_p !== undefined ? Number(block.top_p) : 0.85,
+    blend_weights: block.blend_weights,
+    speed: Number(block.speed || (activeEng === "fish_s2" ? 1.0 : 0.90)),
+    gain: Number(block.gain || 1.0),
+    pitch_shift: Number(block.pitch_shift || 0.0),
+    warmth: Number(block.warmth || 0.0),
+    clarity: Number(block.clarity || 0.0),
+    reverb: Number(block.reverb || 0.0),
+    radio_fx: Boolean(block.radio_fx),
+    fx_filter: block.fx_filter || (block.radio_fx ? "radio" : "none")
+  };
+}
+
 function getBlockSignature(block) {
   const text = (block.text || "").trim();
   const voice = block.voice_id || "";
-  const speed = Number(block.speed || 0.90).toFixed(2);
+  const engine = block.engine || state.activeEngine || "fish_s2";
+  const emotion = block.emotion_tag || "";
+  const refAudio = block.reference_audio || "";
+  const speed = Number(block.speed || (engine === "fish_s2" ? 1.0 : 0.90)).toFixed(2);
   const gain = Number(block.gain || 1.0).toFixed(2);
+  const temp = Number(block.temperature || 0.70).toFixed(2);
+  const topP = Number(block.top_p || 0.85).toFixed(2);
   const pitch = Number(block.pitch_shift || 0.0).toFixed(1);
   const warmth = Number(block.warmth || 0.0).toFixed(1);
   const clarity = Number(block.clarity || 0.0).toFixed(1);
@@ -514,7 +612,7 @@ function getBlockSignature(block) {
   if (block.blend_weights) {
     blendStr = Object.entries(block.blend_weights).sort().map(([k, v]) => `${k}:${Number(v).toFixed(2)}`).join(",");
   }
-  return `${text}__${voice}__${blendStr}__${speed}__${gain}__${pitch}__${warmth}__${clarity}__${reverb}__${filter}`;
+  return `${engine}__${text}__${voice}__${emotion}__${refAudio}__${temp}__${topP}__${blendStr}__${speed}__${gain}__${pitch}__${warmth}__${clarity}__${reverb}__${filter}`;
 }
 
 function getVoiceById(voiceId) {
@@ -1130,7 +1228,8 @@ function renderBlocks() {
           ${isCustom ? '<span class="custom-tweak-dot" title="Custom tweaked sentence"></span>' : ''}
         </div>
       </button>
-      <div class="block-content-col">
+      <div class="block-content-col" style="flex-direction: column; align-items: stretch; justify-content: center; gap: 2px;">
+        ${block.emotion_tag ? `<span class="block-emotion-pill" onclick="handleFocusEmotionInput(${idx})" title="Fish S2 Pro Emotion: ${escapeHtml(block.emotion_tag)}">${escapeHtml(block.emotion_tag)}</span>` : ''}
         <textarea class="block-textarea" placeholder="Type sentence here...">${block.text || ""}</textarea>
         <div class="block-audio-scrubber" title="Click anywhere to jump & listen from this point">
           <div class="scrubber-track">
@@ -3473,19 +3572,7 @@ async function handleBulkRender() {
       const res = await fetch("/api/synthesize_block", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: block.text,
-          voice_id: block.voice_id,
-          blend_weights: block.blend_weights,
-          speed: block.speed || 0.90,
-          gain: block.gain || 1.0,
-          pitch_shift: block.pitch_shift || 0.0,
-          warmth: block.warmth || 0.0,
-          clarity: block.clarity || 0.0,
-          reverb: block.reverb || 0.0,
-          radio_fx: Boolean(block.radio_fx),
-          fx_filter: block.fx_filter || (block.radio_fx ? "radio" : "none")
-        })
+        body: JSON.stringify(createBlockSynthesizePayload(block))
       });
 
       const data = await res.json();
@@ -3589,6 +3676,46 @@ function renderInspector() {
     volSlider.value = Math.round((block.gain || 1.0) * 100);
     const valVol = document.getElementById("val-volume");
     if (valVol) valVol.textContent = volSlider.value + "%";
+  }
+
+  // Fish Audio S2 Pro Emotion & Hyperparameters
+  const emotionInput = document.getElementById("input-emotion-tag");
+  if (emotionInput) {
+    emotionInput.value = block.emotion_tag || "";
+  }
+  const tempSlider = document.getElementById("slider-temperature");
+  if (tempSlider) {
+    const tVal = (block.temperature !== undefined ? Number(block.temperature) : 0.70).toFixed(2);
+    tempSlider.value = tVal;
+    const valTemp = document.getElementById("val-temperature");
+    if (valTemp) valTemp.textContent = tVal;
+  }
+  document.querySelectorAll("#inspector-emotion-chips .emotion-chip").forEach(chip => {
+    chip.classList.toggle("active", chip.dataset.tag === (block.emotion_tag || ""));
+  });
+
+  // Zero-Shot Reference Voice Info
+  const refAudio = block.reference_audio || (char && char.reference_audio) || "";
+  const refNameEl = document.getElementById("ref-voice-filename");
+  const refMetaEl = document.getElementById("ref-voice-meta");
+  const playRefBtn = document.getElementById("btn-play-ref-voice");
+  if (refAudio) {
+    const filename = refAudio.split("/").pop();
+    if (refNameEl) refNameEl.textContent = filename;
+    if (refMetaEl) refMetaEl.textContent = "Custom zero-shot reference voice";
+    if (playRefBtn) {
+      playRefBtn.style.display = "inline-flex";
+      playRefBtn.dataset.url = refAudio.startsWith("/") ? refAudio : `/${refAudio}`;
+    }
+  } else {
+    if (refNameEl) refNameEl.textContent = "Upload Reference Audio (.wav, .mp3)";
+    if (refMetaEl) refMetaEl.textContent = "No reference clip assigned";
+    if (playRefBtn) playRefBtn.style.display = "none";
+  }
+
+  const refTranscriptInput = document.getElementById("input-ref-transcript");
+  if (refTranscriptInput) {
+    refTranscriptInput.value = block.reference_text || (char && char.reference_text) || "";
   }
 
   const speedSlider = document.getElementById("slider-speed");
@@ -3785,19 +3912,7 @@ function prefetchNextBlock(idx) {
   fetch("/api/synthesize_block", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      text: nextBlock.text,
-      voice_id: nextBlock.voice_id,
-      blend_weights: nextBlock.blend_weights,
-      speed: nextBlock.speed || 0.90,
-      gain: nextBlock.gain || 1.0,
-      pitch_shift: nextBlock.pitch_shift || 0.0,
-      warmth: nextBlock.warmth || 0.0,
-      clarity: nextBlock.clarity || 0.0,
-      reverb: nextBlock.reverb || 0.0,
-      radio_fx: Boolean(nextBlock.radio_fx),
-      fx_filter: nextBlock.fx_filter || (nextBlock.radio_fx ? "radio" : "none")
-    })
+    body: JSON.stringify(createBlockSynthesizePayload(nextBlock))
   })
     .then(r => r.json())
     .then(data => {
@@ -3995,19 +4110,7 @@ async function playBlockAudio(idx, targetOffset = 0, isAutoContinuation = false)
     const res = await fetch("/api/synthesize_block", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: block.text,
-        voice_id: block.voice_id,
-        blend_weights: block.blend_weights,
-        speed: block.speed || 0.90,
-        gain: block.gain || 1.0,
-        pitch_shift: block.pitch_shift || 0.0,
-        warmth: block.warmth || 0.0,
-        clarity: block.clarity || 0.0,
-        reverb: block.reverb || 0.0,
-        radio_fx: Boolean(block.radio_fx),
-        fx_filter: block.fx_filter || (block.radio_fx ? "radio" : "none")
-      })
+      body: JSON.stringify(createBlockSynthesizePayload(block))
     });
 
     const data = await res.json();
@@ -4281,19 +4384,7 @@ async function toggleBatchRender() {
       const res = await fetch("/api/synthesize_block", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: block.text,
-          voice_id: block.voice_id,
-          blend_weights: block.blend_weights,
-          speed: block.speed || 0.90,
-          gain: block.gain || 1.0,
-          pitch_shift: block.pitch_shift || 0.0,
-          warmth: block.warmth || 0.0,
-          clarity: block.clarity || 0.0,
-          reverb: block.reverb || 0.0,
-          radio_fx: Boolean(block.radio_fx),
-          fx_filter: block.fx_filter || (block.radio_fx ? "radio" : "none")
-        })
+        body: JSON.stringify(createBlockSynthesizePayload(block))
       });
 
       const data = await res.json();
@@ -4930,21 +5021,27 @@ async function handleTestColab() {
 async function handleSaveColab() {
   const urlInput = document.getElementById("colab-url-input");
   const url = (urlInput?.value || "").trim();
+  const apiKeyInput = document.getElementById("fish-api-key-input");
+  const apiKey = (apiKeyInput?.value || "").trim();
 
   try {
     const res = await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ remote_worker_url: url })
+      body: JSON.stringify({
+        remote_worker_url: url,
+        fish_api_key: apiKey,
+        active_engine: state.activeEngine || "fish_s2"
+      })
     });
     const data = await res.json();
     state.config = data;
     updateEngineUI(data.remote_worker_url, data.active);
     closeColabModal();
     if (data.active) {
-      showToast(`🚀 Connected to Cloud GPU: ${data.remote_worker_url}`);
+      showToast(`🚀 Config saved: Active!`);
     } else {
-      showToast("⚡ Switched to Local CPU Engine");
+      showToast("⚡ Config saved.");
     }
   } catch (err) {
     alert("Failed to save configuration: " + err);
@@ -4956,36 +5053,222 @@ async function handleClearColab() {
     const res = await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ remote_worker_url: "" })
+      body: JSON.stringify({ remote_worker_url: "", fish_api_key: "" })
     });
     const data = await res.json();
     state.config = data;
     updateEngineUI("", false);
     const urlInput = document.getElementById("colab-url-input");
     if (urlInput) urlInput.value = "";
+    const apiKeyInput = document.getElementById("fish-api-key-input");
+    if (apiKeyInput) apiKeyInput.value = "";
     const testRes = document.getElementById("colab-test-result");
     if (testRes) testRes.innerHTML = "";
     closeColabModal();
-    showToast("⚡ Colab disconnected. Running on Local CPU.");
+    showToast("⚡ Remote worker disconnected.");
   } catch (err) {
     alert("Failed to disconnect: " + err);
   }
 }
 
-async function handleCopyColabScript() {
-  const btn = document.getElementById("btn-copy-colab-code");
+async function handleCopyColabScript(engineChoice = "fish_s2") {
   try {
-    const res = await fetch("/api/colab_script");
+    const res = await fetch(`/api/colab_script?engine=${engineChoice}`);
     const scriptText = await res.text();
     await navigator.clipboard.writeText(scriptText);
-    if (btn) btn.textContent = "✓ Copied Script!";
-    showToast("📋 Colab Python script copied to clipboard!");
-    setTimeout(() => {
-      if (btn) btn.textContent = "📋 Copy Colab Script";
-    }, 2500);
+    const label = engineChoice === "kokoro" ? "Kokoro Worker" : "Fish Audio S2 Pro Worker";
+    showToast(`📋 Copied 1-Click ${label} Script!`);
   } catch (err) {
-    console.error("Clipboard copy error:", err);
-    alert("Could not copy script automatically. You can copy colab_worker.py directly from the project directory.");
+    alert("Copy failed: " + err);
+  }
+}
+
+// ---------------- FISH AUDIO S2 PRO ENGINE & CONTROLS ---------------- //
+
+async function switchGlobalActiveEngine(engineChoice) {
+  state.activeEngine = engineChoice;
+
+  // Update header buttons
+  ["fish", "kokoro"].forEach(eng => {
+    const isThis = (eng === "fish" && engineChoice === "fish_s2") || (eng === "kokoro" && engineChoice === "kokoro");
+    document.getElementById(`btn-dash-engine-${eng}`)?.classList.toggle("active", isThis);
+    document.getElementById(`btn-studio-engine-${eng}`)?.classList.toggle("active", isThis);
+  });
+
+  const isFish = engineChoice === "fish_s2";
+  const labelText = isFish ? "🐟 Fish Audio S2 Pro" : "⚡ Kokoro ONNX CPU";
+  const dashLabel = document.getElementById("dashboard-engine-label");
+  if (dashLabel) dashLabel.textContent = labelText;
+  const studioLabel = document.getElementById("studio-engine-label");
+  if (studioLabel) studioLabel.textContent = labelText;
+
+  // Toggle emotion section visibility
+  const emotionSection = document.getElementById("inspector-emotion-section");
+  if (emotionSection) {
+    emotionSection.style.display = isFish ? "block" : "none";
+  }
+  const zeroShotSection = document.getElementById("inspector-zero-shot-section");
+  if (zeroShotSection) {
+    zeroShotSection.style.display = isFish ? "block" : "none";
+  }
+
+  // Save config
+  try {
+    await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active_engine: engineChoice })
+    });
+  } catch (err) {
+    console.error("Failed to save active engine config", err);
+  }
+
+  // Reload voices for active engine
+  await loadVoices();
+  renderStudio();
+  showToast(`Switched active engine to: ${isFish ? 'Fish Audio S2 Pro' : 'Kokoro ONNX'}`);
+}
+
+function handleQuickEmotionClick(tag) {
+  const input = document.getElementById("input-emotion-tag");
+  if (input) input.value = tag;
+  applyEmotionTagToActiveBlocks(tag);
+}
+
+function handleEmotionTagInput(val) {
+  applyEmotionTagToActiveBlocks(val);
+}
+
+function clearBlockEmotionTag() {
+  const input = document.getElementById("input-emotion-tag");
+  if (input) input.value = "";
+  applyEmotionTagToActiveBlocks("");
+}
+
+function applyEmotionTagToActiveBlocks(tag) {
+  if (!state.currentProject || !state.currentProject.blocks) return;
+  const targets = state.selectedBlockIndices && state.selectedBlockIndices.size > 0
+    ? state.selectedBlockIndices
+    : new Set([state.activeBlockIndex]);
+
+  targets.forEach(idx => {
+    const block = state.currentProject.blocks[idx];
+    if (!block) return;
+    block.emotion_tag = tag;
+    delete block.cachedAudioUrl;
+    delete block.cachedSig;
+    const row = document.querySelector(`[data-index="${idx}"]`);
+    if (row) {
+      row.classList.remove("ready");
+      const timeText = row.querySelector(".scrubber-time");
+      if (timeText) timeText.textContent = "Draft (click ▶ to render)";
+      let pill = row.querySelector(".block-emotion-pill");
+      if (tag) {
+        if (!pill) {
+          pill = document.createElement("span");
+          pill.className = "block-emotion-pill";
+          pill.onclick = () => handleFocusEmotionInput(idx);
+          const contentCol = row.querySelector(".block-content-col");
+          if (contentCol) contentCol.prepend(pill);
+        }
+        pill.textContent = tag;
+        pill.title = `Fish S2 Pro Emotion Tag: ${tag}`;
+      } else if (pill) {
+        pill.remove();
+      }
+    }
+  });
+
+  // Highlight active chip
+  document.querySelectorAll("#inspector-emotion-chips .emotion-chip").forEach(chip => {
+    chip.classList.toggle("active", chip.dataset.tag === tag);
+  });
+
+  debouncedSave();
+}
+
+function handleFocusEmotionInput(idx) {
+  selectBlock(idx, "single");
+  switchInspectorTab("audio");
+  const input = document.getElementById("input-emotion-tag");
+  if (input) {
+    input.focus();
+    input.select();
+  }
+}
+
+async function handleReferenceVoiceFileUpload(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append("audio", file);
+
+  showToast("⏳ Uploading reference audio clip...");
+  try {
+    const res = await fetch("/api/voices/upload_reference", {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`✅ Reference voice uploaded (${data.duration}s)!`);
+      const refPath = data.relative_path || data.url;
+
+      // Assign to current block
+      if (state.currentProject?.blocks?.[state.activeBlockIndex]) {
+        const block = state.currentProject.blocks[state.activeBlockIndex];
+        block.reference_audio = refPath;
+        delete block.cachedAudioUrl;
+        delete block.cachedSig;
+      }
+
+      // Update UI
+      const nameEl = document.getElementById("ref-voice-filename");
+      if (nameEl) nameEl.textContent = file.name;
+      const metaEl = document.getElementById("ref-voice-meta");
+      if (metaEl) metaEl.textContent = `Custom clip (${data.duration}s)`;
+      const playBtn = document.getElementById("btn-play-ref-voice");
+      if (playBtn) {
+        playBtn.style.display = "inline-flex";
+        playBtn.dataset.url = data.url;
+      }
+
+      await loadVoices();
+      debouncedSave();
+    } else {
+      showToast("❌ Upload failed: " + (data.error || "Unknown error"));
+    }
+  } catch (err) {
+    showToast("❌ Upload error: " + err.message);
+  }
+}
+
+function handleRefTranscriptInput(val) {
+  if (!state.currentProject?.blocks?.[state.activeBlockIndex]) return;
+  const block = state.currentProject.blocks[state.activeBlockIndex];
+  block.reference_text = val;
+  delete block.cachedAudioUrl;
+  delete block.cachedSig;
+  debouncedSave();
+}
+
+function handlePlayReferenceVoice(event) {
+  event.stopPropagation();
+  const playBtn = document.getElementById("btn-play-ref-voice");
+  const url = playBtn?.dataset?.url;
+  if (!url) return;
+
+  if (state.refAudioPlayer.src.includes(url) && !state.refAudioPlayer.paused) {
+    state.refAudioPlayer.pause();
+    playBtn.textContent = "▶";
+  } else {
+    state.refAudioPlayer.src = url;
+    state.refAudioPlayer.play();
+    playBtn.textContent = "⏸";
+    state.refAudioPlayer.onended = () => {
+      playBtn.textContent = "▶";
+    };
   }
 }
 
@@ -5116,19 +5399,7 @@ async function exportSelectedAudio() {
         const res = await fetch("/api/synthesize_block", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: block.text,
-            voice_id: block.voice_id,
-            blend_weights: block.blend_weights,
-            speed: block.speed || 0.90,
-            gain: block.gain || 1.0,
-            pitch_shift: block.pitch_shift || 0.0,
-            warmth: block.warmth || 0.0,
-            clarity: block.clarity || 0.0,
-            reverb: block.reverb || 0.0,
-            radio_fx: Boolean(block.radio_fx),
-            fx_filter: block.fx_filter || (block.radio_fx ? "radio" : "none")
-          })
+          body: JSON.stringify(createBlockSynthesizePayload(block))
         });
         const data = await res.json();
         if (data.audio_url) {
@@ -5689,6 +5960,34 @@ function setupEventListeners() {
     updateActiveCharacterStatusBanner();
   });
   document.getElementById("slider-reverb")?.addEventListener("change", () => recordHistory("Adjust Reverb"));
+
+  // Fish S2 Pro Temperature Slider
+  document.getElementById("slider-temperature")?.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value);
+    const valEl = document.getElementById("val-temperature");
+    if (valEl) valEl.textContent = val.toFixed(2);
+    if (!state.currentProject || !state.currentProject.blocks) return;
+
+    const targets = state.selectedBlockIndices && state.selectedBlockIndices.size > 0
+      ? state.selectedBlockIndices
+      : new Set([state.activeBlockIndex]);
+
+    targets.forEach(idx => {
+      const block = state.currentProject.blocks[idx];
+      if (!block) return;
+      block.temperature = val;
+      delete block.cachedAudioUrl;
+      delete block.cachedSig;
+      const row = document.querySelector(`[data-index="${idx}"]`);
+      if (row) {
+        row.classList.remove("ready");
+        const timeText = row.querySelector(".scrubber-time");
+        if (timeText) timeText.textContent = "Draft (click ▶ to render)";
+      }
+    });
+    debouncedSave();
+  });
+  document.getElementById("slider-temperature")?.addEventListener("change", () => recordHistory("Adjust S2 Temperature"));
 
   // Character Modal Voice Select
   document.getElementById("char-modal-voice-select")?.addEventListener("change", (e) => {

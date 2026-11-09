@@ -1,9 +1,18 @@
+import os
+import re
 import json
+import uuid
+import time
+import zipfile
 import asyncio
+from typing import Optional, Dict, List, Tuple, Union
 from pathlib import Path
 from aiohttp import web
+import numpy as np
+import soundfile as sf
 
 from core.kokoro_engine import KokoroEngine
+from core.fish_engine import FishEngine
 from core.project_manager import ProjectManager
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -11,10 +20,17 @@ STUDIO_DIR = BASE_DIR / "studio"
 CACHE_DIR = BASE_DIR / "cache"
 OUTPUT_DIR = BASE_DIR / "output"
 SAMPLES_DIR = OUTPUT_DIR / "samples"
+VOICES_DIR = BASE_DIR / "voices" / "reference"
 VOICES_FILE = BASE_DIR / "core" / "voices_metadata.json"
+FISH_VOICES_FILE = BASE_DIR / "core" / "fish_voices_metadata.json"
 CONFIG_FILE = BASE_DIR / "projects" / "config.json"
 
-engine: KokoroEngine = None
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+VOICES_DIR.mkdir(parents=True, exist_ok=True)
+
+kokoro_engine: KokoroEngine = None
+fish_engine: FishEngine = None
 project_mgr = ProjectManager()
 
 
@@ -25,7 +41,12 @@ def load_config() -> dict:
                 return json.load(f)
         except Exception:
             pass
-    return {"remote_worker_url": ""}
+    return {
+        "remote_worker_url": "",
+        "fish_remote_worker_url": "",
+        "fish_api_key": "",
+        "active_engine": "fish_s2"
+    }
 
 
 def save_config(cfg: dict):
@@ -35,14 +56,25 @@ def save_config(cfg: dict):
 
 
 async def init_engine():
-    global engine
-    if engine is None:
-        engine = KokoroEngine()
-        cfg = load_config()
-        remote_url = cfg.get("remote_worker_url", "").strip()
-        if remote_url:
-            engine.remote_url = remote_url
-            print(f"[Kokoro Studio] Active remote GPU worker: {remote_url}")
+    global kokoro_engine, fish_engine
+    cfg = load_config()
+
+    # 1. Initialize Fish Audio S2 Pro Engine
+    fish_remote = (cfg.get("fish_remote_worker_url") or cfg.get("remote_worker_url", "")).strip()
+    fish_key = cfg.get("fish_api_key", "").strip()
+    fish_engine = FishEngine(remote_url=fish_remote, api_key=fish_key)
+    print(f"[Fish Speech Studio] Fish Audio S2 Pro engine ready (Worker: {fish_remote or 'None'}, API Key: {'Set' if fish_key else 'None'})")
+
+    # 2. Initialize Kokoro Engine (optional CPU draft runner)
+    try:
+        kokoro_engine = KokoroEngine()
+        kokoro_remote = cfg.get("remote_worker_url", "").strip()
+        if kokoro_remote:
+            kokoro_engine.remote_url = kokoro_remote
+        print("[Fish Speech Studio] Kokoro ONNX CPU draft engine ready.")
+    except Exception as e:
+        print(f"[Fish Speech Studio] Kokoro engine note: {e}")
+        kokoro_engine = None
 
 
 @web.middleware
@@ -64,19 +96,128 @@ async def handle_index(request):
 
 
 async def handle_get_voices(request):
-    if not VOICES_FILE.exists():
+    engine_param = request.query.get("engine", "").lower()
+    cfg = load_config()
+    active_engine = engine_param or cfg.get("active_engine", "fish_s2")
+
+    if active_engine == "kokoro":
+        if VOICES_FILE.exists():
+            with open(VOICES_FILE, "r", encoding="utf-8") as f:
+                return web.json_response(json.load(f))
         return web.json_response([])
-    with open(VOICES_FILE, "r", encoding="utf-8") as f:
-        voices = json.load(f)
+
+    # Default to Fish S2 Pro voices
+    voices = []
+    if FISH_VOICES_FILE.exists():
+        try:
+            with open(FISH_VOICES_FILE, "r", encoding="utf-8") as f:
+                voices = json.load(f)
+        except Exception:
+            pass
+
+    # Append uploaded custom reference voices
+    ref_files = list(VOICES_DIR.glob("*.*"))
+    for rf in ref_files:
+        if rf.suffix.lower() in [".wav", ".mp3", ".ogg", ".flac", ".m4a"]:
+            slug = re.sub(r'[^a-zA-Z0-9_\-]', '', rf.stem)[:18]
+            voices.append({
+                "id": f"custom_{slug}",
+                "name": f"Custom: {rf.stem.replace('_', ' ').title()}",
+                "engine": "fish_s2",
+                "is_custom_ref": True,
+                "gender": "Custom",
+                "accent": "Custom",
+                "flag": "🎙️",
+                "timbre": "Custom Uploaded Voice Reference",
+                "genre": ["Custom"],
+                "badge": "REF",
+                "color": "#10b981",
+                "reference_audio": f"voices/reference/{rf.name}",
+                "reference_text": "",
+                "default_emotion_tag": "[clear, natural dialogue]"
+            })
+
     return web.json_response(voices)
+
+
+async def handle_upload_reference_voice(request):
+    """Handles uploading a reference audio clip (.wav, .mp3) for zero-shot voice cloning."""
+    reader = await request.multipart()
+    filename = None
+    saved_path = None
+
+    while True:
+        part = await reader.next()
+        if part is None:
+            break
+        if part.name == 'audio':
+            orig_name = part.filename or "reference.wav"
+            safe_name = re.sub(r'[^a-zA-Z0-9_.-]', '_', orig_name)
+            if not safe_name.lower().endswith(('.wav', '.mp3', '.ogg', '.flac', '.m4a')):
+                safe_name += ".wav"
+            unique_name = f"ref_{uuid.uuid4().hex[:8]}_{safe_name}"
+            saved_path = VOICES_DIR / unique_name
+            with open(saved_path, 'wb') as f:
+                while True:
+                    chunk = await part.read_chunk()
+                    if not chunk:
+                        break
+                    f.write(chunk)
+            filename = unique_name
+
+    if not filename or not saved_path or not saved_path.exists():
+        return web.json_response({"error": "No valid audio file uploaded"}, status=400)
+
+    duration = 0.0
+    try:
+        data, sr = sf.read(str(saved_path))
+        duration = round(len(data) / sr, 2)
+    except Exception:
+        pass
+
+    return web.json_response({
+        "success": True,
+        "filename": filename,
+        "url": f"/voices/reference/{filename}",
+        "relative_path": f"voices/reference/{filename}",
+        "duration": duration
+    })
+
+
+async def handle_get_reference_voices(request):
+    """Returns list of uploaded reference voice clips."""
+    clips = []
+    for p in VOICES_DIR.glob("*.*"):
+        if p.suffix.lower() in [".wav", ".mp3", ".ogg", ".flac", ".m4a"]:
+            duration = 0.0
+            try:
+                data, sr = sf.read(str(p))
+                duration = round(len(data) / sr, 2)
+            except Exception:
+                pass
+            clips.append({
+                "filename": p.name,
+                "url": f"/voices/reference/{p.name}",
+                "relative_path": f"voices/reference/{p.name}",
+                "duration": duration,
+                "created_at": p.stat().st_mtime
+            })
+    clips.sort(key=lambda x: x["created_at"], reverse=True)
+    return web.json_response(clips)
 
 
 async def handle_synthesize_block(request):
     data = await request.json()
     text = data.get("text", "").strip()
-    voice_id = data.get("voice_id", "am_fenrir")
-    blend_weights = data.get("blend_weights")
-    speed = float(data.get("speed", 0.90))
+    if not text:
+        return web.json_response({"error": "Text is required"}, status=400)
+
+    cfg = load_config()
+    active_engine_name = cfg.get("active_engine", "fish_s2")
+    block_engine = (data.get("engine") or active_engine_name).lower()
+
+    # Common parameters
+    speed = float(data.get("speed", 1.0 if block_engine == "fish_s2" else 0.90))
     gain = float(data.get("gain", 1.0))
     pitch_shift = float(data.get("pitch_shift", 0.0))
     warmth = float(data.get("warmth", 0.0))
@@ -85,59 +226,161 @@ async def handle_synthesize_block(request):
     radio_fx = bool(data.get("radio_fx", False))
     fx_filter = str(data.get("fx_filter") or ("radio" if radio_fx else "none")).strip().lower()
 
-    if not text:
-        return web.json_response({"error": "Text is required"}, status=400)
+    # Fish specific parameters
+    voice_id = data.get("voice_id")
+    emotion_tag = data.get("emotion_tag")
+    reference_audio = data.get("reference_audio")
+    reference_text = data.get("reference_text")
+    temperature = float(data.get("temperature", 0.7))
+    top_p = float(data.get("top_p", 0.85))
 
     try:
-        res = await asyncio.to_thread(
-            engine.synthesize_block,
-            text=text,
-            voice_id=voice_id,
-            blend_weights=blend_weights,
-            speed=speed,
-            gain=gain,
-            pitch_shift=pitch_shift,
-            warmth=warmth,
-            clarity=clarity,
-            reverb=reverb,
-            radio_fx=radio_fx,
-            fx_filter=fx_filter
-        )
+        if block_engine == "kokoro" and kokoro_engine is not None:
+            voice_id_k = voice_id or "blend_fenrir_onyx"
+            blend_weights = data.get("blend_weights")
+            res = await asyncio.to_thread(
+                kokoro_engine.synthesize_block,
+                text=text,
+                voice_id=voice_id_k,
+                blend_weights=blend_weights,
+                speed=speed,
+                gain=gain,
+                pitch_shift=pitch_shift,
+                warmth=warmth,
+                clarity=clarity,
+                reverb=reverb,
+                radio_fx=radio_fx,
+                fx_filter=fx_filter
+            )
+        else:
+            res = await asyncio.to_thread(
+                fish_engine.synthesize_block,
+                text=text,
+                voice_id=voice_id,
+                reference_audio=reference_audio,
+                reference_text=reference_text,
+                emotion_tag=emotion_tag,
+                speed=speed,
+                gain=gain,
+                temperature=temperature,
+                top_p=top_p,
+                pitch_shift=pitch_shift,
+                warmth=warmth,
+                clarity=clarity,
+                reverb=reverb,
+                radio_fx=radio_fx,
+                fx_filter=fx_filter
+            )
         return web.json_response(res)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_blend_preview(request):
+    """Audition preview endpoint for custom voice blends or reference clips."""
     data = await request.json()
-    text = data.get("text", "This is an audition sample for your custom voice blend.").strip()
-    blend_weights = data.get("blend_weights", {"am_fenrir": 0.5, "am_onyx": 0.5})
-    speed = float(data.get("speed", 0.90))
-    pitch_shift = float(data.get("pitch_shift", 0.0))
-    warmth = float(data.get("warmth", 0.0))
-    clarity = float(data.get("clarity", 0.0))
-    reverb = float(data.get("reverb", 0.0))
-    radio_fx = bool(data.get("radio_fx", False))
-    fx_filter = str(data.get("fx_filter") or ("radio" if radio_fx else "none")).strip().lower()
+    text = data.get("text", "This is an audition sample for your character voice.").strip()
+    cfg = load_config()
+    active_engine_name = cfg.get("active_engine", "fish_s2")
+    engine_type = (data.get("engine") or active_engine_name).lower()
 
     try:
-        res = await asyncio.to_thread(
-            engine.synthesize_block,
-            text=text,
-            voice_id="custom_blend",
-            blend_weights=blend_weights,
-            speed=speed,
-            gain=1.0,
-            pitch_shift=pitch_shift,
-            warmth=warmth,
-            clarity=clarity,
-            reverb=reverb,
-            radio_fx=radio_fx,
-            fx_filter=fx_filter
-        )
+        if engine_type == "kokoro" and kokoro_engine is not None:
+            res = await asyncio.to_thread(
+                kokoro_engine.synthesize_block,
+                text=text,
+                voice_id="custom_blend",
+                blend_weights=data.get("blend_weights", {"am_fenrir": 0.5, "am_onyx": 0.5}),
+                speed=float(data.get("speed", 0.90)),
+                gain=1.0,
+                pitch_shift=float(data.get("pitch_shift", 0.0)),
+                warmth=float(data.get("warmth", 0.0)),
+                clarity=float(data.get("clarity", 0.0)),
+                reverb=float(data.get("reverb", 0.0)),
+                fx_filter=str(data.get("fx_filter", "none"))
+            )
+        else:
+            res = await asyncio.to_thread(
+                fish_engine.synthesize_block,
+                text=text,
+                voice_id=data.get("voice_id"),
+                reference_audio=data.get("reference_audio"),
+                reference_text=data.get("reference_text"),
+                emotion_tag=data.get("emotion_tag"),
+                speed=float(data.get("speed", 1.0)),
+                gain=1.0,
+                temperature=float(data.get("temperature", 0.7)),
+                top_p=float(data.get("top_p", 0.85)),
+                pitch_shift=float(data.get("pitch_shift", 0.0)),
+                warmth=float(data.get("warmth", 0.0)),
+                clarity=float(data.get("clarity", 0.0)),
+                reverb=float(data.get("reverb", 0.0)),
+                fx_filter=str(data.get("fx_filter", "none"))
+            )
         return web.json_response(res)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
+
+
+def sync_synthesize_block_for_export(b: dict, active_engine_name: str) -> Optional[np.ndarray]:
+    """Helper to get audio samples for a block (from cache or live synthesis)."""
+    text = (b.get("text") or "").strip()
+    if not text:
+        return None
+
+    sample_rate = 24000
+    # Check cache first
+    cached_url = b.get("audio_url") or b.get("cachedAudioUrl") or ""
+    if cached_url:
+        cached_filename = Path(cached_url).name
+        cached_path = CACHE_DIR / cached_filename
+        if cached_path.exists():
+            try:
+                samples, sr = sf.read(str(cached_path))
+                return samples
+            except Exception:
+                pass
+
+    # Live synthesize if not cached
+    block_engine = (b.get("engine") or active_engine_name).lower()
+    if block_engine == "kokoro" and kokoro_engine is not None:
+        res = kokoro_engine.synthesize_block(
+            text=text,
+            voice_id=b.get("voice_id", "am_fenrir"),
+            blend_weights=b.get("blend_weights"),
+            speed=float(b.get("speed", 0.90)),
+            gain=float(b.get("gain", 1.0)),
+            pitch_shift=float(b.get("pitch_shift", 0.0)),
+            warmth=float(b.get("warmth", 0.0)),
+            clarity=float(b.get("clarity", 0.0)),
+            reverb=float(b.get("reverb", 0.0)),
+            fx_filter=str(b.get("fx_filter", "none"))
+        )
+    else:
+        res = fish_engine.synthesize_block(
+            text=text,
+            voice_id=b.get("voice_id"),
+            reference_audio=b.get("reference_audio"),
+            reference_text=b.get("reference_text"),
+            emotion_tag=b.get("emotion_tag"),
+            speed=float(b.get("speed", 1.0)),
+            gain=float(b.get("gain", 1.0)),
+            temperature=float(b.get("temperature", 0.7)),
+            top_p=float(b.get("top_p", 0.85)),
+            pitch_shift=float(b.get("pitch_shift", 0.0)),
+            warmth=float(b.get("warmth", 0.0)),
+            clarity=float(b.get("clarity", 0.0)),
+            reverb=float(b.get("reverb", 0.0)),
+            fx_filter=str(b.get("fx_filter", "none"))
+        )
+
+    if "hash" in res:
+        cache_path = CACHE_DIR / f"{res['hash']}.wav"
+        if cache_path.exists():
+            samples, sr = sf.read(str(cache_path))
+            return samples
+
+    return None
 
 
 async def handle_export_master(request):
@@ -148,12 +391,50 @@ async def handle_export_master(request):
     if not blocks:
         return web.json_response({"error": "No blocks provided"}, status=400)
 
+    cfg = load_config()
+    active_engine_name = cfg.get("active_engine", "fish_s2")
+
+    def _compile():
+        sample_rate = 24000
+        audio_segments = []
+
+        for b in blocks:
+            # Handle headings / scene dividers
+            if b.get("type") == "heading" or not b.get("is_spoken", True):
+                pause_after = float(b.get("pause_after", 1.0) or 1.0)
+                if pause_after > 0:
+                    silence = np.zeros(int(sample_rate * pause_after), dtype=np.float32)
+                    audio_segments.append(silence)
+                continue
+
+            samples = sync_synthesize_block_for_export(b, active_engine_name)
+            if samples is not None and len(samples) > 0:
+                audio_segments.append(samples)
+                pause_after = float(b.get("pause_after", 0.6) or 0.6)
+                if pause_after > 0:
+                    silence = np.zeros(int(sample_rate * pause_after), dtype=np.float32)
+                    audio_segments.append(silence)
+
+        if not audio_segments:
+            return {"error": "No audio blocks could be compiled"}
+
+        master = np.concatenate(audio_segments)
+        safe_name = re.sub(r'[^a-zA-Z0-9_\-.]', '_', filename)
+        if not safe_name.endswith(".wav"):
+            safe_name += ".wav"
+        out_file = OUTPUT_DIR / safe_name
+        sf.write(str(out_file), master, sample_rate)
+
+        duration = len(master) / sample_rate
+        return {
+            "master_url": f"/api/audio/{safe_name}",
+            "filename": safe_name,
+            "duration": round(duration, 2),
+            "rendered_count": len(audio_segments)
+        }
+
     try:
-        res = await asyncio.to_thread(
-            engine.compile_master_track,
-            blocks,
-            filename=filename
-        )
+        res = await asyncio.to_thread(_compile)
         return web.json_response(res)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
@@ -167,12 +448,43 @@ async def handle_export_zip(request):
     if not blocks:
         return web.json_response({"error": "No blocks provided"}, status=400)
 
+    cfg = load_config()
+    active_engine_name = cfg.get("active_engine", "fish_s2")
+
+    def _zip():
+        valid_blocks = [
+            b for b in blocks
+            if b.get("text", "").strip() and b.get("type") != "heading" and b.get("is_spoken", True)
+        ]
+        if not valid_blocks:
+            return {"error": "No valid sentences to export"}
+
+        safe_name = re.sub(r'[^a-zA-Z0-9_\-.]', '_', filename)
+        if not safe_name.endswith(".zip"):
+            safe_name += ".zip"
+        out_zip_path = OUTPUT_DIR / safe_name
+
+        with zipfile.ZipFile(str(out_zip_path), "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for i, b in enumerate(valid_blocks):
+                samples = sync_synthesize_block_for_export(b, active_engine_name)
+                if samples is not None and len(samples) > 0:
+                    text = b.get("text", "").strip()
+                    slug = re.sub(r'[^a-zA-Z0-9_\- ]', '', text)[:28].strip().replace(' ', '_').lower()
+                    arcname = f"{i+1:03d}_{slug}.wav" if slug else f"sentence_{i+1:03d}.wav"
+
+                    temp_wav = CACHE_DIR / f"export_temp_{i}.wav"
+                    sf.write(str(temp_wav), samples, 24000)
+                    zf.write(str(temp_wav), arcname=arcname)
+                    temp_wav.unlink(missing_ok=True)
+
+        return {
+            "filename": safe_name,
+            "zip_url": f"/api/audio/{safe_name}",
+            "file_count": len(valid_blocks)
+        }
+
     try:
-        res = await asyncio.to_thread(
-            engine.export_blocks_as_zip,
-            blocks,
-            filename=filename
-        )
+        res = await asyncio.to_thread(_zip)
         return web.json_response(res)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
@@ -190,60 +502,44 @@ async def handle_create_project(request):
     title = data.get("title", "Untitled Project").strip() or "Untitled Project"
     raw_text = data.get("text", "").strip()
     defaults = data.get("defaults") or data.get("default_settings") or {}
-    default_voice = data.get("default_voice") or defaults.get("voice_id", "blend_fenrir_onyx")
-    default_voice = default_voice.strip() if isinstance(default_voice, str) else "blend_fenrir_onyx"
+    
+    cfg = load_config()
+    default_engine = defaults.get("engine") or cfg.get("active_engine", "fish_s2")
+    default_voice = data.get("default_voice") or defaults.get("voice_id", "fish_narrator_dark" if default_engine == "fish_s2" else "blend_fenrir_onyx")
 
-    # Deduplication guard: if an identical request was processed within the last 3 seconds, return existing
-    import hashlib
-    import time
-    dedup_key = f"{title}_{hashlib.md5((raw_text or str(data.get('blocks', []))).encode('utf-8')).hexdigest()}"
+    dedup_key = f"{title}_{hashlib_str(raw_text or str(data.get('blocks', [])))}"
     now = time.time()
     if dedup_key in _recent_created_projects:
         ts, cached_proj = _recent_created_projects[dedup_key]
         if now - ts < 3.0:
             return web.json_response(cached_proj)
 
-    # Generate ID
-    import uuid
     proj_id = f"proj_{uuid.uuid4().hex[:8]}"
-    
+
     blocks = []
     if "blocks" in data and isinstance(data["blocks"], list) and len(data["blocks"]) > 0:
         blocks = data["blocks"]
     elif raw_text:
         blocks = project_mgr.split_text_into_blocks(raw_text, default_voice=default_voice, defaults=defaults)
     else:
-        def_speed = float(defaults.get("speed", 0.90)) if defaults and "speed" in defaults else 0.90
-        def_gain = float(defaults.get("gain", 1.0)) if defaults and "gain" in defaults else 1.0
-        def_pause = float(defaults.get("pause_after", 0.6)) if defaults and "pause_after" in defaults else 0.6
-        def_pitch = float(defaults.get("pitch_shift", 0.0)) if defaults and "pitch_shift" in defaults else 0.0
-        def_warmth = float(defaults.get("warmth", 0.0)) if defaults and "warmth" in defaults else 0.0
-        def_clarity = float(defaults.get("clarity", 0.0)) if defaults and "clarity" in defaults else 0.0
-        def_reverb = float(defaults.get("reverb", 0.0)) if defaults and "reverb" in defaults else 0.0
-        def_filter = str(defaults.get("fx_filter", "none")) if defaults and "fx_filter" in defaults else "none"
-        def_radio = bool(defaults.get("radio_fx", False)) if defaults and "radio_fx" in defaults else (def_filter == "radio")
-        
         b1 = {
             "id": "b_1",
             "text": "Start typing your first story sentence here...",
             "voice_id": default_voice,
-            "speed": round(def_speed, 2),
-            "gain": round(def_gain, 2),
-            "pause_after": round(def_pause, 1),
-            "pitch_shift": round(def_pitch, 1),
-            "warmth": round(def_warmth, 1),
-            "clarity": round(def_clarity, 1),
-            "reverb": round(def_reverb, 2),
-            "fx_filter": def_filter,
-            "radio_fx": def_radio
+            "engine": default_engine,
+            "emotion_tag": "[slow, deep dramatic horror narration, ominous pause]",
+            "speed": 1.0 if default_engine == "fish_s2" else 0.90,
+            "gain": 1.0,
+            "pause_after": 0.6,
+            "temperature": 0.7,
+            "top_p": 0.85
         }
-        if defaults and defaults.get("blend_weights"):
-            b1["blend_weights"] = defaults["blend_weights"]
         blocks = [b1]
-    
+
     proj_data = {
         "id": proj_id,
         "title": title,
+        "engine": default_engine,
         "default_voice": default_voice,
         "default_settings": defaults if defaults else None,
         "characters": data.get("characters", []),
@@ -253,6 +549,11 @@ async def handle_create_project(request):
     project_mgr.save_project(proj_data, proj_id)
     _recent_created_projects[dedup_key] = (time.time(), proj_data)
     return web.json_response(proj_data)
+
+
+def hashlib_str(s: str) -> str:
+    import hashlib
+    return hashlib.md5(s.encode("utf-8")).hexdigest()
 
 
 async def handle_delete_project(request):
@@ -299,8 +600,7 @@ async def handle_split_text(request):
     data = await request.json()
     text = data.get("text", "")
     defaults = data.get("defaults") or data.get("default_settings") or {}
-    default_voice = data.get("default_voice") or defaults.get("voice_id", "blend_fenrir_onyx")
-    default_voice = default_voice.strip() if isinstance(default_voice, str) else "blend_fenrir_onyx"
+    default_voice = data.get("default_voice") or defaults.get("voice_id", "fish_narrator_dark")
     blocks = project_mgr.split_text_into_blocks(text, default_voice=default_voice, defaults=defaults)
     return web.json_response(blocks)
 
@@ -309,8 +609,7 @@ async def handle_auto_direct(request):
     data = await request.json()
     blocks = data.get("blocks", [])
     defaults = data.get("defaults") or data.get("default_settings") or {}
-    default_voice = data.get("default_voice") or defaults.get("voice_id", "blend_fenrir_onyx")
-    default_voice = default_voice.strip() if isinstance(default_voice, str) else "blend_fenrir_onyx"
+    default_voice = data.get("default_voice") or defaults.get("voice_id", "fish_narrator_dark")
     expand_dialogue = bool(data.get("expand_dialogue", False))
     directed = project_mgr.auto_direct_blocks(blocks, default_voice=default_voice, expand_dialogue=expand_dialogue, defaults=defaults)
     return web.json_response(directed)
@@ -327,11 +626,11 @@ async def handle_merge_short(request):
 
 async def handle_get_audio(request):
     filename = request.match_info["filename"]
-    # Look in cache, output, and samples
     candidates = [
         CACHE_DIR / filename,
         OUTPUT_DIR / filename,
-        SAMPLES_DIR / filename
+        SAMPLES_DIR / filename,
+        VOICES_DIR / filename
     ]
     for p in candidates:
         if p.exists():
@@ -356,31 +655,55 @@ async def handle_get_audio(request):
 
 async def handle_get_config(request):
     cfg = load_config()
-    remote_url = engine.remote_url if engine else cfg.get("remote_worker_url", "")
+    remote_url = cfg.get("fish_remote_worker_url") or cfg.get("remote_worker_url", "")
     return web.json_response({
         "remote_worker_url": remote_url or "",
-        "active": bool(remote_url)
+        "fish_remote_worker_url": cfg.get("fish_remote_worker_url", ""),
+        "fish_api_key": cfg.get("fish_api_key", ""),
+        "active_engine": cfg.get("active_engine", "fish_s2"),
+        "active": bool(remote_url or cfg.get("fish_api_key"))
     })
 
 
 async def handle_save_config(request):
     data = await request.json()
-    url = data.get("remote_worker_url", "").strip()
     cfg = load_config()
-    cfg["remote_worker_url"] = url
+
+    if "remote_worker_url" in data:
+        url = data.get("remote_worker_url", "").strip()
+        cfg["remote_worker_url"] = url
+        cfg["fish_remote_worker_url"] = url
+        if fish_engine:
+            fish_engine.remote_url = url if url else None
+        if kokoro_engine:
+            kokoro_engine.remote_url = url if url else None
+
+    if "fish_api_key" in data:
+        key = data.get("fish_api_key", "").strip()
+        cfg["fish_api_key"] = key
+        if fish_engine:
+            fish_engine.api_key = key if key else None
+
+    if "active_engine" in data:
+        engine_choice = data.get("active_engine", "fish_s2").lower()
+        cfg["active_engine"] = engine_choice
+
     save_config(cfg)
-    if engine:
-        engine.remote_url = url if url else None
     return web.json_response({
         "status": "saved",
-        "remote_worker_url": engine.remote_url or "",
-        "active": bool(engine.remote_url)
+        "active_engine": cfg.get("active_engine", "fish_s2"),
+        "remote_worker_url": cfg.get("remote_worker_url", ""),
+        "active": bool(cfg.get("remote_worker_url") or cfg.get("fish_api_key"))
     })
 
 
 async def handle_test_remote(request):
     data = await request.json()
-    test_url = data.get("url", "").strip() or (engine.remote_url if engine else "")
+    test_url = data.get("url", "").strip()
+    if not test_url:
+        cfg = load_config()
+        test_url = cfg.get("fish_remote_worker_url") or cfg.get("remote_worker_url", "")
+
     if not test_url:
         return web.json_response({"ok": False, "error": "No remote URL provided"}, status=400)
 
@@ -389,7 +712,7 @@ async def handle_test_remote(request):
         health_endpoint = f"{test_url.rstrip('/')}/health"
         req = urllib.request.Request(
             health_endpoint,
-            headers={"User-Agent": "KokoroStudio/1.0"}
+            headers={"User-Agent": "FishSpeechStudio/1.0"}
         )
 
         def _check():
@@ -407,7 +730,12 @@ async def handle_test_remote(request):
 
 
 async def handle_get_colab_script(request):
-    colab_file = BASE_DIR / "colab_worker.py"
+    engine_choice = request.query.get("engine", "fish_s2").lower()
+    if engine_choice == "kokoro":
+        colab_file = BASE_DIR / "colab_worker.py"
+    else:
+        colab_file = BASE_DIR / "colab_fish_worker.py"
+
     if colab_file.exists():
         with open(colab_file, "r", encoding="utf-8") as f:
             content = f.read()
@@ -446,11 +774,19 @@ def create_app():
     app.router.add_get("/projects", handle_index)
     app.router.add_get("/favicon.ico", handle_favicon)
     app.router.add_get("/studio/favicon.svg", handle_favicon)
+
+    # Voices & Reference management
     app.router.add_get("/api/voices", handle_get_voices)
+    app.router.add_post("/api/voices/upload_reference", handle_upload_reference_voice)
+    app.router.add_get("/api/voices/reference", handle_get_reference_voices)
+
+    # Synthesis & Export
     app.router.add_post("/api/synthesize_block", handle_synthesize_block)
     app.router.add_post("/api/blend_preview", handle_blend_preview)
     app.router.add_post("/api/export_master", handle_export_master)
     app.router.add_post("/api/export_zip", handle_export_zip)
+
+    # Project management
     app.router.add_get("/api/projects", handle_get_projects)
     app.router.add_post("/api/projects/new", handle_create_project)
     app.router.add_post("/api/projects/duplicate", handle_duplicate_project)
@@ -458,9 +794,13 @@ def create_app():
     app.router.add_delete("/api/projects/{id}", handle_delete_project)
     app.router.add_get("/api/project", handle_get_project)
     app.router.add_post("/api/project", handle_save_project)
+
+    # Text & Auto-directing
     app.router.add_post("/api/split_text", handle_split_text)
     app.router.add_post("/api/auto_direct", handle_auto_direct)
     app.router.add_post("/api/merge_short", handle_merge_short)
+
+    # Audio & Config
     app.router.add_get("/api/audio/{filename}", handle_get_audio)
     app.router.add_get("/api/config", handle_get_config)
     app.router.add_post("/api/config", handle_save_config)
@@ -470,14 +810,15 @@ def create_app():
 
     # Static assets
     app.router.add_static("/studio", STUDIO_DIR)
+    app.router.add_static("/voices", BASE_DIR / "voices")
 
     return app
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Kashva Studio TTS Server")
-    parser.add_argument("--port", type=int, default=7860, help="Port to listen on (default 7860)")
+    parser = argparse.ArgumentParser(description="Fish Speech Studio Server")
+    parser.add_argument("--port", type=int, default=7865, help="Port to listen on (default 7865)")
     parser.add_argument("--test", action="store_true", help="Initialize and exit for testing")
     args = parser.parse_args()
 
@@ -486,11 +827,11 @@ if __name__ == "__main__":
     loop.run_until_complete(init_engine())
 
     if args.test:
-        print("[Kashva Studio] Self-test passed successfully.")
+        print("[Fish Speech Studio] Self-test passed successfully.")
         exit(0)
 
     app = create_app()
     print("\n=======================================================")
-    print(f"  Kashva Studio TTS running at: http://localhost:{args.port}")
+    print(f"  [Fish Audio S2 Pro Studio] running at: http://localhost:{args.port}")
     print("=======================================================\n")
     web.run_app(app, host="127.0.0.1", port=args.port)

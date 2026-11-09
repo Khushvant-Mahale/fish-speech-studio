@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kashva Studio TTS — Story Dashboard & Dynamic Speech</title>
+  <title>Fish Audio S2 Pro Studio — Cinematic Voice Drama</title>
   <link rel="icon" type="image/svg+xml" href="/studio/favicon.svg">
   <link rel="alternate icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/studio/css/studio.css?v=479">
+  <link rel="stylesheet" href="/studio/css/studio.css?v=480">
 </head>
 <body>
 
@@ -14,13 +14,21 @@
   <div id="view-dashboard">
     <header class="dashboard-header">
       <div class="brand-row">
-        <span class="brand-badge">Kashva</span>
-        <span class="brand-title">Studio TTS</span>
+        <span class="brand-badge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff;">Fish Speech</span>
+        <span class="brand-title">S2 Pro Studio</span>
       </div>
       <div style="display: flex; align-items: center; gap: 12px;">
+        <div class="engine-mode-toggle-group">
+          <button type="button" class="engine-toggle-btn active" id="btn-dash-engine-fish" onclick="switchGlobalActiveEngine('fish_s2')" title="Fish Audio S2 Pro: Zero-shot voice cloning and natural language emotion tags">
+            🐟 S2 Pro
+          </button>
+          <button type="button" class="engine-toggle-btn" id="btn-dash-engine-kokoro" onclick="switchGlobalActiveEngine('kokoro')" title="Kokoro v0.19: Fast local CPU draft inference">
+            ⚡ Kokoro
+          </button>
+        </div>
         <button class="engine-badge-btn" id="btn-dashboard-engine-status" onclick="openColabModal()" title="Configure Cloud GPU (Google Colab / Kaggle)">
           <span class="engine-dot"></span>
-          <span class="engine-label">⚡ Local CPU Engine</span>
+          <span class="engine-label" id="dashboard-engine-label">🐟 Fish Audio S2 Pro</span>
           <span class="engine-config-tag">⚙️</span>
         </button>
         <button class="btn btn-secondary" id="btn-dashboard-import-top" onclick="document.getElementById('dashboard-file-input').click()" title="Import text file (.txt, .md) or project JSON (.json)">📥 Import File</button>
@@ -136,9 +144,17 @@
       </div>
 
       <div class="nav-center">
+        <div class="engine-mode-toggle-group">
+          <button type="button" class="engine-toggle-btn active" id="btn-studio-engine-fish" onclick="switchGlobalActiveEngine('fish_s2')" title="Fish Audio S2 Pro: Zero-shot voice cloning and natural language emotion tags">
+            🐟 Fish Audio S2 Pro
+          </button>
+          <button type="button" class="engine-toggle-btn" id="btn-studio-engine-kokoro" onclick="switchGlobalActiveEngine('kokoro')" title="Kokoro v0.19: Fast local CPU draft inference">
+            ⚡ Kokoro CPU
+          </button>
+        </div>
         <button class="engine-badge-btn" id="btn-engine-status" onclick="openColabModal()" title="Configure Cloud GPU (Google Colab / Kaggle)">
           <span class="engine-dot"></span>
-          <span class="engine-label">⚡ Local CPU Engine</span>
+          <span class="engine-label" id="studio-engine-label">🐟 Fish S2 Pro Engine</span>
           <span class="engine-config-tag">⚙️</span>
         </button>
       </div>
@@ -278,6 +294,42 @@
 
         <!-- TAB PANE 1: AUDIO & PACING -->
         <div class="inspector-tab-pane active" id="inspector-tab-pane-audio">
+          <!-- S2 PRO EMOTION & ACTING -->
+          <div class="inspector-section" id="inspector-emotion-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span class="section-label">🎭 S2 Pro Emotion & Acting</span>
+              <span style="font-size: 10px; color: #10b981; font-weight: 600;">15,000+ Tags</span>
+            </div>
+
+            <!-- Emotion Quick Chips -->
+            <div class="emotion-chips-grid" id="inspector-emotion-chips">
+              <button type="button" class="emotion-chip" data-tag="[whispering in breathy terror]" onclick="handleQuickEmotionClick('[whispering in breathy terror]')">🤫 Whisper</button>
+              <button type="button" class="emotion-chip" data-tag="[screaming frantically in sheer panic]" onclick="handleQuickEmotionClick('[screaming frantically in sheer panic]')">😱 Scream</button>
+              <button type="button" class="emotion-chip" data-tag="[tense, breathless, urgent whisper]" onclick="handleQuickEmotionClick('[tense, breathless, urgent whisper]')">😨 Panicked</button>
+              <button type="button" class="emotion-chip" data-tag="[cold, guttural, sinister demonic whisper]" onclick="handleQuickEmotionClick('[cold, guttural, sinister demonic whisper]')">💀 Sinister</button>
+              <button type="button" class="emotion-chip" data-tag="[gasping, ragged breath, trembling]" onclick="handleQuickEmotionClick('[gasping, ragged breath, trembling]')">😮‍💨 Gasping</button>
+              <button type="button" class="emotion-chip" data-tag="[slow, deep dramatic horror narration, ominous pause]" onclick="handleQuickEmotionClick('[slow, deep dramatic horror narration, ominous pause]')">🎙️ Narrator</button>
+            </div>
+
+            <!-- Custom Emotion Input -->
+            <div class="control-group" style="margin-top: 8px;">
+              <div class="control-label-row">
+                <span title="Type any acting style, mood, or paralinguistic tags">Prompt / Emotion Tag</span>
+                <button type="button" onclick="clearBlockEmotionTag()" style="background: none; border: none; font-size: 10px; color: var(--text-muted); cursor: pointer;">✕ Clear</button>
+              </div>
+              <input type="text" id="input-emotion-tag" class="search-input" placeholder="e.g. [whispering in terror, voice cracking]" oninput="handleEmotionTagInput(this.value)" style="font-size: 11.5px; padding: 6px 8px; width: 100%;">
+            </div>
+
+            <!-- Temperature Slider -->
+            <div class="control-group" style="margin-top: 8px;">
+              <div class="control-label-row">
+                <span title="Higher temperature adds unpredictable emotional nuance; lower is disciplined">Acting Temperature</span>
+                <span class="control-val" id="val-temperature">0.70</span>
+              </div>
+              <input type="range" id="slider-temperature" min="0.30" max="1.10" step="0.05" value="0.70">
+            </div>
+          </div>
+
           <!-- Acoustics & Pacing -->
           <div class="inspector-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -395,6 +447,37 @@
               <button type="button" class="btn btn-secondary" id="btn-apply-voice-to-selected" onclick="handleApplyVoiceToSelected()" style="width: 100%; font-size: 11px; justify-content: center; padding: 5px 8px;" title="Apply only the voice actor (from last clicked sentence) to selected sentence(s)">
                 🎭 Apply Voice Only
               </button>
+            </div>
+          </div>
+
+          <!-- Zero-Shot Voice Reference Uploader Section (Fish S2 Pro) -->
+          <div class="inspector-section" id="inspector-zero-shot-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span class="section-label">🎙️ Voice Reference Audio</span>
+              <span style="font-size: 10px; color: #10b981; font-weight: 600;">Zero-Shot</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-bottom: 8px;">
+              Upload a 3–10s audio clip of any voice actor to clone their voice timbre instantly.
+            </div>
+            
+            <div class="ref-upload-card" id="ref-voice-card" onclick="document.getElementById('ref-voice-file-input').click()">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px;">📁</span>
+                <div style="overflow: hidden; flex: 1;">
+                  <div id="ref-voice-filename" style="font-size: 12px; font-weight: 600; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">Upload Reference Audio (.wav, .mp3)</div>
+                  <div id="ref-voice-meta" style="font-size: 10.5px; color: var(--text-muted);">No reference clip assigned</div>
+                </div>
+                <button type="button" class="icon-btn" id="btn-play-ref-voice" onclick="handlePlayReferenceVoice(event)" style="display: none; padding: 4px;" title="Play reference clip">▶</button>
+              </div>
+            </div>
+            <input type="file" id="ref-voice-file-input" accept=".wav,.mp3,.ogg,.flac,.m4a" style="display: none;" onchange="handleReferenceVoiceFileUpload(event)">
+            
+            <!-- Reference Audio Transcript input -->
+            <div class="control-group" style="margin-top: 8px;">
+              <div class="control-label-row">
+                <span title="The exact sentence spoken in the reference audio (improves phoneme mapping)">Reference Transcript</span>
+              </div>
+              <input type="text" id="input-ref-transcript" class="search-input" placeholder="e.g. Keep your flashlight down, they're outside." oninput="handleRefTranscriptInput(this.value)" style="font-size: 11px; padding: 5px 8px; width: 100%;">
             </div>
           </div>
 
@@ -762,7 +845,7 @@
 
         <!-- Worker URL Input -->
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Cloudflare Tunnel / Worker URL</label>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Cloudflare Tunnel / Remote Worker URL (Colab / Local GPU)</label>
           <div style="display: flex; gap: 8px;">
             <input type="text" id="colab-url-input" class="search-input" placeholder="https://random-words.trycloudflare.com" style="flex: 1;">
             <button class="btn btn-secondary" id="btn-test-colab" onclick="handleTestColab()" style="white-space: nowrap;">⚡ Test Connection</button>
@@ -770,11 +853,24 @@
           <div id="colab-test-result" style="font-size: 12px; min-height: 18px;"></div>
         </div>
 
+        <!-- Fish Audio Cloud API Key (Optional) -->
+        <div style="display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Fish Audio Cloud API Key (Optional)</label>
+            <a href="https://fish.audio/go-api" target="_blank" style="font-size: 11px; color: #10b981; text-decoration: underline;">Get API Key ↗</a>
+          </div>
+          <input type="password" id="fish-api-key-input" class="search-input" placeholder="Paste your api.fish.audio API key..." style="width: 100%;">
+          <div style="font-size: 11px; color: var(--text-muted);">If provided, synthesis routes directly to Fish Audio Cloud servers without needing a running Colab notebook.</div>
+        </div>
+
         <!-- Quick Colab Instructions & Copy Code -->
         <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column; gap: 10px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">1-Click Colab / Kaggle Setup:</span>
-            <button class="btn btn-secondary" id="btn-copy-colab-code" onclick="handleCopyColabScript()" style="padding: 4px 10px; font-size: 12px;">📋 Copy Colab Script</button>
+            <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">1-Click Colab Setup:</span>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-primary" id="btn-copy-colab-fish" onclick="handleCopyColabScript('fish_s2')" style="padding: 4px 10px; font-size: 11.5px; background: #10b981;">📋 Copy S2 Pro Worker</button>
+              <button class="btn btn-secondary" id="btn-copy-colab-code" onclick="handleCopyColabScript('kokoro')" style="padding: 4px 10px; font-size: 11.5px;">📋 Kokoro Worker</button>
+            </div>
           </div>
           <ol style="font-size: 12.5px; color: var(--text-muted); margin: 0; padding-left: 20px; line-height: 1.6;">
             <li>Open a free <a href="https://colab.research.google.com" target="_blank" style="color: var(--primary); text-decoration: underline;">Google Colab notebook</a>.</li>

@@ -1,7 +1,7 @@
 @echo off
-title Kokoro Story Studio
+title Fish Audio S2 Pro Studio
 echo ============================================================
-echo   Starting Kokoro Story Studio Pipeline...
+echo   Starting Fish Audio S2 Pro Story Studio...
 echo ============================================================
 
 REM Check Python
@@ -14,15 +14,11 @@ if errorlevel 1 (
 )
 
 REM Install dependencies
-echo [1/3] Checking dependencies...
+echo [1/2] Checking dependencies...
 python -m pip install -r requirements.txt --quiet
 
-REM Ensure model weights
-echo [2/3] Checking neural models...
-python download_models.py
-
 REM Launch Studio
-echo [3/3] Launching Kokoro Story Studio server on http://localhost:7860...
-start http://localhost:7860
-python app.py --port 7860
+echo [2/2] Launching Fish Audio S2 Pro Studio server on http://localhost:7865...
+start http://localhost:7865
+python app.py --port 7865
 pause
