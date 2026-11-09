@@ -476,46 +476,6 @@ function updateEngineUI(remoteUrl, active) {
     }
   }
 }
-  if (statEngineIcon) statEngineIcon.textContent = isOnline ? "🚀" : "⚡";
-
-  // Auto-configure parallel concurrency selector according to GPU vs CPU mode
-  const concurrencySelect = document.getElementById("batch-concurrency-select");
-  if (concurrencySelect) {
-    if (isOnline) {
-      if (concurrencySelect.value === "1") concurrencySelect.value = "3";
-    } else {
-      concurrencySelect.value = "1";
-    }
-  }
-
-  // Update batch render button initial label if not actively running
-  const batchBtn = document.getElementById("btn-batch-generate");
-  if (batchBtn && !state.isBatchRunning) {
-    batchBtn.textContent = isOnline ? "⚡ Render All (GPU)" : "⚡ Render All (1 by 1)";
-  }
-
-  // Update modal controls
-  const urlInput = document.getElementById("colab-url-input");
-  if (urlInput && remoteUrl !== undefined) {
-    urlInput.value = remoteUrl || "";
-  }
-
-  const banner = document.getElementById("colab-status-banner");
-  const bannerTitle = document.getElementById("banner-title");
-  const bannerDesc = document.getElementById("banner-desc");
-
-  if (banner && bannerTitle && bannerDesc) {
-    if (isOnline) {
-      banner.className = "colab-status-banner online";
-      bannerTitle.textContent = "Current Mode: Colab GPU Accelerated (100x Speed)";
-      bannerDesc.textContent = `Active endpoint: ${remoteUrl} (~0.2s per sentence synthesis). Locally cached forever.`;
-    } else {
-      banner.className = "colab-status-banner offline";
-      bannerTitle.textContent = "Current Mode: Local CPU Engine";
-      bannerDesc.textContent = "Generating on laptop CPU (~14s per new sentence). Connect Colab GPU for ~0.2s generation!";
-    }
-  }
-}
 
 async function openProject(projectId, updateUrl = true) {
   try {
@@ -6881,5 +6841,12 @@ window.handleExportZipFromMenu = handleExportZipFromMenu;
 window.handleExportProjectJson = handleExportProjectJson;
 window.toggleBlockCustomEdited = toggleBlockCustomEdited;
 window.markAllBlocksOfCharacter = markAllBlocksOfCharacter;
+window.switchGlobalActiveEngine = switchGlobalActiveEngine;
+window.handleCopyColabScript = handleCopyColabScript;
+window.handleQuickEmotionClick = handleQuickEmotionClick;
+window.clearBlockEmotionTag = clearBlockEmotionTag;
+window.handleEmotionTagInput = handleEmotionTagInput;
+window.handleFocusEmotionInput = handleFocusEmotionInput;
+window.handleReferenceVoiceFileUpload = handleReferenceVoiceFileUpload;
 
 
