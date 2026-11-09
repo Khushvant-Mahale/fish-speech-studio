@@ -6,7 +6,7 @@
   <title>Fish Audio S2 Pro Studio — Cinematic Voice Drama</title>
   <link rel="icon" type="image/svg+xml" href="/studio/favicon.svg">
   <link rel="alternate icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/studio/css/studio.css?v=481">
+  <link rel="stylesheet" href="/studio/css/studio.css?v=482">
 </head>
 <body>
 
@@ -849,6 +849,7 @@
           <div style="display: flex; gap: 8px;">
             <input type="text" id="colab-url-input" class="search-input" placeholder="https://random-words.trycloudflare.com" style="flex: 1;">
             <button class="btn btn-secondary" id="btn-test-colab" onclick="handleTestColab()" style="white-space: nowrap;">⚡ Test Connection</button>
+            <button class="btn btn-ghost" id="btn-clear-tunnel-url" onclick="handleClearTunnelInput()" title="Clear Tunnel URL" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
           </div>
           <div id="colab-test-result" style="font-size: 12px; min-height: 18px;"></div>
         </div>
@@ -859,7 +860,12 @@
             <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Fish Audio Cloud API Key (Optional)</label>
             <a href="https://fish.audio/go-api" target="_blank" style="font-size: 11px; color: #10b981; text-decoration: underline;">Get API Key ↗</a>
           </div>
-          <input type="password" id="fish-api-key-input" class="search-input" placeholder="Paste your api.fish.audio API key..." style="width: 100%;">
+          <div style="display: flex; gap: 8px;">
+            <input type="password" id="fish-api-key-input" class="search-input" placeholder="Paste your api.fish.audio API key..." style="flex: 1;">
+            <button class="btn btn-secondary" id="btn-test-fish-key" onclick="handleTestFishKey()" style="white-space: nowrap;">🔑 Test Key</button>
+            <button class="btn btn-ghost" id="btn-clear-api-key" onclick="handleClearApiKeyInput()" title="Clear API Key" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
+          </div>
+          <div id="fish-key-test-result" style="font-size: 12px; min-height: 18px; margin-top: 2px;"></div>
           <div style="font-size: 11px; color: var(--text-muted);">If provided, synthesis routes directly to Fish Audio Cloud servers without needing a running Colab notebook.</div>
         </div>
 
@@ -1072,6 +1078,6 @@
   </div>
 
   <div id="studio-toast" class="studio-toast"></div>
-  <script src="/studio/js/app.js?v=481"></script>
+  <script src="/studio/js/app.js?v=482"></script>
 </body>
 </html>

@@ -35,8 +35,8 @@ class FishEngine:
     """
 
     def __init__(self, remote_url: Optional[str] = None, api_key: Optional[str] = None):
-        self.remote_url = remote_url.strip() if remote_url else None
-        self.api_key = api_key.strip() if api_key else None
+        self.remote_url = remote_url.strip() if (remote_url and remote_url.strip()) else None
+        self.api_key = api_key.strip() if (api_key and api_key.strip()) else None
         self.sample_rate = 24000  # Default synthesis sample rate
         self.preset_voices: Dict[str, Dict] = {}
         self.load_preset_voices()
@@ -208,6 +208,7 @@ class FishEngine:
 
         audio_bytes: Optional[bytes] = None
         source_tag = "remote_worker"
+        last_error = None
 
         # ---------------- 1. Remote GPU Worker (Google Colab / Local GPU) ----------------
         if self.remote_url:
@@ -218,6 +219,7 @@ class FishEngine:
                 source_tag = "cloud_gpu_fish"
             except Exception as e:
                 print(f"[FishEngine] Remote GPU worker failed: {e}")
+                last_error = f"Colab GPU worker ({self.remote_url}) failed: {e}"
                 audio_bytes = None
 
         # ---------------- 2. Fish Audio Cloud API ----------------
@@ -227,14 +229,28 @@ class FishEngine:
                     formatted_text, ref_path, ref_text, speed_f, temp_f, top_p_f, voice_id
                 )
                 source_tag = "fish_cloud_api"
+            except urllib.error.HTTPError as e:
+                if e.code == 402:
+                    last_error = (
+                        "Fish Audio Cloud API returned 402 (Payment Required). "
+                        "Your API key is authenticated, but your account balance is $0.00. "
+                        "Please top up credits on fish.audio or launch the free 1-Click Colab T4 GPU Worker!"
+                    )
+                elif e.code == 401:
+                    last_error = "Fish Audio API Key is invalid or expired (401 Unauthorized)."
+                else:
+                    last_error = f"Fish Audio Cloud API error (HTTP {e.code}): {e.reason}"
+                print(f"[FishEngine] Fish Audio Cloud API error: {last_error}")
+                audio_bytes = None
             except Exception as e:
                 print(f"[FishEngine] Fish Audio Cloud API failed: {e}")
+                last_error = f"Fish Audio API connection error: {e}"
                 audio_bytes = None
 
         # ---------------- 3. No Worker or API Connected ----------------
         if not audio_bytes:
             return {
-                "error": (
+                "error": last_error or (
                     "Fish Audio S2 Pro requires an active Google Colab GPU worker or a Fish Audio API Key. "
                     "Click ⚙️ Cloud GPU in the top bar to connect your Colab tunnel, or configure your API key in Settings."
                 ),

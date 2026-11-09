@@ -4927,9 +4927,15 @@ function openColabModal() {
   modal.classList.add("active");
   const testRes = document.getElementById("colab-test-result");
   if (testRes) testRes.innerHTML = "";
-  if (state.config && state.config.remote_worker_url) {
-    const urlInput = document.getElementById("colab-url-input");
-    if (urlInput) urlInput.value = state.config.remote_worker_url;
+  const keyRes = document.getElementById("fish-key-test-result");
+  if (keyRes) keyRes.innerHTML = "";
+  const urlInput = document.getElementById("colab-url-input");
+  if (urlInput) {
+    urlInput.value = (state.config && state.config.remote_worker_url) || "";
+  }
+  const keyInput = document.getElementById("fish-api-key-input");
+  if (keyInput) {
+    keyInput.value = (state.config && state.config.fish_api_key) || "";
   }
 }
 
@@ -4976,6 +4982,66 @@ async function handleTestColab() {
       btn.disabled = false;
     }
   }
+}
+
+async function handleTestFishKey() {
+  const keyInput = document.getElementById("fish-api-key-input");
+  const testRes = document.getElementById("fish-key-test-result");
+  const btn = document.getElementById("btn-test-fish-key");
+  const apiKey = (keyInput?.value || "").trim();
+
+  if (!apiKey) {
+    if (testRes) testRes.innerHTML = `<span style="color: var(--danger);">⚠️ Please paste your Fish API key first.</span>`;
+    return;
+  }
+
+  if (btn) {
+    btn.textContent = "⏳ Testing...";
+    btn.disabled = true;
+  }
+  if (testRes) testRes.innerHTML = `<span style="color: var(--text-muted);">Authenticating with api.fish.audio...</span>`;
+
+  try {
+    const res = await fetch("/api/test_fish_key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: apiKey })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const bal = Number(data.credit || 0).toFixed(2);
+      if (Number(data.credit || 0) > 0) {
+        if (testRes) testRes.innerHTML = `<span style="color: var(--success); font-weight: 600;">✅ Authenticated! Balance: $${bal} — Ready for Cloud API synthesis!</span>`;
+      } else {
+        if (testRes) testRes.innerHTML = `<span style="color: #f59e0b; font-weight: 600;">⚠️ Authenticated! Account Balance: $${bal} (0 credits). Top up on fish.audio or use the free 1-Click Colab GPU!</span>`;
+      }
+    } else {
+      if (testRes) testRes.innerHTML = `<span style="color: var(--danger);">❌ ${data.error || "Fish Audio API key verification failed."}</span>`;
+    }
+  } catch (err) {
+    if (testRes) testRes.innerHTML = `<span style="color: var(--danger);">❌ Connection error: ${err.message}</span>`;
+  } finally {
+    if (btn) {
+      btn.textContent = "🔑 Test Key";
+      btn.disabled = false;
+    }
+  }
+}
+
+function handleClearTunnelInput() {
+  const urlInput = document.getElementById("colab-url-input");
+  if (urlInput) urlInput.value = "";
+  const testRes = document.getElementById("colab-test-result");
+  if (testRes) testRes.innerHTML = "";
+  showToast("Cleared tunnel URL input.");
+}
+
+function handleClearApiKeyInput() {
+  const keyInput = document.getElementById("fish-api-key-input");
+  if (keyInput) keyInput.value = "";
+  const testRes = document.getElementById("fish-key-test-result");
+  if (testRes) testRes.innerHTML = "";
+  showToast("Cleared API key input.");
 }
 
 async function handleSaveColab() {
@@ -6848,5 +6914,8 @@ window.clearBlockEmotionTag = clearBlockEmotionTag;
 window.handleEmotionTagInput = handleEmotionTagInput;
 window.handleFocusEmotionInput = handleFocusEmotionInput;
 window.handleReferenceVoiceFileUpload = handleReferenceVoiceFileUpload;
+window.handleTestFishKey = handleTestFishKey;
+window.handleClearTunnelInput = handleClearTunnelInput;
+window.handleClearApiKeyInput = handleClearApiKeyInput;
 
 

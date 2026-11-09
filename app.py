@@ -729,6 +729,49 @@ async def handle_test_remote(request):
         return web.json_response({"ok": False, "error": str(e)}, status=502)
 
 
+async def handle_test_fish_key(request):
+    data = await request.json()
+    api_key = data.get("api_key", "").strip()
+    if not api_key:
+        cfg = load_config()
+        api_key = cfg.get("fish_api_key", "").strip()
+
+    if not api_key:
+        return web.json_response({"ok": False, "error": "No API key provided"}, status=400)
+
+    import urllib.request
+    import urllib.error
+    try:
+        req = urllib.request.Request(
+            "https://api.fish.audio/wallet/self/api-credit",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "User-Agent": "FishSpeechStudio/1.0"
+            }
+        )
+        def _check():
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    return json.loads(resp.read().decode("utf-8"))
+                return None
+        res = await asyncio.to_thread(_check)
+        if res:
+            credit_f = float(res.get("credit", 0.0))
+            return web.json_response({
+                "ok": True,
+                "credit": credit_f,
+                "user_id": res.get("user_id"),
+                "has_free_credit": res.get("has_free_credit")
+            })
+        return web.json_response({"ok": False, "error": "Unexpected response from Fish Audio"}, status=502)
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            return web.json_response({"ok": False, "error": "Invalid API key (401 Unauthorized)"}, status=401)
+        return web.json_response({"ok": False, "error": f"Fish Audio API returned HTTP {e.code}"}, status=e.code)
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=502)
+
+
 async def handle_get_colab_script(request):
     engine_choice = request.query.get("engine", "fish_s2").lower()
     if engine_choice == "kokoro":
@@ -805,6 +848,7 @@ def create_app():
     app.router.add_get("/api/config", handle_get_config)
     app.router.add_post("/api/config", handle_save_config)
     app.router.add_post("/api/test_remote", handle_test_remote)
+    app.router.add_post("/api/test_fish_key", handle_test_fish_key)
     app.router.add_get("/api/colab_script", handle_get_colab_script)
     app.router.add_get("/api/sample_story", handle_get_sample_story)
 
