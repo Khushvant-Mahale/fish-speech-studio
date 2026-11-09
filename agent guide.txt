@@ -1,0 +1,369 @@
+Ran command: Find Project class (`git grep -l "class Project"`)
+Viewed project_manager.py:1-100
+Viewed project_manager.py:101-200
+Viewed project_manager.py:201-300
+Viewed voices_metadata.json:1-70
+
+# Kashva Studio TTS — AI Agent Integration & Automation Guide
+
+This guide provides instructions and API specifications for an **AI Agent** (LLM agent, autonomous script, or workflow orchestrator) to programmatically operate **Kashva Studio TTS**.
+
+The backend runs locally by default at `http://localhost:7860`. All operations are **headless, stateless HTTP REST endpoints** accepting and returning standard JSON.
+
+---
+
+## 1. System Architecture & Core Concepts
+
+Every audiobook or voice-acted production in Kashva Studio is represented as a **Project** containing an ordered list of **Blocks**.
+
+### Block Data Schema
+Each block represents a single sentence or dialogue line with its own actor, emotional styling, and audio DSP parameters:
+
+```json
+{
+  "id": "b_1",
+  "text": "The iron door slammed shut in the dark corridor.",
+  "voice_id": "blend_adam_onyx",
+  "blend_weights": null,
+  "speed": 0.90,
+  "gain": 1.0,
+  "pitch_shift": 0.0,
+  "warmth": 2.0,
+  "clarity": 1.0,
+  "reverb": 0.08,
+  "fx_filter": "none",
+  "pause_after": 0.6,
+  "custom_edited": false
+}
+```
+
+---
+
+## 2. Character Casting & Voice Design
+
+Kokoro supports 18+ high-fidelity base voices plus **arbitrary continuous voice blending** (interpolating latent vectors across multiple voices).
+
+### Available Base Voices
+| ID | Gender | Accent | Character Profile |
+|---|---|---|---|
+| `af_heart` | Female | American | Warm, expressive, emotional lead |
+| `af_river` | Female | American | Soft, youthful, intimate, whispery |
+| `af_bella` | Female | American | Energetic, bright, animated |
+| `af_nicole` | Female | American | Calm, professional, collected |
+| `am_fenrir`| Male | American | Deep, gritty, gravelly, menacing |
+| `am_onyx`  | Male | American | Deep authoritative baritone, resonant |
+| `am_adam`  | Male | American | Articulate, warm, steady narrator |
+| `am_michael`| Male | American | Natural conversational male lead |
+| `am_echo`  | Male | American | Soft, contemplative, mysterious |
+| `bf_alice` | Female | British | Sophisticated, proper, narrator |
+| `bm_george`| Male | British | Distinguished, gothic, investigator |
+
+### Pre-packaged Character Blends
+* `blend_fenrir_onyx`: Gritty Dark Thriller (`am_fenrir: 0.60`, `am_onyx: 0.40`)
+* `blend_adam_onyx`: Psychological Suspense (`am_adam: 0.65`, `am_onyx: 0.35`)
+* `blend_george_onyx`: British Gothic Mystery (`bm_george: 0.70`, `am_onyx: 0.30`)
+
+### Creating Custom AI Character Blends
+An agent can design completely new character voices by defining `blend_weights` (normalized weights summing to 1.0):
+
+```json
+{
+  "voice_id": "custom_blend",
+  "blend_weights": {
+    "am_fenrir": 0.50,
+    "am_adam": 0.30,
+    "am_onyx": 0.20
+  }
+}
+```
+
+### Auditioning Voices (`POST /api/blend_preview`)
+Test an actor's voice line before assigning it:
+
+```bash
+curl -X POST http://localhost:7860/api/blend_preview \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "I warned you never to come back here.",
+    "blend_weights": {"am_fenrir": 0.6, "am_onyx": 0.4},
+    "pitch_shift": -1.2,
+    "warmth": 2.0,
+    "clarity": 1.5,
+    "reverb": 0.10,
+    "fx_filter": "none"
+  }'
+```
+**Response:** `{"audio_url": "/api/audio/...wav", "duration": 2.4}`
+
+---
+
+## 3. Audio DSP & Delivery Presets (`fx_filter`)
+
+The studio includes built-in audio digital signal processing (DSP) to convey character state and environment:
+
+| `fx_filter` | Description | Typical Use Cases |
+|---|---|---|
+| `"none"` | Clean studio master sound | Standard dialogue, narration |
+| `"whisper"` | High-pass airy filter + breathiness | Secretive dialogue, horror suspense |
+| `"radio"` | 400Hz–3400Hz bandpass + saturation | Intercom, phone calls, walkie-talkie |
+| `"scream"` | Fast drive + overdrive clipping | Panicked shouts, horror climaxes |
+| `"demon"` | Low saturation + harmonic grit | Monsters, villains, paranormal entities |
+| `"youth"` | High-pass + bright shelf | Children, young characters |
+
+### Fine-Tuning Controls:
+* `pitch_shift`: Semitones (`-6.0` to `+6.0`). Lower for demons/hulking brutes; higher for children.
+* `warmth`: Low shelf EQ dB (`-12.0` to `+12.0`). Adds chest resonance and closeness.
+* `clarity`: High shelf EQ dB (`-12.0` to `+12.0`). Adds vocal presence and crispness.
+* `reverb`: Wet mix (`0.0` to `0.50`). Adds spatial room reflection (cathedrals, caves, chambers).
+* `speed`: Rate multiplier (`0.50` to `2.0`, standard `0.85`–`1.05`).
+* `pause_after`: Silence gap in seconds (`0.2` for rapid banter, `1.2` for dramatic cliffhangers).
+
+---
+
+## 4. Text Processing: Splitting, Merging & Dialogue Separation
+
+### 1. Smart Sentence Splitting (`POST /api/split_text`)
+Takes raw story text and breaks it into dialogue-aware sentence blocks:
+
+```bash
+curl -X POST http://localhost:7860/api/split_text \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "The wind howled. \"Stop right there!\" cried the detective. He drew his weapon.",
+    "default_voice": "blend_adam_onyx"
+  }'
+```
+**Features:**
+- Automatically splits lead-in tags from spoken dialogue (e.g. `cried the detective:` and `"Stop right there!"` become distinct blocks).
+- Preserves scene headings (`# Scene 1`, `Chapter 2`) as unsynthesized pause markers (`is_spoken: false`).
+
+### 2. Merging Short Sentence Fragments (`POST /api/merge_short`)
+Merges awkward 1-word or short fragment sentences into adjacent narrative:
+
+```bash
+curl -X POST http://localhost:7860/api/merge_short \
+  -H "Content-Type: application/json" \
+  -d '{
+    "blocks": [...],
+    "max_chars": 35,
+    "max_words": 5
+  }'
+```
+
+### 3. Dynamic Auto-Directing (`POST /api/auto_direct`)
+Uses rule-based heuristics to inspect pronouns, speech tags (`whispered`, `screamed`, `said`), and question marks, automatically assigning distinct character voices and delivery filters:
+
+```bash
+curl -X POST http://localhost:7860/api/auto_direct \
+  -H "Content-Type: application/json" \
+  -d '{
+    "blocks": [...],
+    "default_voice": "blend_adam_onyx",
+    "expand_dialogue": true
+  }'
+```
+
+---
+
+## 5. Synthesis & Audio Generation
+
+### Single Block Synthesis (`POST /api/synthesize_block`)
+Renders one sentence into audio. Uses content hashing — if the exact same text and settings were synthesized previously, it returns the cached audio URL instantly with zero compute overhead.
+
+```bash
+curl -X POST http://localhost:7860/api/synthesize_block \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Don'\''t look behind you.",
+    "voice_id": "af_river",
+    "fx_filter": "whisper",
+    "speed": 0.80,
+    "gain": 0.75,
+    "pitch_shift": 0.0,
+    "warmth": 1.0,
+    "clarity": 2.0,
+    "reverb": 0.12
+  }'
+```
+**Response:**
+```json
+{
+  "audio_url": "/api/audio/e1948df28cb39d.wav",
+  "duration": 1.84,
+  "hash": "e1948df28cb39d"
+}
+```
+
+---
+
+## 6. Project Management & Assembly
+
+### Creating a Project (`POST /api/projects/new`)
+```bash
+curl -X POST http://localhost:7860/api/projects/new \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Episode 1: The Haunting",
+    "text": "Raw novel text here...",
+    "default_voice": "blend_adam_onyx"
+  }'
+```
+
+### Exporting Master Stitched Audio (`POST /api/export_master`)
+Stitches all rendered audio blocks into a seamless, broadcast-ready master WAV file with sample-accurate pauses between each line:
+
+```bash
+curl -X POST http://localhost:7860/api/export_master \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "proj_77ec9a51",
+    "title": "Episode 1: The Haunting",
+    "blocks": [...]
+  }'
+```
+**Response:**
+```json
+{
+  "success": true,
+  "url": "/api/audio/proj_77ec9a51_master.wav",
+  "filename": "proj_77ec9a51_master.wav",
+  "duration": 524.3,
+  "rendered_count": 182
+}
+```
+
+### Exporting Selective or Full ZIP Archive (`POST /api/export_zip`)
+```bash
+curl -X POST http://localhost:7860/api/export_zip \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "proj_77ec9a51",
+    "title": "Selected Sentences",
+    "blocks": [...],
+    "selected_ids": ["b_1", "b_5", "b_12"]
+  }'
+```
+
+---
+
+## 7. Connecting to Colab / Remote GPU Worker
+
+If you want the agent to use 100x accelerated GPU generation:
+
+1. Launch `colab_worker.py` on a Google Colab T4 GPU instance.
+2. The Colab cell prints a public Cloudflare tunnel URL: `https://xxxx.trycloudflare.com`.
+3. The AI agent connects the studio to the GPU worker in one call:
+
+```bash
+curl -X POST http://localhost:7860/api/config \
+  -H "Content-Type: application/json" \
+  -d '{"remote_worker_url": "https://xxxx.trycloudflare.com"}'
+```
+
+---
+
+## 8. Complete Ready-to-Run AI Agent Python Script
+
+Save this script as `agent_director.py` and run it:
+
+```python
+import time
+import requests
+
+class KashvaStudioAgent:
+    def __init__(self, base_url="http://localhost:7860"):
+        self.base = base_url.rstrip("/")
+
+    def create_project(self, title: str, story_text: str, narrator_voice="blend_adam_onyx") -> dict:
+        """Create and automatically chunk story text."""
+        res = requests.post(f"{self.base}/api/projects/new", json={
+            "title": title,
+            "text": story_text,
+            "default_voice": narrator_voice
+        })
+        res.raise_for_status()
+        return res.json()
+
+    def direct_character(self, block: dict, character_name: str, voice_id: str, 
+                         fx_filter="none", pitch_shift=0.0, speed=0.90, pause_ms=600):
+        """Direct a specific block with custom voice, acting notes, and audio DSP."""
+        block["voice_id"] = voice_id
+        block["fx_filter"] = fx_filter
+        block["pitch_shift"] = pitch_shift
+        block["speed"] = speed
+        block["pause_after"] = round(pause_ms / 1000.0, 2)
+        block["custom_edited"] = True
+
+    def synthesize_all(self, blocks: list) -> list:
+        """Render all blocks into audio clips."""
+        print(f"🎬 Synthesizing {len(blocks)} blocks...")
+        for i, b in enumerate(blocks):
+            if not b.get("is_spoken", True):
+                continue
+            payload = {
+                "text": b["text"],
+                "voice_id": b.get("voice_id", "blend_adam_onyx"),
+                "blend_weights": b.get("blend_weights"),
+                "speed": b.get("speed", 0.90),
+                "gain": b.get("gain", 1.0),
+                "pitch_shift": b.get("pitch_shift", 0.0),
+                "warmth": b.get("warmth", 0.0),
+                "clarity": b.get("clarity", 0.0),
+                "reverb": b.get("reverb", 0.0),
+                "fx_filter": b.get("fx_filter", "none")
+            }
+            res = requests.post(f"{self.base}/api/synthesize_block", json=payload).json()
+            b["audio_url"] = res.get("audio_url")
+            b["duration"] = res.get("duration", 0.0)
+            print(f"  [{i+1}/{len(blocks)}] Rendered: {b['text'][:35]}... ({b['duration']:.2f}s)")
+        return blocks
+
+    def save_project(self, project_id: str, project_data: dict):
+        """Save project state to persistent storage."""
+        requests.post(f"{self.base}/api/project", json={"id": project_id, "project": project_data})
+
+    def export_master(self, project_id: str, title: str, blocks: list) -> str:
+        """Stitch all blocks into final master audiobook."""
+        res = requests.post(f"{self.base}/api/export_master", json={
+            "id": project_id,
+            "title": title,
+            "blocks": blocks
+        }).json()
+        return f"{self.base}{res['url']}"
+
+
+# Example Execution:
+if __name__ == "__main__":
+    agent = KashvaStudioAgent()
+
+    script = """
+    The rain beat against the window of the cabin.
+    "Did you hear that sound in the basement?" whispered Claire.
+    "It's just the old pipes," Mark said, trying to steady his voice.
+    Then, the radio crackled to life on its own: "Attention all units, do not enter the cellar."
+    """
+
+    # 1. Ingest & Split
+    project = agent.create_project("Midnight Call", script, narrator_voice="blend_adam_onyx")
+    proj_id = project["id"]
+    blocks = project["blocks"]
+
+    # 2. Agent Casts Characters
+    # Block 0: Narrator
+    # Block 1: Claire (Whispering female)
+    agent.direct_character(blocks[1], "Claire", voice_id="af_river", fx_filter="whisper", pitch_shift=1.0)
+    # Block 2: Mark (Hesitant male)
+    agent.direct_character(blocks[2], "Mark", voice_id="am_michael", speed=0.88)
+    # Block 3: Radio Dispatch (Walkie-talkie filter)
+    agent.direct_character(blocks[3], "Radio", voice_id="am_onyx", fx_filter="radio", pitch_shift=-1.0)
+
+    # 3. Synthesize & Render
+    agent.synthesize_all(blocks)
+
+    # 4. Save & Produce Master Audiobook
+    agent.save_project(proj_id, project)
+    master_audio_url = agent.export_master(proj_id, "Midnight Call", blocks)
+
+    print("\n🎉 Master production complete!")
+    print(f"🔊 Listen / Download: {master_audio_url}")
+```
