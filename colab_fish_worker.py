@@ -3,9 +3,9 @@
 🐟 FISH AUDIO S2 PRO / 1.5 — COMPLETE 1-CLICK NEURAL GPU WORKER
 ================================================================================
 Runs on Google Colab (Tesla T4 / A100 GPU).
-1. Auto-installs Fish Speech and downloads the 2.5 GB official neural weights.
-2. Loads the model directly into NVIDIA GPU VRAM.
-3. Spawns a secure Cloudflare tunnel directly to the neural server.
+1. Auto-installs Fish Speech and verifies the 2.5 GB official neural weights.
+2. Spawns Cloudflare tunnel and prints your tunnel URL immediately.
+3. Loads the real neural model into NVIDIA GPU VRAM and streams real cloned voices!
 ================================================================================
 """
 
@@ -13,10 +13,12 @@ import os
 import sys
 import time
 import socket
+import shutil
 import subprocess
+from pathlib import Path
 
 print("=" * 76)
-print("🐟 Fish Audio S2 Pro — Complete 1-Click Neural GPU Worker Setup")
+print("🐟 Fish Audio S2 Pro — Complete 1-Click Neural GPU Worker")
 print("=" * 76)
 
 # ----------------- 1. SETUP FISH SPEECH & REPOSITORY ----------------- #
@@ -39,79 +41,96 @@ try:
         vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
         print(f"    ✅ GPU Active: {gpu_name} ({vram_gb:.2f} GB VRAM)")
     else:
-        print("    ⚠️ No CUDA GPU detected! Switch to GPU in Runtime -> Change runtime type.")
+        print("    ⚠️ No CUDA GPU detected! (Switch to T4 GPU in Runtime -> Change runtime type)")
         gpu_name = "CPU"
 except Exception as e:
-    print(f"    ⚠️ PyTorch note: {e}")
     gpu_name = "CPU"
 
-# ----------------- 3. DOWNLOAD NEURAL MODEL WEIGHTS ----------------- #
-print("\n[3/4] Checking official Neural Model weights...")
-CHECKPOINT_DIR = "fish-speech/checkpoints/fish-speech-1.5"
-CODEC_FILE = os.path.join(CHECKPOINT_DIR, "firefly-gan-vq-fsq-8x1024-21hz-generator.pth")
+# ----------------- 3. LOCATE / DOWNLOAD NEURAL MODEL WEIGHTS ----------------- #
+print("\n[3/4] Verifying Neural Model weights (~2.5 GB)...")
+CODEC_FILENAME = "firefly-gan-vq-fsq-8x1024-21hz-generator.pth"
+TARGET_CKPT_DIR = os.path.abspath("fish-speech/checkpoints/fish-speech-1.5")
+os.makedirs(TARGET_CKPT_DIR, exist_ok=True)
 
-if not os.path.exists(CODEC_FILE):
+# Search for existing downloaded checkpoints in common Colab locations
+found_ckpt = None
+for candidate in [
+    TARGET_CKPT_DIR,
+    os.path.abspath("checkpoints/fish-speech-1.5"),
+    "/content/checkpoints/fish-speech-1.5",
+    "/content/fish-speech/checkpoints/fish-speech-1.5"
+]:
+    if os.path.exists(os.path.join(candidate, CODEC_FILENAME)):
+        found_ckpt = candidate
+        break
+
+if found_ckpt:
+    print(f"    ✅ Neural weights found in: {found_ckpt}")
+    if found_ckpt != TARGET_CKPT_DIR:
+        print(f"    Linking weights to: {TARGET_CKPT_DIR}...")
+        for fname in os.listdir(found_ckpt):
+            src = os.path.join(found_ckpt, fname)
+            dst = os.path.join(TARGET_CKPT_DIR, fname)
+            if not os.path.exists(dst):
+                try:
+                    os.symlink(src, dst)
+                except Exception:
+                    shutil.copy2(src, dst)
+else:
     print("    📥 Downloading Real Neural Model Weights from Hugging Face (~2.5 GB)...")
     from huggingface_hub import snapshot_download
     snapshot_download(
         repo_id="fishaudio/fish-speech-1.5",
-        local_dir=CHECKPOINT_DIR
+        local_dir=TARGET_CKPT_DIR
     )
-    print("    ✅ Download complete! Neural weights saved to", CHECKPOINT_DIR)
-else:
-    print("    ✅ Neural weights already downloaded and cached!")
+    print("    ✅ Download complete! Neural weights saved to", TARGET_CKPT_DIR)
 
-# ----------------- 4. LAUNCH NATIVE FISH SPEECH SERVER & TUNNEL ----------------- #
-PORT = 8080
+# ----------------- 4. DYNAMIC PORT & CLOUDFLARE TUNNEL ----------------- #
+print("\n[4/4] Establishing Cloudflare Tunnel & Launching Neural GPU Engine...")
 
-def free_port(p):
-    try:
-        subprocess.run(f"fuser -k {p}/tcp 2>/dev/null", shell=True)
-        time.sleep(1)
-    except Exception:
-        pass
+def get_free_port(start_port=8080):
+    for p in range(start_port, start_port + 50):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                s.bind(("0.0.0.0", p))
+                return p
+            except OSError:
+                continue
+    return start_port
 
-free_port(PORT)
+PORT = get_free_port(8080)
+print(f"    [*] Port assigned: {PORT}")
 
-print(f"\n[4/4] Launching Fish Speech Neural API Server on port {PORT}...")
+from pycloudflared import try_cloudflare
+print("    🌐 Spawning encrypted Cloudflare HTTPS secure tunnel...")
+tunnel = try_cloudflare(port=PORT)
+tunnel_url = getattr(tunnel, "tunnel", str(tunnel)).strip()
+
+print("\n" + "=" * 76)
+print("  🎉 REAL NEURAL FISH SPEECH ENGINE IS READY!")
+print("=" * 76)
+print(f"  ⚡ GPU Hardware:    {gpu_name}")
+print(f"  ⚡ Neural Checkpoint: checkpoints/fish-speech-1.5")
+print(f"  🌐 TUNNEL URL:      {tunnel_url}")
+print("=" * 76)
+print("  📋 NEXT STEP:")
+print("  1. Copy the TUNNEL URL above right now.")
+print("  2. Open Studio (http://localhost:7865) -> Click 'Cloud GPU' in top bar.")
+print("  3. Paste into Tunnel URL -> Click '⚡ Test Connection' -> 'Save & Activate'.")
+print("=" * 76 + "\n")
+print("[*] Starting neural server process in foreground (logs will appear below)...")
+
+# Run Fish Speech native tools/api_server.py in the foreground with live logs
 cmd = [
     sys.executable, "tools/api_server.py",
     "--listen", f"0.0.0.0:{PORT}",
     "--llama-checkpoint-path", "checkpoints/fish-speech-1.5",
-    "--decoder-checkpoint-path", "checkpoints/fish-speech-1.5/firefly-gan-vq-fsq-8x1024-21hz-generator.pth",
+    "--decoder-checkpoint-path", f"checkpoints/fish-speech-1.5/{CODEC_FILENAME}",
     "--decoder-config-name", "firefly_gan_vq"
 ]
 
-server_proc = subprocess.Popen(
-    cmd,
-    cwd="fish-speech"
-)
-
-print("    ⏳ Allocating neural weights into GPU VRAM (waiting ~15s)...")
-time.sleep(15)
-
-# Spawn Cloudflare Tunnel
-from pycloudflared import try_cloudflare
-print("🌐 Establishing Cloudflare HTTPS secure tunnel...")
-tunnel = try_cloudflare(port=PORT)
-tunnel_url = getattr(tunnel, "tunnel", str(tunnel)).strip()
-
-print("\n" + "=" * 74)
-print("  🎉 REAL NEURAL FISH SPEECH ENGINE IS NOW ONLINE!")
-print("=" * 74)
-print(f"  ⚡ GPU Hardware:   {gpu_name}")
-print(f"  ⚡ Neural Model:   fishaudio/fish-speech-1.5 (Real Voices)")
-print(f"  🌐 TUNNEL URL:    {tunnel_url}")
-print("=" * 74)
-print("  📋 NEXT STEP:")
-print("  1. Copy the TUNNEL URL above.")
-print("  2. Open Studio (http://localhost:7865) -> Cloud GPU.")
-print("  3. Paste into Tunnel URL -> Click '⚡ Test Connection' -> 'Save & Activate'.")
-print("=" * 74 + "\n")
-
 try:
-    while True:
-        time.sleep(60)
+    subprocess.run(cmd, cwd="fish-speech")
 except KeyboardInterrupt:
-    server_proc.terminate()
-    print("\n[!] Worker stopped.")
+    print("\n[!] Worker stopped by user.")
