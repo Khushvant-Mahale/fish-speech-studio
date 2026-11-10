@@ -709,22 +709,33 @@ async def handle_test_remote(request):
 
     import urllib.request
     try:
-        health_endpoint = f"{test_url.rstrip('/')}/health"
-        req = urllib.request.Request(
-            health_endpoint,
-            headers={"User-Agent": "FishSpeechStudio/1.0"}
-        )
+        endpoints = [
+            f"{test_url.rstrip('/')}/v1/health",
+            f"{test_url.rstrip('/')}/health"
+        ]
 
         def _check():
-            with urllib.request.urlopen(req, timeout=6) as resp:
-                if resp.status == 200:
-                    return json.loads(resp.read().decode("utf-8"))
-                return None
+            for ep in endpoints:
+                try:
+                    req = urllib.request.Request(
+                        ep,
+                        headers={"User-Agent": "FishSpeechStudio/1.0"}
+                    )
+                    with urllib.request.urlopen(req, timeout=6) as resp:
+                        if resp.status == 200:
+                            content = resp.read().decode("utf-8")
+                            try:
+                                return json.loads(content)
+                            except Exception:
+                                return {"status": "ok", "response": content[:100]}
+                except Exception:
+                    continue
+            return None
 
         res = await asyncio.to_thread(_check)
         if res:
             return web.json_response({"ok": True, "details": res})
-        return web.json_response({"ok": False, "error": "Unexpected response from worker"}, status=502)
+        return web.json_response({"ok": False, "error": "Remote worker not responding to health check"}, status=502)
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=502)
 

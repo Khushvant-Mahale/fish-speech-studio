@@ -314,36 +314,59 @@ class FishEngine:
         top_p: float
     ) -> bytes:
         """Sends inference request to Colab T4 / Local GPU worker."""
-        worker_endpoint = f"{self.remote_url.rstrip('/')}/synthesize"
-
+        # 1. Build standard Fish Speech REST payload
         payload = {
             "text": text,
-            "speed": speed,
+            "format": "wav",
             "temperature": temperature,
             "top_p": top_p
         }
 
         if ref_path and ref_path.exists():
             with open(ref_path, "rb") as f:
-                payload["prompt_audio"] = base64.b64encode(f.read()).decode("utf-8")
-                payload["prompt_audio_format"] = ref_path.suffix.lstrip(".").lower() or "wav"
-        if ref_text:
-            payload["prompt_text"] = ref_text
+                payload["references"] = [
+                    {
+                        "audio": base64.b64encode(f.read()).decode("utf-8"),
+                        "text": ref_text or ""
+                    }
+                ]
+                # Also include legacy fields for backwards compatibility
+                payload["prompt_audio"] = payload["references"][0]["audio"]
+                payload["prompt_text"] = ref_text or ""
 
-        req = urllib.request.Request(
-            worker_endpoint,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "User-Agent": "FishSpeechStudio/1.0"
-            }
-        )
+        # Try native Fish Speech /v1/tts endpoint first, fallback to /synthesize
+        endpoints = [
+            f"{self.remote_url.rstrip('/')}/v1/tts",
+            f"{self.remote_url.rstrip('/')}/synthesize"
+        ]
 
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            audio_data = resp.read()
-            if audio_data and len(audio_data) > 100:
-                return audio_data
-            raise ValueError("Worker returned empty audio response")
+        last_exc = None
+        for ep in endpoints:
+            try:
+                req = urllib.request.Request(
+                    ep,
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "User-Agent": "FishSpeechStudio/1.0"
+                    }
+                )
+                with urllib.request.urlopen(req, timeout=50) as resp:
+                    audio_data = resp.read()
+                    if audio_data and len(audio_data) > 200:
+                        return audio_data
+            except urllib.error.HTTPError as e:
+                last_exc = e
+                if e.code == 404:
+                    continue  # Try alternate endpoint
+                raise
+            except Exception as e:
+                last_exc = e
+                continue
+
+        if last_exc:
+            raise last_exc
+        raise ValueError("Remote GPU worker returned empty audio response")
 
     def _call_cloud_api(
         self,
