@@ -22,15 +22,20 @@ print("🐟 Fish Audio S2 Pro — Complete 1-Click Neural GPU Worker")
 print("=" * 76)
 
 # ----------------- 1. SETUP FISH SPEECH & REPOSITORY ----------------- #
-print("[1/4] Checking python packages and Fish Speech repository...")
-subprocess.run([sys.executable, "-m", "pip", "install", "-q", "pycloudflared", "huggingface_hub"])
+print("[1/4] Setting up runtime libraries & Fish Speech...")
+runtime_pkgs = [
+    "pycloudflared", "huggingface_hub", "hydra-core",
+    "einops", "ormsgpack", "kui", "uvicorn", "soundfile", "natsort"
+]
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", *runtime_pkgs])
 
 if not os.path.exists("fish-speech"):
     print("    📦 Cloning official Fish Speech engine...")
     subprocess.run(["git", "clone", "--depth", "1", "https://github.com/fishaudio/fish-speech.git"])
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-e", "./fish-speech"])
-else:
-    print("    ✅ Fish Speech repository found.")
+
+# Install fish-speech in editable mode WITHOUT compiling dependencies (takes 0.5s)
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--no-deps", "-e", "./fish-speech"])
+print("    ✅ Fish Speech engine ready.")
 
 # ----------------- 2. CHECK GPU ----------------- #
 print("\n[2/4] Verifying GPU acceleration...")
