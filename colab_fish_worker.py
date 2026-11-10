@@ -105,13 +105,32 @@ else:
     print("    ✅ Neural weights already downloaded and cached in checkpoints/fish-speech-1.5!")
 
 # ----------------- 4. NEURAL INFERENCE ENGINE & NATIVE SERVER ----------------- #
-NATIVE_API_PORT = 8080
-PROXY_PORT = 7861
+import socket
+
+# Clean up any lingering background api_server from previous cell runs
+try:
+    subprocess.run("pkill -9 -f 'tools/api_server.py' 2>/dev/null", shell=True)
+except Exception:
+    pass
+
+def find_free_port(preferred_port):
+    for p in range(preferred_port, preferred_port + 25):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                s.bind(("0.0.0.0", p))
+                return p
+            except OSError:
+                continue
+    return preferred_port
+
+NATIVE_API_PORT = find_free_port(8080)
+PROXY_PORT = find_free_port(7861)
 HOST = "0.0.0.0"
 
 native_server_proc = None
 def start_native_fish_server():
-    """Starts Fish Speech's native tools/api_server.py on local port 8080."""
+    """Starts Fish Speech's native tools/api_server.py on local port."""
     global native_server_proc
     if not CODEC_FILE.exists():
         print("    ℹ️ Checkpoints not found; running in standalone high-fidelity mode.")
@@ -125,7 +144,7 @@ def start_native_fish_server():
         "--decoder-config-name", "firefly_gan_vq"
     ]
     try:
-        print(f"    🚀 Loading Neural Model into {gpu_name} GPU VRAM...")
+        print(f"    🚀 Loading Neural Model into {gpu_name} GPU VRAM (port {NATIVE_API_PORT})...")
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return proc
     except Exception as e:
@@ -250,7 +269,7 @@ def start_server_in_thread(app, host, port):
     asyncio.set_event_loop(server_loop)
     runner = web.AppRunner(app)
     server_loop.run_until_complete(runner.setup())
-    site = web.TCPSite(runner, host, port)
+    site = web.TCPSite(runner, host, port, reuse_address=True)
     server_loop.run_until_complete(site.start())
     server_loop.run_forever()
 
