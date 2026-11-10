@@ -24,8 +24,10 @@ print("=" * 76)
 # ----------------- 1. SETUP FISH SPEECH & REPOSITORY ----------------- #
 print("[1/4] Setting up runtime libraries & Fish Speech...")
 runtime_pkgs = [
-    "pycloudflared", "huggingface_hub", "hydra-core",
-    "einops", "ormsgpack", "kui", "uvicorn", "soundfile", "natsort"
+    "pycloudflared", "huggingface_hub", "pyrootutils", "loguru",
+    "kui", "uvicorn", "tiktoken", "hydra-core", "einops",
+    "ormsgpack", "soundfile", "natsort", "vector-quantize-pytorch",
+    "lightning", "librosa"
 ]
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", *runtime_pkgs])
 
@@ -112,30 +114,34 @@ print("    🌐 Spawning encrypted Cloudflare HTTPS secure tunnel...")
 tunnel = try_cloudflare(port=PORT)
 tunnel_url = getattr(tunnel, "tunnel", str(tunnel)).strip()
 
-print("\n" + "=" * 76)
+print("\n" + "=" * 74)
 print("  🎉 REAL NEURAL FISH SPEECH ENGINE IS READY!")
-print("=" * 76)
+print("=" * 74)
 print(f"  ⚡ GPU Hardware:    {gpu_name}")
 print(f"  ⚡ Neural Checkpoint: checkpoints/fish-speech-1.5")
 print(f"  🌐 TUNNEL URL:      {tunnel_url}")
-print("=" * 76)
+print("=" * 74)
 print("  📋 NEXT STEP:")
 print("  1. Copy the TUNNEL URL above right now.")
 print("  2. Open Studio (http://localhost:7865) -> Click 'Cloud GPU' in top bar.")
 print("  3. Paste into Tunnel URL -> Click '⚡ Test Connection' -> 'Save & Activate'.")
-print("=" * 76 + "\n")
-print("[*] Starting neural server process in foreground (logs will appear below)...")
+print("=" * 74 + "\n")
+print("[*] Starting Fish Speech native API server process in foreground...")
 
 # Run Fish Speech native tools/api_server.py in the foreground with live logs
 cmd = [
     sys.executable, "tools/api_server.py",
     "--listen", f"0.0.0.0:{PORT}",
-    "--llama-checkpoint-path", "checkpoints/fish-speech-1.5",
-    "--decoder-checkpoint-path", f"checkpoints/fish-speech-1.5/{CODEC_FILENAME}",
+    "--llama-checkpoint-path", TARGET_CKPT_DIR,
+    "--decoder-checkpoint-path", os.path.join(TARGET_CKPT_DIR, CODEC_FILENAME),
     "--decoder-config-name", "firefly_gan_vq"
 ]
 
 try:
-    subprocess.run(cmd, cwd="fish-speech")
+    res = subprocess.run(cmd, cwd="fish-speech")
+    if res.returncode != 0:
+        print(f"\n[!] Server process returned exit code {res.returncode}. Keeping cell alive for inspection...")
+        while True:
+            time.sleep(60)
 except KeyboardInterrupt:
     print("\n[!] Worker stopped by user.")

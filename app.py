@@ -711,7 +711,10 @@ async def handle_test_remote(request):
     try:
         endpoints = [
             f"{test_url.rstrip('/')}/v1/health",
-            f"{test_url.rstrip('/')}/health"
+            f"{test_url.rstrip('/')}/health",
+            f"{test_url.rstrip('/')}/v1/tts/defaults",
+            f"{test_url.rstrip('/')}/docs",
+            f"{test_url.rstrip('/')}/"
         ]
 
         def _check():
@@ -722,12 +725,14 @@ async def handle_test_remote(request):
                         headers={"User-Agent": "FishSpeechStudio/1.0"}
                     )
                     with urllib.request.urlopen(req, timeout=6) as resp:
-                        if resp.status == 200:
-                            content = resp.read().decode("utf-8")
-                            try:
-                                return json.loads(content)
-                            except Exception:
-                                return {"status": "ok", "response": content[:100]}
+                        content = resp.read().decode("utf-8")
+                        try:
+                            return json.loads(content)
+                        except Exception:
+                            return {"status": "ok", "response": content[:100]}
+                except urllib.error.HTTPError as he:
+                    if he.code in (200, 404, 405, 422):
+                        return {"status": "ok", "http_code": he.code}
                 except Exception:
                     continue
             return None
