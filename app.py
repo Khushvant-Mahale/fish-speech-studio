@@ -1395,6 +1395,26 @@ async def handle_duplicate_project(request):
     return web.json_response({"success": True, "project": cloned})
 
 
+async def handle_copy_project_to_engine(request):
+    try:
+        data = await request.json()
+        project_id = data.get("project_id", "").strip()
+        target_engine = data.get("target_engine", "").strip()
+        if not project_id:
+            return web.json_response({"error": "project_id is required"}, status=400)
+        if not target_engine:
+            referer = request.headers.get("Referer", "").lower()
+            target_engine = "fish_s2" if "/kokoro" in referer else "kokoro"
+        
+        new_proj = project_mgr.copy_project_to_engine(project_id, target_engine)
+        if not new_proj:
+            return web.json_response({"error": "Project not found or could not be copied"}, status=404)
+        
+        return web.json_response({"success": True, "project": new_proj})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_rename_project(request):
     data = await request.json()
     proj_id = data.get("id")
@@ -1863,6 +1883,7 @@ def create_app():
     app.router.add_get("/api/projects", handle_get_projects)
     app.router.add_post("/api/projects/new", handle_create_project)
     app.router.add_post("/api/projects/duplicate", handle_duplicate_project)
+    app.router.add_post("/api/projects/copy_to_engine", handle_copy_project_to_engine)
     app.router.add_post("/api/projects/rename", handle_rename_project)
     app.router.add_delete("/api/projects/{id}", handle_delete_project)
     app.router.add_get("/api/project", handle_get_project)

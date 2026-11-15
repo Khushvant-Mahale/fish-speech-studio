@@ -764,6 +764,44 @@ async function handleDuplicateProject(projectId) {
   }
 }
 
+async function handleCopyProjectToOtherEngine(projectId, targetEngine, title) {
+  const targetName = targetEngine === "kokoro" ? "Kokoro Studio" : "Fish Audio Studio";
+  const icon = targetEngine === "kokoro" ? "⚡" : "🐟";
+  const targetUrlBase = targetEngine === "kokoro" ? "/kokoro" : "";
+  try {
+    showToast(`⏳ Copying "${title}" to ${targetName}...`);
+    const res = await fetch("/api/projects/copy_to_engine", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: projectId, target_engine: targetEngine })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "Failed to copy project");
+    }
+    const newProj = data.project;
+    const destUrl = `${targetUrlBase}/studio?project=${encodeURIComponent(newProj.id)}`;
+    showToast(`✅ Copied to ${targetName} as "${newProj.title}"!`);
+
+    if (confirm(`✅ Project "${title}" copied to ${targetName} as "${newProj.title}"!\n\nOpen it in ${targetName} now?`)) {
+      window.open(destUrl, "_blank");
+    }
+  } catch (err) {
+    showToast("❌ Could not copy project: " + err.message);
+  }
+}
+
+async function handleCopyCurrentProjectToOther(targetEngine) {
+  if (!state.currentProject) {
+    showToast("⚠️ Open a story project first to copy.");
+    return;
+  }
+  try {
+    await saveProjectToServer();
+  } catch (e) {}
+  await handleCopyProjectToOtherEngine(state.currentProject.id, targetEngine, state.currentProject.title || "Project");
+}
+
 async function handleRenameProject(projectId, currentTitle) {
   const newTitle = prompt("Enter new project title:", currentTitle);
   if (!newTitle || newTitle.trim() === "" || newTitle.trim() === currentTitle) {
@@ -981,6 +1019,7 @@ function renderDashboard() {
           ${p.preview_audio ? `<button class="preview-audio-btn ${isPlaying ? 'playing' : ''}" title="Quick audition of rendered dialogue">${isPlaying ? '⏸ Pause' : '▶ Preview'}</button>` : `<button class="preview-audio-btn disabled" disabled title="Render sentences in studio to audition audio">🔇 No Audio</button>`}
         </div>
         <div class="footer-right-actions">
+          <button class="card-icon-btn copy-to-other-btn" title="⚡ Copy to Kokoro Studio" style="color: #a5b4fc; font-weight: 700; font-size: 13px;">⚡</button>
           <button class="card-icon-btn duplicate-proj-btn" title="Duplicate project">📋</button>
           <button class="card-icon-btn rename-proj-btn" title="Rename project">✏️</button>
           <button class="card-icon-btn delete-proj-btn" title="Delete project">🗑️</button>
@@ -992,6 +1031,7 @@ function renderDashboard() {
     card.addEventListener("click", (e) => {
       if (e.target.closest(".open-proj-btn") ||
           e.target.closest(".preview-audio-btn") ||
+          e.target.closest(".copy-to-other-btn") ||
           e.target.closest(".duplicate-proj-btn") ||
           e.target.closest(".rename-proj-btn") ||
           e.target.closest(".delete-proj-btn")) {
@@ -1008,6 +1048,12 @@ function renderDashboard() {
         toggleDashboardPreview(p.id, p.preview_audio, previewBtn);
       });
     }
+
+    // Copy to Kokoro button
+    card.querySelector(".copy-to-other-btn")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleCopyProjectToOtherEngine(p.id, "kokoro", p.title);
+    });
 
     // Duplicate button
     card.querySelector(".duplicate-proj-btn")?.addEventListener("click", (e) => {
@@ -8625,3 +8671,5 @@ window.handleSaveEditedVoice = handleSaveEditedVoice;
 window.handleDeleteVoiceFromLibrary = handleDeleteVoiceFromLibrary;
 window.handleEvRefFileUpload = handleEvRefFileUpload;
 window.handlePlayEvRefAudio = handlePlayEvRefAudio;
+window.handleCopyProjectToOtherEngine = handleCopyProjectToOtherEngine;
+window.handleCopyCurrentProjectToOther = handleCopyCurrentProjectToOther;

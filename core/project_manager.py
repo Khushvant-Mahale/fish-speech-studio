@@ -970,27 +970,100 @@ class ProjectManager:
         return projects
 
     def duplicate_project(self, project_id: str) -> Optional[Dict]:
-
         source_path = self.get_project_path(project_id)
-
         if not source_path.exists():
-
             return None
 
         with open(source_path, "r", encoding="utf-8") as f:
-
             data = json.load(f)
 
         import uuid
-
         new_id = f"proj_{uuid.uuid4().hex[:8]}"
-
         data["id"] = new_id
-
         orig_title = data.get("title", "Project")
-
         data["title"] = f"{orig_title} (Copy)"
 
+        self.save_project(data, new_id)
+        return data
+
+    def copy_project_to_engine(self, project_id: str, target_engine: str) -> Optional[Dict]:
+        """
+        Duplicates a project and converts it to run in the target studio engine
+        (Kokoro <-> Fish S2), with intelligent voice mapping and clean audio state.
+        """
+        source_path = self.get_project_path(project_id)
+        if not source_path.exists():
+            return None
+
+        with open(source_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        import uuid
+        import re
+        new_id = f"proj_{uuid.uuid4().hex[:8]}"
+        orig_title = data.get("title", "Project")
+        target_engine = "fish_s2" if target_engine == "fish_s2" else "kokoro"
+        engine_label = "Fish S2" if target_engine == "fish_s2" else "Kokoro"
+
+        clean_base_title = re.sub(r'\s*\((?:Kokoro|Fish S2|Copy)\)$', '', orig_title, flags=re.IGNORECASE).strip()
+        data["id"] = new_id
+        data["title"] = f"{clean_base_title} ({engine_label})"
+        data["engine"] = target_engine
+
+        KOKORO_TO_FISH_MAP = {
+            "am_adam": "voice_stanley_narrator",
+            "am_michael": "fish_protagonist_male",
+            "af_bella": "fish_protagonist_female",
+            "af_sarah": "fish_protagonist_female",
+            "bm_george": "fish_elder_investigator",
+            "bf_emma": "fish_protagonist_female",
+            "am_fenrir": "voice_stanley_narrator",
+            "am_onyx": "voice_stanley_narrator",
+            "blend_fenrir_onyx": "voice_stanley_narrator",
+            "blend_george_onyx": "fish_elder_investigator",
+            "custom_blend": "voice_stanley_narrator"
+        }
+
+        FISH_TO_KOKORO_MAP = {
+            "fish_narrator_dark": "am_adam",
+            "voice_stanley_narrator": "am_adam",
+            "fish_protagonist_male": "am_michael",
+            "fish_protagonist_female": "af_bella",
+            "fish_elder_investigator": "bm_george",
+            "fish_shadow_entity": "am_fenrir",
+            "voice_walter_white": "bm_george",
+            "voice_saul_goodman": "am_michael",
+            "voice_morgan_freeman": "bm_george",
+            "voice_david_attenborough": "bm_george",
+        }
+
+        old_def_voice = str(data.get("default_voice", ""))
+        if target_engine == "fish_s2":
+            new_def_voice = KOKORO_TO_FISH_MAP.get(old_def_voice, "voice_stanley_narrator")
+        else:
+            new_def_voice = FISH_TO_KOKORO_MAP.get(old_def_voice, "am_adam")
+        data["default_voice"] = new_def_voice
+
+        blocks = data.get("blocks", [])
+        for b in blocks:
+            b["engine"] = target_engine
+            curr_v = str(b.get("voice_id", ""))
+            if target_engine == "fish_s2":
+                b["voice_id"] = KOKORO_TO_FISH_MAP.get(curr_v, new_def_voice)
+                if not b.get("emotion_tag"):
+                    b["emotion_tag"] = "[slow, dramatic narration]"
+            else:
+                b["voice_id"] = FISH_TO_KOKORO_MAP.get(curr_v, new_def_voice)
+                if b.get("text"):
+                    # Strip non-pause emotion tags so Kokoro doesn't speak bracketed prompts
+                    b["text"] = re.sub(r'\[(?!\s*pause)(.*?)\]', '', b["text"]).strip()
+                    b["text"] = re.sub(r'\s{2,}', ' ', b["text"])
+
+            b["cachedAudioUrl"] = None
+            b["cachedSig"] = None
+            b["duration"] = 0.0
+
+        data["master_filename"] = f"{new_id}_master.wav"
         self.save_project(data, new_id)
         return data
 
