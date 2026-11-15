@@ -211,6 +211,46 @@ class FishEngine:
             except Exception:
                 pass
 
+        # Check raw neural audio cache for instant DSP re-sculpting (<0.1s)
+        raw_cache_hash = self.compute_cache_hash(
+            formatted_text, ref_path, ref_text, speed_f, temp_f, top_p_f,
+            1.0, 0.0, 0.0, 0.0, 0.0, "none"
+        )
+        raw_cache_file = CACHE_DIR / f"raw_{raw_cache_hash}.wav"
+
+        if not force_refresh and raw_cache_file.exists():
+            try:
+                base_samples, sr = sf.read(str(raw_cache_file))
+                processed = base_samples * gain_f if gain_f != 1.0 else base_samples.copy()
+                processed = process_audio_fx(
+                    processed,
+                    sr=sr,
+                    pitch_shift_st=pitch_shift_f,
+                    warmth_db=warmth_f,
+                    clarity_db=clarity_f,
+                    reverb_wet=reverb_f,
+                    fx_filter=fx_filter_s
+                )
+                sf.write(str(cache_file), processed, sr)
+                try:
+                    raw_hash_path = CACHE_DIR / f"raw_{cache_hash}.wav"
+                    if not raw_hash_path.exists():
+                        import shutil
+                        shutil.copyfile(str(raw_cache_file), str(raw_hash_path))
+                except Exception:
+                    pass
+                duration = len(processed) / sr
+                return {
+                    "hash": cache_hash,
+                    "audio_url": f"/api/audio/{cache_hash}.wav",
+                    "duration": round(duration, 2),
+                    "cached": False,
+                    "engine": "fish_s2",
+                    "instant_sculpt": True
+                }
+            except Exception as e:
+                print(f"[FishEngine] Instant DSP sculpt fallback ({e})")
+
         audio_bytes: Optional[bytes] = None
         source_tag = "remote_worker"
         last_error = None
@@ -269,13 +309,20 @@ class FishEngine:
 
         # ---------------- 4. Post-Process DSP & Write WAV ----------------
         try:
-            # Temporary file to inspect sample rate and samples
-            temp_path = CACHE_DIR / f"temp_{cache_hash}.wav"
-            with open(temp_path, "wb") as f:
-                f.write(audio_bytes)
+            import io
+            samples, sr = sf.read(io.BytesIO(audio_bytes))
 
-            samples, sr = sf.read(str(temp_path))
-            temp_path.unlink(missing_ok=True)
+            # Save raw untouched neural voice for instant non-destructive DSP re-sculpting
+            try:
+                with open(raw_cache_file, "wb") as f_raw:
+                    f_raw.write(audio_bytes)
+            except Exception:
+                pass
+            try:
+                with open(CACHE_DIR / f"raw_{cache_hash}.wav", "wb") as f_raw_hash:
+                    f_raw_hash.write(audio_bytes)
+            except Exception:
+                pass
 
             # Apply DSP transformations if non-neutral
             needs_dsp = (
