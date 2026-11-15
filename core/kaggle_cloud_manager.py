@@ -213,11 +213,18 @@ class KaggleCloudManager:
                     self._active_session["status"] = "stopped"
                     break
 
+                if "running" in raw_status:
+                    if self._active_session["status"] == "queued":
+                        self._active_session["status"] = "booting"
+                elif "queued" in raw_status:
+                    self._active_session["status"] = "queued"
+
                 # 2. Stream logs
                 try:
                     for event in api.kernels_logs_stream(kernel_ref):
                         chunk = event.get("data", "")
                         if chunk:
+                            self._active_session["status"] = "booting"
                             self._active_session["last_log"] = (self._active_session["last_log"] + chunk)[-3000:]
                             tunnel_match = re.search(r'(https://[a-zA-Z0-9-]+\.trycloudflare\.com)', self._active_session["last_log"])
                             if tunnel_match:
@@ -229,16 +236,26 @@ class KaggleCloudManager:
                 except Exception as log_err:
                     pass
 
+                # 3. Fallback: inspect static logs if stream paused or closed
+                if not self._active_session["tunnel_url"]:
+                    try:
+                        static_logs = api.kernels_logs(kernel_ref)
+                        if static_logs:
+                            self._active_session["last_log"] = static_logs[-3000:]
+                            tunnel_match = re.search(r'(https://[a-zA-Z0-9-]+\.trycloudflare\.com)', static_logs)
+                            if tunnel_match:
+                                tunnel_url = tunnel_match.group(1).rstrip('/') + '/'
+                                print(f"[KaggleManager] 🎉 Auto-discovered Cloudflare Tunnel URL (fallback logs): {tunnel_url}")
+                                self._active_session["tunnel_url"] = tunnel_url
+                                self._active_session["status"] = "ready"
+                    except Exception:
+                        pass
+
                 # If tunnel found, we are ready!
                 if self._active_session["tunnel_url"]:
                     self._active_session["status"] = "ready"
                     time.sleep(8)
                     continue
-
-                if "running" in raw_status:
-                    self._active_session["status"] = "booting"
-                elif "queued" in raw_status:
-                    self._active_session["status"] = "queued"
 
             except Exception as e:
                 print(f"[KaggleManager] Poll notice: {e}")

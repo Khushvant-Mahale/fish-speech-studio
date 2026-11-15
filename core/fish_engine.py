@@ -1,5 +1,6 @@
 import os
 import re
+import io
 import json
 import base64
 import hashlib
@@ -11,6 +12,7 @@ import urllib.request
 import urllib.error
 
 from core.audio_dsp import process_audio_fx
+from core.project_manager import ProjectManager
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CACHE_DIR = BASE_DIR / "cache"
@@ -369,8 +371,52 @@ class FishEngine:
         temperature: float,
         top_p: float
     ) -> bytes:
-        """Sends inference request to Colab T4 / Local GPU worker."""
-        # 1. Build standard Fish Speech REST payload
+        """
+        Sends inference request to Colab T4 / Local GPU worker.
+        Auto-chunks blocks exceeding safe GPU VRAM limits (>160 chars) into sub-chunks,
+        preventing CUDA out-of-memory errors on Tesla T4 GPUs.
+        """
+        clean_text = text.strip()
+        # If text is oversized (>160 chars), break into safe clauses to protect T4 GPU VRAM
+        if len(clean_text) > 160:
+            chunks = ProjectManager.split_into_sentences(clean_text, max_chars=140)
+            if len(chunks) > 1:
+                print(f"[FishEngine] Auto-chunking oversized block ({len(clean_text)} chars) into {len(chunks)} GPU-safe clauses...")
+                combined_audio_parts = []
+                sample_rate = 24000
+                for c_idx, sub_c in enumerate(chunks):
+                    sub_c_clean = sub_c.strip()
+                    if not sub_c_clean:
+                        continue
+                    part_bytes = self._call_remote_worker_single(
+                        sub_c_clean, ref_path, ref_text, speed, temperature, top_p
+                    )
+                    part_samples, sr = sf.read(io.BytesIO(part_bytes))
+                    sample_rate = sr
+                    combined_audio_parts.append(part_samples)
+                    # Natural 40ms trailing gap between clauses
+                    if c_idx < len(chunks) - 1:
+                        gap_len = int(sr * 0.04)
+                        combined_audio_parts.append(np.zeros(gap_len, dtype=part_samples.dtype))
+
+                if combined_audio_parts:
+                    final_samples = np.concatenate(combined_audio_parts)
+                    buf = io.BytesIO()
+                    sf.write(buf, final_samples, sample_rate, format="WAV")
+                    return buf.getvalue()
+
+        return self._call_remote_worker_single(clean_text, ref_path, ref_text, speed, temperature, top_p)
+
+    def _call_remote_worker_single(
+        self,
+        text: str,
+        ref_path: Optional[Path],
+        ref_text: Optional[str],
+        speed: float,
+        temperature: float,
+        top_p: float
+    ) -> bytes:
+        """Sends a single inference request to the remote GPU worker."""
         payload = {
             "text": text,
             "format": "wav",
@@ -386,11 +432,9 @@ class FishEngine:
                         "text": ref_text or ""
                     }
                 ]
-                # Also include legacy fields for backwards compatibility
                 payload["prompt_audio"] = payload["references"][0]["audio"]
                 payload["prompt_text"] = ref_text or ""
 
-        # Try native Fish Speech /v1/tts endpoint first, fallback to /synthesize
         endpoints = [
             f"{self.remote_url.rstrip('/')}/v1/tts",
             f"{self.remote_url.rstrip('/')}/synthesize"
@@ -414,7 +458,7 @@ class FishEngine:
             except urllib.error.HTTPError as e:
                 last_exc = e
                 if e.code == 404:
-                    continue  # Try alternate endpoint
+                    continue
                 raise
             except Exception as e:
                 last_exc = e

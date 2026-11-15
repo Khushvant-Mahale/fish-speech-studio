@@ -245,6 +245,7 @@ for root, _, files in os.walk("fish-speech"):
             try:
                 with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
                     c = f.read()
+                dirty = False
                 old_load = "reference_audio_content = self.load_audio(reference_audio, sample_rate)"
                 new_load = (
                     "reference_audio_content = self.load_audio(reference_audio, sample_rate)\n"
@@ -254,10 +255,40 @@ for root, _, files in os.walk("fish-speech"):
                 )
                 if old_load in c and "max_ref_samples" not in c:
                     c = c.replace(old_load, new_load)
+                    dirty = True
+
+                if "def decode_vq_tokens(" in c and "torch.cuda.empty_cache()" not in c:
+                    c = re.sub(
+                        r'def decode_vq_tokens\s*\(\s*self\s*,\s*tokens[^)]*\):',
+                        'def decode_vq_tokens(self, tokens):\n        import torch\n        if torch.cuda.is_available():\n            torch.cuda.empty_cache()',
+                        c,
+                        count=1
+                    )
+                    dirty = True
+
+                if dirty:
                     with open(fpath, "w", encoding="utf-8") as f:
                         f.write(c)
-                    print("    ⚡ Patched vq_manager.py: Auto-trims reference audio to 6.5s (prevents DAC GPU OOM).")
+                    print("    ⚡ Patched vq_manager.py: Auto-trims reference audio + clears CUDA cache before DAC decode.")
             except Exception as e:
+                pass
+
+        if file == "tts.py" and "server" in root:
+            fpath = os.path.join(root, file)
+            try:
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                    c = f.read()
+                if "torch.cuda.empty_cache()" not in c:
+                    c = re.sub(
+                        r'return (Response|StreamingResponse|res|response)',
+                        'import torch\n    if torch.cuda.is_available():\n        torch.cuda.empty_cache()\n    return \\1',
+                        c,
+                        count=1
+                    )
+                    with open(fpath, "w", encoding="utf-8") as f:
+                        f.write(c)
+                    print("    ⚡ Patched server/views/tts.py: Auto-cleans GPU VRAM after every generation.")
+            except Exception:
                 pass
 
 print("    ✅ Fish Speech engine is configured.")

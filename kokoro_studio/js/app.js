@@ -5645,6 +5645,9 @@ async function checkKaggleStatus() {
         const bd = document.getElementById("banner-desc");
         if (bd) bd.textContent = `Connected securely to Kokoro GPU worker via ${data.tunnel_url}`;
       }
+      setTimeout(() => {
+        closeColabModal();
+      }, 1600);
     } else if (data.status === "stopped") {
       clearInterval(kagglePollInterval);
       if (launchBtn) {
@@ -6866,11 +6869,60 @@ function setupEventListeners() {
 function splitTextIntoSentences(text) {
   if (!text) return [];
   const raw = text.replace(/\r\n/g, "\n").trim();
-  const sentences = raw
-    .split(/(?<=[.!?]["'”’]?)\s+(?=[A-Z0-9"“'‘])|\n{2,}|\n+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0);
-  return sentences.length > 0 ? sentences : [raw];
+  if (!raw) return [];
+
+  const ABBREVIATIONS = [
+    /\bMr\./gi, /\bMrs\./gi, /\bMs\./gi, /\bDr\./gi, /\bProf\./gi,
+    /\bSr\./gi, /\bJr\./gi, /\bvs\./gi, /\betc\./gi, /\be\.g\./gi,
+    /\bi\.e\./gi, /\bU\.S\./gi, /\bNo\./gi, /\bVol\./gi, /\bCh\./gi
+  ];
+
+  let protectedText = raw;
+  ABBREVIATIONS.forEach((abbr, idx) => {
+    protectedText = protectedText.replace(abbr, `__ABBR_${idx}__`);
+  });
+  protectedText = protectedText.replace(/(\d+)\.(\d+)/g, "$1__DOT__$2");
+
+  const sentenceRegex = /(?<=[.!?])(?:['"’”\s]+)(?=[A-Z“"‘'\[0-9])|\n{2,}|\n+/;
+  const rawSentences = protectedText.split(sentenceRegex).map(s => s.trim()).filter(Boolean);
+
+  const restored = rawSentences.map(s => {
+    ABBREVIATIONS.forEach((abbr, idx) => {
+      const sample = abbr.source.replace(/\\b/g, "").replace(/\\./g, ".");
+      s = s.replaceAll(`__ABBR_${idx}__`, sample);
+    });
+    return s.replaceAll("__DOT__", ".");
+  });
+
+  const finalResults = [];
+  restored.forEach(s => {
+    if (s.length <= 180) {
+      finalResults.push(s);
+      return;
+    }
+    const clauses = s.split(/(?<=[;—:])\s+/).map(c => c.trim()).filter(Boolean);
+    if (clauses.length > 1 && clauses.every(c => c.length <= 180)) {
+      clauses.forEach(c => finalResults.push(c));
+      return;
+    }
+    const commaParts = s.split(/(?<=,)\s+(?=(?:and|but|or|so|yet|because|although|while|where|which|as|with|who|whom)\b)/i).map(c => c.trim()).filter(Boolean);
+    if (commaParts.length > 1) {
+      let curr = "";
+      commaParts.forEach(cp => {
+        if (!curr) curr = cp;
+        else if (curr.length + cp.length + 1 <= 180) curr += " " + cp;
+        else {
+          finalResults.push(curr);
+          curr = cp;
+        }
+      });
+      if (curr) finalResults.push(curr);
+      return;
+    }
+    finalResults.push(s);
+  });
+
+  return finalResults.length > 0 ? finalResults : [raw];
 }
 
 function splitBlock(idx) {

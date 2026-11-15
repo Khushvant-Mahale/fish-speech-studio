@@ -586,6 +586,86 @@ class ProjectManager:
 
         return directed_blocks
 
+    @staticmethod
+    def split_into_sentences(text: str, max_chars: int = 180) -> List[str]:
+        """
+        Splits a paragraph into individual clean sentences, protecting abbreviations
+        and splitting oversized run-on sentences at natural clause boundaries.
+        """
+        text = text.strip()
+        if not text:
+            return []
+
+        abbreviations = [
+            r"Mr\.", r"Mrs\.", r"Ms\.", r"Dr\.", r"Prof\.", r"Sr\.", r"Jr\.",
+            r"vs\.", r"etc\.", r"e\.g\.", r"i\.e\.", r"U\.S\.", r"No\.", r"Vol\.", r"Ch\."
+        ]
+        protected = text
+        for i, abbr in enumerate(abbreviations):
+            protected = re.sub(r'\b' + abbr, f"__ABBR_{i}__", protected, flags=re.IGNORECASE)
+        protected = re.sub(r'(\d+)\.(\d+)', r'\1__DOT__\2', protected)
+
+        # Split at sentence boundaries: (. ! ?) followed by closing quotes/spaces and capital/quote
+        sentence_pattern = re.compile(
+            r'(?<=[.!?])(?:[\'\"’”\s]+)(?=[A-Z“\"‘\'\[0-9])'
+        )
+        raw_splits = [s.strip() for s in sentence_pattern.split(protected) if s.strip()]
+
+        sentences = []
+        for s in raw_splits:
+            for i, abbr in enumerate(abbreviations):
+                clean_abbr = abbr.replace('\\.', '.')
+                s = s.replace(f"__ABBR_{i}__", clean_abbr)
+            s = s.replace('__DOT__', '.')
+            sentences.append(s)
+
+        final_chunks = []
+        for s in sentences:
+            if len(s) <= max_chars:
+                final_chunks.append(s)
+                continue
+
+            # Split on semicolon, em-dash, or colon if oversized
+            clause_pattern = re.compile(r'(?<=[;—:])\s+')
+            sub_clauses = clause_pattern.split(s)
+            if len(sub_clauses) > 1 and all(len(c) <= max_chars for c in sub_clauses):
+                final_chunks.extend([c.strip() for c in sub_clauses if c.strip()])
+                continue
+
+            # Split on commas before conjunctions
+            comma_conj = re.compile(r'(?<=,)\s+(?=(?:and|but|or|so|yet|because|although|while|where|which|as|with|who|whom)\b)', re.IGNORECASE)
+            sub_commas = comma_conj.split(s)
+            if len(sub_commas) > 1:
+                curr = ""
+                for c in sub_commas:
+                    c = c.strip()
+                    if not curr:
+                        curr = c
+                    elif len(curr) + len(c) + 1 <= max_chars:
+                        curr += " " + c
+                    else:
+                        final_chunks.append(curr)
+                        curr = c
+                if curr:
+                    final_chunks.append(curr)
+                continue
+
+            # Fallback word-level chunking
+            words = s.split()
+            curr = ""
+            for w in words:
+                if not curr:
+                    curr = w
+                elif len(curr) + len(w) + 1 <= max_chars:
+                    curr += " " + w
+                else:
+                    final_chunks.append(curr)
+                    curr = w
+            if curr:
+                final_chunks.append(curr)
+
+        return final_chunks
+
     def split_text_into_blocks(self, raw_text: str, default_voice: str = "blend_fenrir_onyx", defaults: Optional[Dict] = None, clean_pauses: bool = True, inline_ellipsis: bool = True) -> List[Dict]:
         """
         Splits raw story text into structured sentence blocks before emotion tags,
@@ -661,7 +741,13 @@ class ProjectManager:
                 clean_chunk = re.sub(r'\s{2,}', ' ', clean_chunk).strip()
 
                 if clean_chunk:
-                    candidate_items.append({"is_heading": False, "text": clean_chunk, "pause_after": item_pause})
+                    sub_sentences = self.split_into_sentences(clean_chunk, max_chars=180)
+                    if sub_sentences:
+                        for s in sub_sentences:
+                            if s.strip():
+                                candidate_items.append({"is_heading": False, "text": s.strip(), "pause_after": item_pause})
+                    else:
+                        candidate_items.append({"is_heading": False, "text": clean_chunk, "pause_after": item_pause})
 
         initial_blocks = []
         for idx, item in enumerate(candidate_items, 1):

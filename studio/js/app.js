@@ -6643,6 +6643,9 @@ async function checkKaggleStatus() {
         const bd = document.getElementById("banner-desc");
         if (bd) bd.textContent = `Connected securely to Kaggle worker via ${data.tunnel_url}`;
       }
+      setTimeout(() => {
+        closeColabModal();
+      }, 1600);
     } else if (data.status === "stopped") {
       clearInterval(kagglePollInterval);
       if (launchBtn) {
@@ -8148,6 +8151,12 @@ function splitTextIntoSentences(text) {
   const rawLines = raw.split("\n").map(l => l.trim()).filter(Boolean);
   const results = [];
 
+  const ABBREVIATIONS = [
+    /\bMr\./gi, /\bMrs\./gi, /\bMs\./gi, /\bDr\./gi, /\bProf\./gi,
+    /\bSr\./gi, /\bJr\./gi, /\bvs\./gi, /\betc\./gi, /\be\.g\./gi,
+    /\bi\.e\./gi, /\bU\.S\./gi, /\bNo\./gi, /\bVol\./gi, /\bCh\./gi
+  ];
+
   rawLines.forEach(line => {
     let marked = line.replace(/\[[^\]]+\]/g, (tag, offset) => {
       if (isPauseTag(tag)) return tag;
@@ -8161,26 +8170,73 @@ function splitTextIntoSentences(text) {
       let cleanChunk = chunk.replace(/^(\[[^\]]+\])([A-Za-z0-9])/g, "$1 $2").trim();
       if (!cleanChunk) return;
 
-      // Extract trailing [pause] or [pause: 0.8s]
       let cardPauseAfter = 0.5;
       const trailingMatch = cleanChunk.match(/\[pause(?:\s*[:=]?\s*([\d.]+)\s*s?)?\]\s*$/i);
       if (trailingMatch) {
-        if (trailingMatch[1]) {
-          cardPauseAfter = parseFloat(trailingMatch[1]);
-        }
+        if (trailingMatch[1]) cardPauseAfter = parseFloat(trailingMatch[1]);
         cleanChunk = cleanChunk.replace(/\[pause(?:\s*[:=]?\s*[\d.]+\s*s?)?\]\s*$/i, "").trim();
       }
-
-      // Strip leading [pause]
       cleanChunk = cleanChunk.replace(/^\s*\[pause(?:\s*[:=]?\s*[\d.]+\s*s?)?\]\s*/i, "").trim();
+      if (!cleanChunk) return;
 
-      if (cleanChunk) {
-        results.push({
-          text: cleanChunk,
-          pause_after: cardPauseAfter,
-          hadPauseAfter: Boolean(trailingMatch)
+      // Protect abbreviations & decimals
+      let protectedText = cleanChunk;
+      ABBREVIATIONS.forEach((abbr, idx) => {
+        protectedText = protectedText.replace(abbr, `__ABBR_${idx}__`);
+      });
+      protectedText = protectedText.replace(/(\d+)\.(\d+)/g, "$1__DOT__$2");
+
+      // Sentence boundary split: (. ! ?) followed by quotes/spaces and capital/quote/tag
+      const sentenceRegex = /(?<=[.!?])(?:['"’”\s]+)(?=[A-Z“"‘'\[0-9])/;
+      const rawSentences = protectedText.split(sentenceRegex).map(s => s.trim()).filter(Boolean);
+
+      const restored = rawSentences.map(s => {
+        ABBREVIATIONS.forEach((abbr, idx) => {
+          const sample = abbr.source.replace(/\\b/g, "").replace(/\\./g, ".");
+          s = s.replaceAll(`__ABBR_${idx}__`, sample);
         });
-      }
+        return s.replaceAll("__DOT__", ".");
+      });
+
+      restored.forEach(s => {
+        if (s.length <= 180) {
+          results.push({ text: s, pause_after: cardPauseAfter });
+          return;
+        }
+
+        const clauses = s.split(/(?<=[;—:])\s+/).map(c => c.trim()).filter(Boolean);
+        if (clauses.length > 1 && clauses.every(c => c.length <= 180)) {
+          clauses.forEach(c => results.push({ text: c, pause_after: cardPauseAfter }));
+          return;
+        }
+
+        const commaParts = s.split(/(?<=,)\s+(?=(?:and|but|or|so|yet|because|although|while|where|which|as|with|who|whom)\b)/i).map(c => c.trim()).filter(Boolean);
+        if (commaParts.length > 1) {
+          let curr = "";
+          commaParts.forEach(cp => {
+            if (!curr) curr = cp;
+            else if (curr.length + cp.length + 1 <= 180) curr += " " + cp;
+            else {
+              results.push({ text: curr, pause_after: cardPauseAfter });
+              curr = cp;
+            }
+          });
+          if (curr) results.push({ text: curr, pause_after: cardPauseAfter });
+          return;
+        }
+
+        const words = s.split(/\s+/);
+        let curr = "";
+        words.forEach(w => {
+          if (!curr) curr = w;
+          else if (curr.length + w.length + 1 <= 180) curr += " " + w;
+          else {
+            results.push({ text: curr, pause_after: cardPauseAfter });
+            curr = w;
+          }
+        });
+        if (curr) results.push({ text: curr, pause_after: cardPauseAfter });
+      });
     });
   });
 
