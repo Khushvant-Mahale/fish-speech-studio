@@ -4032,5 +4032,260 @@ input[type="range"]::-webkit-slider-thumb {
   color: #f1f5f9;
 }
 
+/* ================= KAGGLE ACCOUNT BADGE & DE-CONGESTION ================= */
+.kaggle-account-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  margin-top: 4px;
+}
+
+.account-badge-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.account-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+}
+
+.account-badge-user {
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.account-badge-quota {
+  font-size: 11.5px;
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.15);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.account-badge-edit-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.account-badge-edit-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ================= KAGGLE TRAFFIC & QUEUE ALERT ================= */
+.kaggle-traffic-box {
+  margin-top: 10px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(30, 27, 75, 0.75) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: var(--radius-md);
+  padding: 13px 15px;
+  animation: fadeIn 0.3s ease;
+}
+
+.traffic-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.traffic-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #fef3c7;
+}
+
+.traffic-title strong {
+  color: #fbbf24;
+}
+
+.traffic-pulse-icon {
+  font-size: 16px;
+  animation: pulse-dot 1.5s infinite;
+}
+
+.traffic-time-pill {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  background: rgba(245, 158, 11, 0.25);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #fde68a;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.traffic-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.traffic-msg {
+  font-size: 12px;
+  color: #cbd5e1;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.traffic-alternatives-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.traffic-alt-card {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.traffic-alt-card:hover {
+  border-color: #818cf8;
+  background: rgba(30, 27, 75, 0.85);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.alt-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.alt-card-icon {
+  font-size: 16px;
+}
+
+.alt-pill-fast {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+.alt-pill-bg {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+.alt-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.alt-card-desc {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  line-height: 1.35;
+  flex: 1;
+}
+
+.alt-card-btn {
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  border-radius: 4px;
+  color: #c7d2fe;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 8px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.traffic-alt-card:hover .alt-card-btn {
+  background: #6366f1;
+  color: #ffffff;
+  border-color: #6366f1;
+}
+
+.traffic-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.traffic-cancel-btn {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 4px;
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.traffic-cancel-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+}
+
+.traffic-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.traffic-dismiss-btn:hover {
+  color: var(--text-main);
+}
+
+/* Masterclass Guide Collapsed Mode */
+.coldstart-guide-box.collapsed .coldstart-tabs,
+.coldstart-guide-box.collapsed .coldstart-slides-wrapper {
+  display: none !important;
+}
+
+.coldstart-guide-box.collapsed {
+  padding-bottom: 10px;
+}
+
 
 

@@ -1284,22 +1284,35 @@
             <a href="https://www.kaggle.com/settings" target="_blank" style="font-size: 11.5px; color: #818cf8; text-decoration: underline; white-space: nowrap;">Get Token on Kaggle ↗</a>
           </div>
 
-          <!-- Drag and Drop Dropzone -->
-          <div class="kaggle-dropzone" id="kaggle-dropzone" onclick="document.getElementById('kaggle-file-input').click()" ondragover="handleKaggleDragOver(event)" ondragleave="handleKaggleDragLeave(event)" ondrop="handleKaggleDrop(event)">
-            <input type="file" id="kaggle-file-input" accept=".json" style="display: none;" onchange="handleKaggleFileSelect(event)">
-            <div style="font-size: 24px; margin-bottom: 4px;">📄</div>
-            <div style="font-size: 13px; font-weight: 600; color: var(--text-main);">Drop your kaggle.json file here</div>
-            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Downloaded from Kaggle.com -> Settings -> API -> "Create New Token"</div>
+          <!-- Compact Verified Account Bar (shown when account is verified / saved) -->
+          <div id="kaggle-account-badge" class="kaggle-account-badge" style="display: none;">
+            <div class="account-badge-left">
+              <span class="account-badge-dot"></span>
+              <span class="account-badge-user" id="badge-username">@kaggle_user</span>
+              <span class="account-badge-quota">⚡ 30h / week free GPU</span>
+            </div>
+            <button type="button" class="account-badge-edit-btn" id="btn-toggle-credentials" onclick="toggleKaggleCredentialsForm()">✏️ Edit Token</button>
           </div>
 
-          <!-- Or Manual Credentials Form -->
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="kaggle-username-input" class="search-input" placeholder="Kaggle Username" style="flex: 1; font-size: 12.5px;">
-            <input type="password" id="kaggle-key-input" class="search-input" placeholder="Kaggle API Key (32-character token)" style="flex: 2; font-size: 12.5px;">
-            <button class="btn btn-secondary" id="btn-verify-kaggle" onclick="handleVerifyKaggle()" style="white-space: nowrap;">⚡ Verify Token</button>
+          <!-- Credentials Setup Section (collapsible when verified) -->
+          <div id="kaggle-credentials-section">
+            <!-- Drag and Drop Dropzone -->
+            <div class="kaggle-dropzone" id="kaggle-dropzone" onclick="document.getElementById('kaggle-file-input').click()" ondragover="handleKaggleDragOver(event)" ondragleave="handleKaggleDragLeave(event)" ondrop="handleKaggleDrop(event)">
+              <input type="file" id="kaggle-file-input" accept=".json" style="display: none;" onchange="handleKaggleFileSelect(event)">
+              <div style="font-size: 24px; margin-bottom: 4px;">📄</div>
+              <div style="font-size: 13px; font-weight: 600; color: var(--text-main);">Drop your kaggle.json file here</div>
+              <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Downloaded from Kaggle.com -> Settings -> API -> "Create New Token"</div>
+            </div>
+
+            <!-- Or Manual Credentials Form -->
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="kaggle-username-input" class="search-input" placeholder="Kaggle Username" style="flex: 1; font-size: 12.5px;">
+              <input type="password" id="kaggle-key-input" class="search-input" placeholder="Kaggle API Key (32-character token)" style="flex: 2; font-size: 12.5px;">
+              <button class="btn btn-secondary" id="btn-verify-kaggle" onclick="handleVerifyKaggle()" style="white-space: nowrap;">⚡ Verify Token</button>
+            </div>
+            <div id="kaggle-verify-status" style="font-size: 12px; min-height: 18px;"></div>
+            <div id="kaggle-key-warning" style="display: none; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #fbbf24; margin-top: 2px;"></div>
           </div>
-          <div id="kaggle-verify-status" style="font-size: 12px; min-height: 18px;"></div>
-          <div id="kaggle-key-warning" style="display: none; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #fbbf24; margin-top: 2px;"></div>
 
           <!-- Live Progress Stepper (hidden while idle) -->
           <div id="kaggle-stepper-box" class="kaggle-stepper" style="display: none;">
@@ -1309,7 +1322,7 @@
             </div>
             <div class="kaggle-step-item" id="k-step-2">
               <span class="kaggle-step-dot" id="k-step-dot-2">2</span>
-              <span>Allocating Tesla T4 GPU container & mounting S2 Pro weights (~60-90s)</span>
+              <span id="k-step-text-2">Allocating Tesla T4 GPU container & mounting S2 Pro weights (~60-90s)</span>
             </div>
             <div class="kaggle-step-item" id="k-step-3">
               <span class="kaggle-step-dot" id="k-step-dot-3">3</span>
@@ -1321,6 +1334,55 @@
               <summary style="font-size: 11.5px; color: var(--text-muted); cursor: pointer;">Show live container boot logs</summary>
               <div class="kaggle-terminal" id="kaggle-log-terminal" style="margin-top: 6px;">Waiting for container output...</div>
             </details>
+          </div>
+
+          <!-- High Traffic & Queue Auto-Routing Box -->
+          <div id="kaggle-traffic-alert" class="kaggle-traffic-box" style="display: none;">
+            <div class="traffic-header">
+              <div class="traffic-title">
+                <span class="traffic-pulse-icon">⚠️</span>
+                <span><strong>High Kaggle GPU Traffic Detected</strong> &bull; Server Pool Queued</span>
+              </div>
+              <span id="traffic-queue-timer" class="traffic-time-pill">Queued: 0s</span>
+            </div>
+            <div class="traffic-body">
+              <p class="traffic-msg">Kaggle's shared Tesla T4 GPU cluster is busy and machines are currently in queue. Instead of waiting, you can switch immediately to a faster option:</p>
+              <div class="traffic-alternatives-grid">
+                <div class="traffic-alt-card" onclick="handleSwitchToColabFast()">
+                  <div class="alt-card-top">
+                    <span class="alt-card-icon">⚡</span>
+                    <span class="alt-pill-fast">Instant Boot (0 Queue)</span>
+                  </div>
+                  <div class="alt-card-title">Google Colab Fast-Track</div>
+                  <div class="alt-card-desc">Colab spins up a dedicated Tesla T4 in &lt;5s with zero queues. 1-click copies the worker script and opens Colab.</div>
+                  <button type="button" class="alt-card-btn">🚀 Open Colab &amp; Copy Script</button>
+                </div>
+
+                <div class="traffic-alt-card" id="traffic-alt-fish-api" onclick="handleSwitchToFishProFast()">
+                  <div class="alt-card-top">
+                    <span class="alt-card-icon">🔑</span>
+                    <span class="alt-pill-api">Zero Coldstart</span>
+                  </div>
+                  <div class="alt-card-title">Fish Audio Pro API</div>
+                  <div class="alt-card-desc">Bypass containers entirely. Instant 0.2s generation directly via official cloud API with zero waiting.</div>
+                  <button type="button" class="alt-card-btn">🔑 Switch to Pro API</button>
+                </div>
+
+                <div class="traffic-alt-card" onclick="handleContinueInBackground()">
+                  <div class="alt-card-top">
+                    <span class="alt-card-icon">🎨</span>
+                    <span class="alt-pill-bg">No Waiting</span>
+                  </div>
+                  <div class="alt-card-title">Continue in Studio</div>
+                  <div class="alt-card-desc">Direct your story with Local CPU now. Studio will keep watching Kaggle in the background and auto-activate GPU when ready!</div>
+                  <button type="button" class="alt-card-btn">🎨 Direct with Local CPU</button>
+                </div>
+              </div>
+              <div class="traffic-footer">
+                <button type="button" class="traffic-cancel-btn" onclick="handleStopKaggle()">⏹ Cancel Queued Job</button>
+                <button type="button" class="traffic-dismiss-btn" onclick="dismissTrafficAlert()">Dismiss &amp; Wait</button>
+              </div>
+            </div>
           </div>
 
           <!-- While-You-Wait Coldstart Masterclass & Directing Guide -->
@@ -1335,6 +1397,7 @@
                 <button type="button" class="guide-nav-btn" onclick="prevColdstartSlide()" title="Previous Tip">◀</button>
                 <span id="coldstart-slide-counter" style="font-size: 11px; font-weight: 600; color: #a5b4fc;">1/6</span>
                 <button type="button" class="guide-nav-btn" onclick="nextColdstartSlide()" title="Next Tip">▶</button>
+                <button type="button" class="guide-nav-btn" id="btn-toggle-coldstart-guide" onclick="toggleColdstartGuideCollapse()" title="Toggle Masterclass Tips View">Hide Tips —</button>
               </div>
             </div>
 
@@ -1458,7 +1521,7 @@
           <!-- Auto-Shutdown Quota Protection Notice -->
           <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #10b981;">
             <span>🛡️</span>
-            <span><strong>Smart Quota Protection Active:</strong> Auto-terminates container after 15 min of idle or when Studio is closed to preserve your free weekly GPU hours.</span>
+            <span><strong>Smart Quota Protection Active:</strong> Auto-terminates container after 5 min of idle or when Studio is closed to preserve your free weekly GPU hours.</span>
           </div>
 
           <!-- Launch & Stop Action Area -->

@@ -6795,6 +6795,21 @@ function switchCloudTab(tabName) {
   const content = document.getElementById(`tab-content-${tabName}`);
   if (btn) btn.classList.add("active");
   if (content) content.classList.add("active");
+
+  // De-congest footer: on Kaggle tab, Launch/Stop is in the tab itself, so hide redundant Save & Activate
+  const saveBtn = document.getElementById("btn-save-colab");
+  if (saveBtn) {
+    saveBtn.style.display = (tabName === "kaggle") ? "none" : "inline-block";
+  }
+}
+
+function toggleKaggleCredentialsForm() {
+  const creds = document.getElementById("kaggle-credentials-section");
+  const btn = document.getElementById("btn-toggle-credentials");
+  if (!creds) return;
+  const isHidden = creds.style.display === "none" || !creds.style.display;
+  creds.style.display = isHidden ? "block" : "none";
+  if (btn) btn.textContent = isHidden ? "🔼 Collapse" : "✏️ Edit Token";
 }
 
 function handleKaggleDragOver(e) {
@@ -6840,10 +6855,10 @@ function processKaggleJsonFile(file) {
         showToast("📄 Loaded credentials from kaggle.json! Verifying with Kaggle...");
         await handleVerifyKaggle();
       } else {
-        alert("Invalid kaggle.json: Must contain 'username' and 'key' fields.");
+        showToast("⚠️ Invalid kaggle.json: Must contain 'username' and 'key' fields.");
       }
     } catch (err) {
-      alert("Error reading JSON file: " + err.message);
+      showToast("❌ Error reading JSON file: " + err.message);
     }
   };
   reader.readAsText(file);
@@ -6870,6 +6885,19 @@ async function handleVerifyKaggle() {
     const data = await res.json();
     if (data.ok) {
       if (statusEl) statusEl.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Verified: @${data.username} • GPU Quota: ${data.quota}</span>`;
+      
+      // Auto-collapse credentials into compact account badge
+      const badge = document.getElementById("kaggle-account-badge");
+      const badgeUser = document.getElementById("badge-username");
+      const creds = document.getElementById("kaggle-credentials-section");
+      if (badge && badgeUser) {
+        badgeUser.textContent = `@${data.username}`;
+        badge.style.display = "flex";
+      }
+      if (creds) creds.style.display = "none";
+      const editBtn = document.getElementById("btn-toggle-credentials");
+      if (editBtn) editBtn.textContent = "✏️ Edit Token";
+
       showToast(`✨ Kaggle account @${data.username} verified! Ready to launch.`);
     } else {
       if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger); font-weight: 500;">❌ ${data.error}</span>`;
@@ -6882,6 +6910,15 @@ async function handleVerifyKaggle() {
 }
 
 // ================= COLDSTART MASTERCLASS GUIDE ================= //
+
+function toggleColdstartGuideCollapse() {
+  const guide = document.getElementById("kaggle-coldstart-guide");
+  const btn = document.getElementById("btn-toggle-coldstart-guide");
+  if (!guide) return;
+  guide.classList.toggle("collapsed");
+  const isCollapsed = guide.classList.contains("collapsed");
+  if (btn) btn.textContent = isCollapsed ? "Show Tips +" : "Hide Tips —";
+}
 
 let coldstartSlideIdx = 0;
 let coldstartSlideInterval = null;
@@ -6979,6 +7016,50 @@ window.goToColdstartSlide = goToColdstartSlide;
 window.nextColdstartSlide = nextColdstartSlide;
 window.prevColdstartSlide = prevColdstartSlide;
 
+let trafficAlertDismissed = false;
+
+function formatQueueTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function dismissTrafficAlert() {
+  trafficAlertDismissed = true;
+  const trafficBox = document.getElementById("kaggle-traffic-alert");
+  if (trafficBox) trafficBox.style.display = "none";
+  showToast("Waiting for Kaggle queue. We will activate the moment your container wakes up!");
+}
+
+async function handleSwitchToColabFast() {
+  try {
+    const res = await fetch(`/api/colab_script?engine=fish_s2`);
+    const scriptText = await res.text();
+    await navigator.clipboard.writeText(scriptText);
+    showToast("📋 1-cell Fish Speech S2 Pro worker script copied to clipboard!");
+  } catch (err) {
+    console.warn("Clipboard copy notice:", err);
+  }
+  window.open("https://colab.research.google.com", "_blank");
+  switchCloudTab("custom");
+  showToast("⚡ Colab opened! Paste the script into a T4 GPU notebook, click Run, then paste the tunnel URL here.", 6500);
+}
+
+function handleSwitchToFishProFast() {
+  switchCloudTab("fish");
+  const keyInput = document.getElementById("fish-api-key-input");
+  if (keyInput) {
+    keyInput.focus();
+    keyInput.select();
+  }
+  showToast("🔑 Switched to Fish Audio Pro API for instant synthesis with zero queue.");
+}
+
+function handleContinueInBackground() {
+  closeColabModal();
+  showToast("🎨 Directing with Local CPU. Kaggle is queuing in background — we'll switch to GPU automatically once ready!", 5500);
+}
+
 async function handleLaunchKaggle() {
   const uInput = document.getElementById("kaggle-username-input");
   const kInput = document.getElementById("kaggle-key-input");
@@ -7007,6 +7088,19 @@ async function handleLaunchKaggle() {
       return;
     }
   }
+
+  // De-congest credentials form on launch
+  const creds = document.getElementById("kaggle-credentials-section");
+  if (creds) creds.style.display = "none";
+  const badge = document.getElementById("kaggle-account-badge");
+  const badgeUser = document.getElementById("badge-username");
+  if (badge && badgeUser && username) {
+    badgeUser.textContent = `@${username}`;
+    badge.style.display = "flex";
+  }
+  const editBtn = document.getElementById("btn-toggle-credentials");
+  if (editBtn) editBtn.textContent = "✏️ Edit Token";
+  trafficAlertDismissed = false;
 
   if (launchBtn) {
     launchBtn.disabled = true;
@@ -7040,7 +7134,7 @@ async function handleLaunchKaggle() {
       setKaggleStep(1, "error");
     }
   } catch (err) {
-    alert("Launch request failed: " + err.message);
+    showToast("❌ Launch request failed: " + err.message, 5000);
     if (launchBtn) {
       launchBtn.disabled = false;
       launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
@@ -7077,6 +7171,9 @@ async function checkKaggleStatus() {
     const terminal = document.getElementById("kaggle-log-terminal");
     const launchBtn = document.getElementById("btn-launch-kaggle");
     const stopBtn = document.getElementById("btn-stop-kaggle");
+    const trafficBox = document.getElementById("kaggle-traffic-alert");
+    const queueTimer = document.getElementById("traffic-queue-timer");
+    const step2Text = document.getElementById("k-step-text-2");
 
     if (terminal && data.last_log) {
       terminal.textContent = data.last_log;
@@ -7086,18 +7183,36 @@ async function checkKaggleStatus() {
     if (data.status === "queued") {
       setKaggleStep(1, "completed");
       setKaggleStep(2, "active");
+      if (step2Text) {
+        step2Text.innerHTML = `Allocating Tesla T4 GPU container &bull; <span style="color: #fbbf24; font-weight: 600;">Queued in Kaggle cluster (${formatQueueTime(data.elapsed_seconds || 0)})</span>`;
+      }
       startColdstartGuide();
-      if (launchBtn) launchBtn.textContent = `⏳ Queued (${data.elapsed_seconds}s)...`;
+      if (launchBtn) launchBtn.textContent = `⏳ Queued (${formatQueueTime(data.elapsed_seconds || 0)})...`;
+
+      // Trigger High Traffic Alert if queued for 45s or more and not dismissed
+      if ((data.elapsed_seconds || 0) >= 45 && !trafficAlertDismissed) {
+        if (trafficBox) trafficBox.style.display = "block";
+        if (queueTimer) queueTimer.textContent = `Queued: ${formatQueueTime(data.elapsed_seconds || 0)}`;
+      }
     } else if (data.status === "booting") {
       setKaggleStep(1, "completed");
       setKaggleStep(2, "active");
+      if (step2Text) {
+        step2Text.innerHTML = `Tesla T4 allocated! Mounting weights & neural engine (~45-60s)`;
+      }
       startColdstartGuide();
+      if (trafficBox) trafficBox.style.display = "none";
       if (launchBtn) launchBtn.textContent = `⏳ Booting GPU & Weights (${data.elapsed_seconds}s)...`;
     } else if (data.status === "ready" && data.tunnel_url) {
       setKaggleStep(1, "completed");
       setKaggleStep(2, "completed");
       setKaggleStep(3, "completed");
+      if (step2Text) {
+        step2Text.innerHTML = `Tesla T4 GPU container active & S2 Pro weights mounted`;
+      }
       stopColdstartGuide(true);
+      if (trafficBox) trafficBox.style.display = "none";
+      trafficAlertDismissed = false;
       clearInterval(kagglePollInterval);
       if (launchBtn) {
         launchBtn.textContent = "🟢 GPU Active & Connected!";
@@ -7125,6 +7240,8 @@ async function checkKaggleStatus() {
     } else if (data.status === "stopped") {
       clearInterval(kagglePollInterval);
       stopColdstartGuide(false);
+      if (trafficBox) trafficBox.style.display = "none";
+      trafficAlertDismissed = false;
       if (launchBtn) {
         launchBtn.disabled = false;
         launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
@@ -7136,6 +7253,8 @@ async function checkKaggleStatus() {
     } else if (data.status === "error") {
       clearInterval(kagglePollInterval);
       stopColdstartGuide(false);
+      if (trafficBox) trafficBox.style.display = "none";
+      trafficAlertDismissed = false;
       if (launchBtn) {
         launchBtn.disabled = false;
         launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
@@ -7163,6 +7282,10 @@ async function handleStopKaggle() {
   clearInterval(kagglePollInterval);
   const stopBtn = document.getElementById("btn-stop-kaggle");
   const launchBtn = document.getElementById("btn-launch-kaggle");
+  const trafficBox = document.getElementById("kaggle-traffic-alert");
+  if (trafficBox) trafficBox.style.display = "none";
+  trafficAlertDismissed = false;
+
   if (stopBtn) {
     stopBtn.disabled = true;
     stopBtn.textContent = "⏳ Stopping...";
@@ -7230,12 +7353,19 @@ function openColabModal() {
     keyInput.value = (state.config && state.config.fish_api_key) || "";
   }
 
+  // De-congest: ensure Kaggle tab does not show redundant Save & Activate
+  const saveBtn = document.getElementById("btn-save-colab");
+  const kaggleTab = document.getElementById("tab-content-kaggle");
+  if (saveBtn && kaggleTab && kaggleTab.classList.contains("active")) {
+    saveBtn.style.display = "none";
+  }
+
   // Live test configured remote worker upon opening modal
   if (state.config && state.config.remote_worker_url) {
     checkRemoteWorkerHealth(true);
   }
 
-  // Auto-populate Kaggle credentials if present
+  // Auto-populate Kaggle credentials if present and de-congest modal
   fetch("/api/config").then(r => r.json()).then(cfg => {
     if (cfg.kaggle_username) {
       const ku = document.getElementById("kaggle-username-input");
@@ -7244,6 +7374,16 @@ function openColabModal() {
       if (statusEl && !statusEl.innerHTML) {
         statusEl.innerHTML = `<span style="color: #10b981;">✓ Detected Kaggle account @${cfg.kaggle_username}</span>`;
       }
+      const badge = document.getElementById("kaggle-account-badge");
+      const badgeUser = document.getElementById("badge-username");
+      const creds = document.getElementById("kaggle-credentials-section");
+      if (badge && badgeUser) {
+        badgeUser.textContent = `@${cfg.kaggle_username}`;
+        badge.style.display = "flex";
+      }
+      if (creds) creds.style.display = "none";
+      const editBtn = document.getElementById("btn-toggle-credentials");
+      if (editBtn) editBtn.textContent = "✏️ Edit Token";
     }
   }).catch(() => {});
 
@@ -9500,6 +9640,12 @@ window.handleKaggleFileSelect = handleKaggleFileSelect;
 window.handleVerifyKaggle = handleVerifyKaggle;
 window.handleLaunchKaggle = handleLaunchKaggle;
 window.handleStopKaggle = handleStopKaggle;
+window.toggleKaggleCredentialsForm = toggleKaggleCredentialsForm;
+window.toggleColdstartGuideCollapse = toggleColdstartGuideCollapse;
+window.dismissTrafficAlert = dismissTrafficAlert;
+window.handleSwitchToColabFast = handleSwitchToColabFast;
+window.handleSwitchToFishProFast = handleSwitchToFishProFast;
+window.handleContinueInBackground = handleContinueInBackground;
 
 
 // Fish Audio Discovery exports
