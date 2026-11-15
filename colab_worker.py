@@ -313,6 +313,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pycloudflared import try_cloudflare
 import threading
 
+last_activity_time = [time.time()]
 app = FastAPI(title="Kokoro Cloud GPU Worker")
 app.add_middleware(
     CORSMiddleware,
@@ -325,6 +326,7 @@ app.add_middleware(
 @app.get("/")
 @app.get("/health")
 def health_check():
+    last_activity_time[0] = time.time()
     return {
         "status": "ok",
         "worker": "Kokoro-GPU-Cloud-Worker",
@@ -333,6 +335,26 @@ def health_check():
         "providers": session.get_providers(),
         "timestamp": time.time()
     }
+
+@app.post("/v1/shutdown")
+@app.get("/v1/shutdown")
+def api_remote_shutdown():
+    print("\n🛑 Received remote shutdown request. Terminating Kaggle GPU container...")
+    def _do_shutdown():
+        time.sleep(0.5)
+        try:
+            subprocess.run(["pkill", "-9", "-f", "cloudflared"], check=False)
+        except Exception:
+            pass
+        os._exit(0)
+    threading.Thread(target=_do_shutdown, daemon=True).start()
+    return {"ok": True, "message": "Kokoro GPU worker container shutting down"}
+
+@app.post("/v1/heartbeat")
+@app.get("/v1/heartbeat")
+def api_remote_heartbeat():
+    last_activity_time[0] = time.time()
+    return {"ok": True, "status": "alive"}
 
 @app.post("/synthesize")
 async def synthesize(req: Request):
@@ -432,6 +454,25 @@ print("  📋 NEXT STEP: Copy the TUNNEL URL above, open Kokoro Story Studio,")
 print("  click the '⚡ Local CPU Engine' badge in the top bar,")
 print("  paste the URL, and click 'Save & Activate'.")
 print("=" * 76 + "\n")
+
+INACTIVITY_TIMEOUT_SECONDS = 300  # 5 minutes idle
+def inactivity_watchdog():
+    while True:
+        time.sleep(30)
+        idle_duration = time.time() - last_activity_time[0]
+        if idle_duration > INACTIVITY_TIMEOUT_SECONDS:
+            print("\n" + "=" * 76)
+            print(f"  ⏱ INACTIVITY TIMEOUT DETECTED ({int(idle_duration / 60)} minutes idle)")
+            print("  🛑 Terminating Kaggle GPU worker to protect user's free weekly GPU quota!")
+            print("=" * 76 + "\n", flush=True)
+            try:
+                subprocess.run(["pkill", "-9", "-f", "cloudflared"], check=False)
+            except Exception:
+                pass
+            os._exit(0)
+
+watchdog_thread = threading.Thread(target=inactivity_watchdog, daemon=True)
+watchdog_thread.start()
 
 # Keep the main notebook thread alive
 try:

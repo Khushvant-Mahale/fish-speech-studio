@@ -7149,7 +7149,17 @@ async function checkKaggleStatus() {
 }
 
 async function handleStopKaggle() {
-  if (!confirm("Stop the Kaggle GPU session now? This terminates the container and immediately stops charging your free weekly hours.")) return;
+  const confirmed = await showMessageCard({
+    icon: "⏹",
+    title: "Stop Kaggle GPU Session?",
+    subtitle: "Conserve your weekly quota",
+    body: "<p style='margin:0; color:#cbd5e1;'>This terminates the cloud container and immediately stops charging your free weekly GPU hours. You can relaunch anytime.</p>",
+    primaryText: "Stop GPU Session",
+    secondaryText: "Cancel",
+    showSecondary: true,
+    danger: true
+  });
+  if (!confirmed) return;
   clearInterval(kagglePollInterval);
   const stopBtn = document.getElementById("btn-stop-kaggle");
   const launchBtn = document.getElementById("btn-launch-kaggle");

@@ -409,6 +409,41 @@ def get_free_port(start_port=8080):
 PORT = get_free_port(8080)
 print(f"    [*] Local Port assigned: {PORT}")
 
+# Patch tools/api_server.py with remote /v1/shutdown and /v1/heartbeat routes
+api_server_file = os.path.join("fish-speech", "tools", "api_server.py")
+if os.path.exists(api_server_file):
+    try:
+        with open(api_server_file, "r", encoding="utf-8") as f:
+            api_content = f.read()
+        if "/v1/shutdown" not in api_content:
+            shutdown_snippet = '''
+
+# --- Cloud Worker Termination & Heartbeat Extensions ---
+@app.post("/v1/shutdown")
+@app.get("/v1/shutdown")
+def api_remote_shutdown():
+    import threading, time, subprocess, os
+    def _do_shutdown():
+        time.sleep(0.5)
+        try:
+            subprocess.run(["pkill", "-9", "-f", "cloudflared"], check=False)
+        except Exception:
+            pass
+        os._exit(0)
+    threading.Thread(target=_do_shutdown, daemon=True).start()
+    return {"ok": True, "message": "Kaggle GPU container shutting down now"}
+
+@app.post("/v1/heartbeat")
+@app.get("/v1/heartbeat")
+def api_remote_heartbeat():
+    return {"ok": True, "status": "alive"}
+'''
+            with open(api_server_file, "a", encoding="utf-8") as f:
+                f.write(shutdown_snippet)
+            print("    ⚡ Injected /v1/shutdown remote killswitch into tools/api_server.py")
+    except Exception as e:
+        print(f"    Notice (api_server patch): {e}")
+
 cmd = [
     sys.executable, "tools/api_server.py",
     "--listen", f"127.0.0.1:{PORT}",
@@ -515,7 +550,7 @@ print("=" * 76 + "\n")
 print("[*] Worker is actively listening for voice synthesis requests. (Keep cell running!)\n")
 
 # Inactivity Watchdog to prevent burning free GPU quota if user closes studio or walks away
-INACTIVITY_TIMEOUT_SECONDS = 900  # 15 minutes of zero generation requests
+INACTIVITY_TIMEOUT_SECONDS = 300  # 5 minutes of zero generation requests
 last_activity_time[0] = time.time()
 
 def inactivity_watchdog():
