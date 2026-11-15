@@ -452,6 +452,10 @@ async function openProject(projectId, updateUrl = true) {
     const res = await fetch(`/api/project?id=${encodeURIComponent(projectId)}&t=${Date.now()}`);
     if (!res.ok) throw new Error("Project not found");
     state.currentProject = await res.json();
+    if (state.currentProject && state.currentProject.engine === "fish_s2") {
+      window.location.href = `/studio?project=${encodeURIComponent(state.currentProject.id)}`;
+      return;
+    }
     state.activeBlockIndex = 0;
     state.selectedBlockIndices = new Set([0]);
     state.lastClickedIndex = 0;
@@ -535,15 +539,14 @@ function switchToView(viewName, updateUrl = true) {
   state.currentView = viewName;
   const dashEl = document.getElementById("view-dashboard");
   const studioEl = document.getElementById("view-studio");
-  const isKokoroPath = window.location.pathname.startsWith("/kokoro");
-  const basePath = isKokoroPath ? "/kokoro" : "";
+  const basePath = "/kokoro";
 
   if (viewName === "dashboard") {
     dashEl.style.display = "flex";
     studioEl.style.display = "none";
     document.title = "Story Projects — Kokoro Studio";
     if (updateUrl) {
-      history.pushState({ view: "dashboard" }, "", basePath ? basePath : "/");
+      history.pushState({ view: "dashboard" }, "", basePath);
     }
     loadProjectsList();
   } else {
@@ -987,7 +990,7 @@ function renderDashboard() {
 
     const durationStr = formatAudioDuration(p.total_duration);
     const dateStr = formatTimeAgo(p.updated_at ? p.updated_at * 1000 : null);
-    const studioUrl = `/studio?project=${encodeURIComponent(p.id)}`;
+    const studioUrl = `/kokoro/studio?project=${encodeURIComponent(p.id)}`;
     const isPlaying = activePreviewProjectId === p.id && currentDashboardAudio && !currentDashboardAudio.paused;
 
     // Build cast voice badges
@@ -5112,7 +5115,7 @@ function processImportedFile(file, targetContext) {
             const newProj = await res.json();
             if (newProj && newProj.id) {
               closeNewProjectModal();
-              window.open(`/studio?project=${encodeURIComponent(newProj.id)}`, "_blank");
+              window.open(`/kokoro/studio?project=${encodeURIComponent(newProj.id)}`, "_blank");
               loadProjectsList();
               showToast(`✓ Project "${title}" imported with ${parsed.blocks.length} sentences!`);
               return;
@@ -5184,8 +5187,7 @@ async function handleCreateProjectSubmit() {
 
     const newProj = await res.json();
     closeNewProjectModal();
-    const isKokoroPath = window.location.pathname.startsWith("/kokoro");
-    const targetUrl = isKokoroPath ? `/kokoro/studio?project=${encodeURIComponent(newProj.id)}` : `/studio?project=${encodeURIComponent(newProj.id)}`;
+    const targetUrl = `/kokoro/studio?project=${encodeURIComponent(newProj.id)}`;
     window.location.href = targetUrl;
     loadProjectsList();
   } catch (err) {

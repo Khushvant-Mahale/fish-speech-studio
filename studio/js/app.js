@@ -485,6 +485,10 @@ async function openProject(projectId, updateUrl = true) {
     const res = await fetch(`/api/project?id=${encodeURIComponent(projectId)}&t=${Date.now()}`);
     if (!res.ok) throw new Error("Project not found");
     state.currentProject = await res.json();
+    if (state.currentProject && state.currentProject.engine === "kokoro") {
+      window.location.href = `/kokoro/studio?project=${encodeURIComponent(state.currentProject.id)}`;
+      return;
+    }
     state.activeBlockIndex = 0;
     state.selectedBlockIndices = new Set([0]);
     state.lastClickedIndex = 0;
