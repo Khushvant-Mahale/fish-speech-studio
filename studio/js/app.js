@@ -1928,8 +1928,30 @@ function handleMakeDefaultVoice() {
     }
   }
 
-  let updatedCount = 0;
+  let changedCount = 0;
+  let preservedCount = 0;
+
   state.currentProject.blocks.forEach(b => {
+    if (b.type === "heading" || b.is_spoken === false) return;
+
+    // Preserve custom dialogue characters (don't overwrite specific character lines with narrator)
+    if (b.character_id) {
+      const char = getCharacterById(b.character_id);
+      if (char && char.role !== "narrator" && char.id !== "char_narrator") {
+        return;
+      }
+    }
+
+    const hasSameVoice = (b.voice_id === newVoiceId);
+    const hasSameBlend = JSON.stringify(b.blend_weights || null) === JSON.stringify(newBlendWeights || null);
+
+    if (hasSameVoice && hasSameBlend) {
+      // Voice already matches! Preserve audio cache completely — do NOT re-render!
+      preservedCount++;
+      return;
+    }
+
+    // Voice actually changed: update voice and invalidate cache for this block
     b.voice_id = newVoiceId;
     if (newBlendWeights) {
       b.blend_weights = JSON.parse(JSON.stringify(newBlendWeights));
@@ -1938,12 +1960,17 @@ function handleMakeDefaultVoice() {
     }
     delete b.cachedAudioUrl;
     delete b.cachedSig;
-    updatedCount++;
+    delete b.duration;
+    changedCount++;
   });
 
   renderStudio();
   debouncedSave();
-  showToast(`👑 Set "${voiceObj.name}" as Default Narrator across all ${updatedCount} sentences!`);
+  if (changedCount > 0) {
+    showToast(`👑 Set "${voiceObj.name}" as Default Narrator (${changedCount} updated, ${preservedCount} already had this voice preserved)!`);
+  } else {
+    showToast(`👑 "${voiceObj.name}" is already the default narrator across all narration blocks (${preservedCount} preserved)!`);
+  }
 }
 
 function handleBulkDelete() {
@@ -2111,9 +2138,22 @@ function handleApplyVoiceToSelected() {
   const voice = getVoiceById(activeBlock.voice_id);
   recordHistory(`Apply Voice to Selected (${spokenTargets.length})`);
 
+  let changedCount = 0;
+  let preservedCount = 0;
+
   spokenTargets.forEach(idx => {
     const b = state.currentProject.blocks[idx];
     if (!b) return;
+
+    const hasSameVoice = (b.voice_id === activeBlock.voice_id);
+    const hasSameBlend = JSON.stringify(b.blend_weights || null) === JSON.stringify(activeBlock.blend_weights || null);
+
+    if (hasSameVoice && hasSameBlend) {
+      // Same voice & blend: preserve existing audio cache completely!
+      preservedCount++;
+      return;
+    }
+
     b.voice_id = activeBlock.voice_id;
     if (activeBlock.blend_weights) {
       b.blend_weights = JSON.parse(JSON.stringify(activeBlock.blend_weights));
@@ -2129,6 +2169,7 @@ function handleApplyVoiceToSelected() {
     delete b.cachedAudioUrl;
     delete b.cachedSig;
     delete b.duration;
+    changedCount++;
 
     const row = document.querySelector(`[data-index="${idx}"]`);
     if (row) {
@@ -2145,7 +2186,11 @@ function handleApplyVoiceToSelected() {
 
   renderStudio();
   debouncedSave();
-  showToast(`🎭 Applied voice "${voice.name}" to ${spokenTargets.length} selected sentences!`);
+  if (changedCount > 0) {
+    showToast(`🎭 Applied voice "${voice.name}" (${changedCount} updated, ${preservedCount} preserved)!`);
+  } else {
+    showToast(`🎭 All selected sentences already have "${voice.name}" (${preservedCount} preserved)!`);
+  }
 }
 
 function handleApplySettingsToSelected() {
@@ -2244,9 +2289,14 @@ function handleApplyVoiceAndSettingsToSelected() {
 
   recordHistory(`Apply Voice & Settings to Selected (${spokenTargets.length})`);
 
+  let changedCount = 0;
+  let preservedCount = 0;
+
   spokenTargets.forEach(idx => {
     const b = state.currentProject.blocks[idx];
     if (!b) return;
+
+    const prevSig = getBlockSignature(b);
 
     b.voice_id = activeBlock.voice_id;
     if (activeBlock.blend_weights) {
@@ -2273,14 +2323,26 @@ function handleApplyVoiceAndSettingsToSelected() {
       delete b.is_custom_edited;
     }
 
+    const newSig = getBlockSignature(b);
+    if (prevSig === newSig && b.cachedAudioUrl) {
+      // Audio parameters didn't change: preserve existing audio cache!
+      preservedCount++;
+      return;
+    }
+
     delete b.cachedAudioUrl;
     delete b.cachedSig;
     delete b.duration;
+    changedCount++;
   });
 
   renderStudio();
   debouncedSave();
-  showToast(`✨ Applied Voice & All Settings to ${spokenTargets.length} selected sentences!`);
+  if (changedCount > 0) {
+    showToast(`✨ Applied Voice & All Settings (${changedCount} updated, ${preservedCount} preserved)!`);
+  } else {
+    showToast(`✨ All selected sentences already match these settings (${preservedCount} preserved)!`);
+  }
 }
 
 function handleApplyVoiceToAll() {

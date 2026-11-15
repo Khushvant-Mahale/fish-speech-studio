@@ -35,7 +35,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "British",
-    "flag": "\ud83c\uddec\ud83c\udde7",
+    "flag": "🇬🇧",
     "timbre": "Gentle, Majestic Nature Documentarian",
     "genre": [
       "Documentary",
@@ -54,7 +54,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "American",
-    "flag": "\ud83c\uddfa\ud83c\uddf8",
+    "flag": "🇺🇸",
     "timbre": "Iconic Deep Baritone, Warm Cinematic Gravitas",
     "genre": [
       "Cinematic",
@@ -73,7 +73,7 @@
     "engine": "fish_s2",
     "gender": "Female",
     "accent": "American",
-    "flag": "\ud83c\uddfa\ud83c\uddf8",
+    "flag": "🇺🇸",
     "timbre": "Intimate, Breathy Whisper, Warm & Playful",
     "genre": [
       "Sci-Fi",
@@ -92,7 +92,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "American",
-    "flag": "\ud83c\uddfa\ud83c\uddf8",
+    "flag": "🇺🇸",
     "timbre": "Intense, Calculating, Weathered Authority",
     "genre": [
       "Crime Thriller",
@@ -111,7 +111,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "Otherworldly",
-    "flag": "\ud83d\udc3a",
+    "flag": "🐺",
     "timbre": "Gravelly, Raspy Low Whisper, Stoic Monster Hunter",
     "genre": [
       "Dark Fantasy",
@@ -130,7 +130,7 @@
     "engine": "fish_s2",
     "gender": "Female",
     "accent": "British",
-    "flag": "\ud83c\uddec\ud83c\udde7",
+    "flag": "🇬🇧",
     "timbre": "Crisp, Articulate, Intelligent Storyteller",
     "genre": [
       "Audiobook",
@@ -149,7 +149,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "British",
-    "flag": "\ud83d\udc80",
+    "flag": "💀",
     "timbre": "Low Raspy Radio Comms, Cold Tactical Operative",
     "genre": [
       "Military",
@@ -168,7 +168,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "Dark Fantasy",
-    "flag": "\u2694\ufe0f",
+    "flag": "⚔️",
     "timbre": "Sinister, Sub-bass Guttural Predator, Menacing",
     "genre": [
       "Horror",
@@ -187,7 +187,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "American",
-    "flag": "\ud83c\udfa8",
+    "flag": "🎨",
     "timbre": "Gentle, Whispering Warmth, Peaceful Calm",
     "genre": [
       "Relaxation",
@@ -206,7 +206,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "American",
-    "flag": "\u2696\ufe0f",
+    "flag": "⚖️",
     "timbre": "Fast-Talking, Charismatic, Energetic Hustler",
     "genre": [
       "Comedy",
@@ -225,7 +225,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "British",
-    "flag": "\ud83d\udeaa",
+    "flag": "🚪",
     "timbre": "Satirical, Sophisticated, Dry British Storyteller",
     "genre": [
       "Comedy",
@@ -244,7 +244,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "American",
-    "flag": "\ud83d\uddfd",
+    "flag": "🗽",
     "timbre": "Gritty, Weathered New York Baritone, Intense",
     "genre": [
       "Crime Thriller",
@@ -263,8 +263,8 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "American",
-    "flag": "\ud83c\udf99\ufe0f",
-    "timbre": "Male \u2022 American (Cloned)",
+    "flag": "🎙️",
+    "timbre": "Male • American (Cloned)",
     "genre": [
       "Custom",
       "Library",
@@ -285,8 +285,8 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "American",
-    "flag": "\ud83c\udf99\ufe0f",
-    "timbre": "Male \u2022 American (Cloned)",
+    "flag": "🎙️",
+    "timbre": "Male • American (Cloned)",
     "genre": [
       "Custom",
       "Library",
@@ -307,7 +307,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "International",
-    "flag": "\ud83c\udf10",
+    "flag": "🌐",
     "timbre": "A confident and energetic young male voice with a friendly, conversati",
     "genre": [
       "male",
@@ -331,8 +331,8 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "American",
-    "flag": "\ud83c\udf99\ufe0f",
-    "timbre": "Male \u2022 American (Cloned)",
+    "flag": "🎙️",
+    "timbre": "Male • American (Cloned)",
     "genre": [
       "Custom",
       "Library",
@@ -354,7 +354,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "International",
-    "flag": "\ud83c\udf10",
+    "flag": "🌐",
     "timbre": "A young male voice with an energetic and clear delivery, ideal for tut",
     "genre": [
       "male",
@@ -378,7 +378,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "American",
-    "flag": "\ud83c\udf99\ufe0f",
+    "flag": "🎙️",
     "timbre": "",
     "genre": [
       "Custom",
@@ -401,7 +401,7 @@
     "engine": "fish_s2",
     "gender": "Male",
     "accent": "International",
-    "flag": "\ud83c\udf10",
+    "flag": "🌐",
     "timbre": "DL, PG",
     "genre": [
       "male",
@@ -418,5 +418,29 @@
     "is_library": true,
     "source_model_id": "1936333080804be19655c6749b2ae7b2",
     "created_at": 1794638779.4791834
+  },
+  {
+    "id": "fish_fb7ec16ca51a45a5a4db881244d7990a",
+    "name": "WNBA VOICEOVER",
+    "engine": "fish_s2",
+    "gender": "Male",
+    "accent": "International",
+    "flag": "🌐",
+    "timbre": "WNBA",
+    "genre": [
+      "male",
+      "middle-aged",
+      "narration",
+      "educational"
+    ],
+    "badge": "WNB",
+    "color": "#10b981",
+    "default_emotion_tag": "[clear, natural dialogue]",
+    "reference_audio": "voices/reference/ref_fish_fb7ec16ca51a45a5a4db881244d7990a.wav",
+    "reference_text": "When we look at breakthrough moments in women's basketball, consider Diana Taurasi's rookie season. Veterans acknowledged her talent, respected her game-changing ability, and recognized how she elevated the entire league's visibility. That's how transformative players should be received.",
+    "is_custom": true,
+    "is_library": true,
+    "source_model_id": "fb7ec16ca51a45a5a4db881244d7990a",
+    "created_at": 1794742474.0275538
   }
 ]
