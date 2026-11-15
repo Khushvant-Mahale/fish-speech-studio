@@ -392,7 +392,27 @@ async function loadConfig() {
     if (state.config.active_engine) {
       state.activeEngine = state.config.active_engine;
     }
+
+    // Check localStorage fallback for remote worker URL across page reloads
+    const localRemoteUrl = localStorage.getItem("fish_speech_remote_url");
+    if (!state.config.remote_worker_url && localRemoteUrl) {
+      console.log("[Studio] Restoring remote worker URL from localStorage:", localRemoteUrl);
+      state.config.remote_worker_url = localRemoteUrl;
+      state.config.active = true;
+      // Sync to server so server-side engine also has it
+      fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remote_worker_url: localRemoteUrl, active_engine: state.activeEngine || "fish_s2" })
+      }).catch(() => {});
+    } else if (state.config.remote_worker_url) {
+      localStorage.setItem("fish_speech_remote_url", state.config.remote_worker_url);
+    }
+
     updateEngineUI(state.config.remote_worker_url, state.config.active);
+    if (state.config.remote_worker_url) {
+      checkRemoteWorkerHealth(true);
+    }
   } catch (err) {
     console.error("Failed to load config", err);
   }
@@ -6752,6 +6772,7 @@ async function checkKaggleStatus() {
       
       state.config.remote_worker_url = data.tunnel_url;
       state.config.active = true;
+      localStorage.setItem("fish_speech_remote_url", data.tunnel_url);
       updateEngineBadges();
       const colabBanner = document.getElementById("colab-status-banner");
       if (colabBanner) {
@@ -6816,6 +6837,7 @@ async function handleStopKaggle() {
     if (stepper) stepper.style.display = "none";
 
     // Clean up local state & banner
+    localStorage.removeItem("fish_speech_remote_url");
     if (state.config) {
       state.config.remote_worker_url = "";
       state.config.fish_remote_worker_url = "";
@@ -7094,8 +7116,10 @@ async function handleSaveColab() {
     state.config = data;
     closeColabModal();
     if (url) {
+      localStorage.setItem("fish_speech_remote_url", url);
       checkRemoteWorkerHealth(false);
     } else {
+      localStorage.removeItem("fish_speech_remote_url");
       updateEngineUI("", data.active);
       showToast(data.active ? "🔑 Fish API key configured." : "⚡ Switched to Local CPU Engine.");
     }
@@ -7114,6 +7138,7 @@ async function handleClearColab() {
     const data = await res.json();
     state.config = data;
     state.remoteWorkerHealthy = null;
+    localStorage.removeItem("fish_speech_remote_url");
     updateEngineUI("", false);
     const urlInput = document.getElementById("colab-url-input");
     if (urlInput) urlInput.value = "";
@@ -7731,15 +7756,6 @@ function setupEventListeners() {
       }
     });
   }
-
-  // Quota Protection: Send beacon on browser/tab close to automatically terminate Kaggle worker
-  window.addEventListener("beforeunload", () => {
-    try {
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon("/api/cloud/kaggle/beacon_close");
-      }
-    } catch (e) {}
-  });
 
   // Regular 25s heartbeat while Studio tab is alive
   setInterval(() => {

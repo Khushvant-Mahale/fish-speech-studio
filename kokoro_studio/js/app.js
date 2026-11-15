@@ -370,9 +370,28 @@ async function loadProjectsList() {
 
 async function loadConfig() {
   try {
-    const res = await fetch("/api/config");
+    const res = await fetch("/api/config?engine=kokoro");
     state.config = await res.json();
+
+    // Check localStorage fallback for remote worker URL across page reloads
+    const localRemoteUrl = localStorage.getItem("kokoro_speech_remote_url");
+    if (!state.config.remote_worker_url && localRemoteUrl) {
+      console.log("[Kokoro Studio] Restoring remote worker URL from localStorage:", localRemoteUrl);
+      state.config.remote_worker_url = localRemoteUrl;
+      state.config.active = true;
+      fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remote_worker_url: localRemoteUrl, active_engine: "kokoro" })
+      }).catch(() => {});
+    } else if (state.config.remote_worker_url) {
+      localStorage.setItem("kokoro_speech_remote_url", state.config.remote_worker_url);
+    }
+
     updateEngineUI(state.config.remote_worker_url, state.config.active);
+    if (state.config.remote_worker_url) {
+      checkRemoteWorkerHealth(true);
+    }
   } catch (err) {
     console.error("Failed to load config", err);
   }
@@ -5741,6 +5760,7 @@ async function checkKaggleStatus() {
       
       state.config.remote_worker_url = data.tunnel_url;
       state.config.active = true;
+      localStorage.setItem("kokoro_speech_remote_url", data.tunnel_url);
       updateEngineUI(data.tunnel_url, true);
       const colabBanner = document.getElementById("colab-status-banner");
       if (colabBanner) {
@@ -5820,6 +5840,7 @@ async function handleStopKaggle() {
     if (stepper) stepper.style.display = "none";
 
     // Clean up local state & banner
+    localStorage.removeItem("kokoro_speech_remote_url");
     if (state.config) {
       state.config.remote_worker_url = "";
       state.config.active = false;
@@ -6027,8 +6048,10 @@ async function handleSaveColab() {
     state.config = data;
     closeColabModal();
     if (url) {
+      localStorage.setItem("kokoro_speech_remote_url", url);
       checkRemoteWorkerHealth(false);
     } else {
+      localStorage.removeItem("kokoro_speech_remote_url");
       updateEngineUI("", data.active);
       showToast("⚡ Switched to Local CPU Engine");
     }
@@ -6047,6 +6070,7 @@ async function handleClearColab() {
     const data = await res.json();
     state.config = data;
     state.remoteWorkerHealthy = null;
+    localStorage.removeItem("kokoro_speech_remote_url");
     updateEngineUI("", false);
     const urlInput = document.getElementById("colab-url-input");
     if (urlInput) urlInput.value = "";

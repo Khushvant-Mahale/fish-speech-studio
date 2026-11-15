@@ -30,6 +30,7 @@ class KaggleCloudManager:
     def __init__(self, base_dir: Path):
         self.base_dir = base_dir
         self.worker_script_path = base_dir / "colab_fish_worker.py"
+        self.session_file = base_dir / "projects" / "kaggle_session.json"
         self._active_session: Dict[str, Any] = {
             "status": "idle",  # idle, launching, queued, booting, ready, error, stopped
             "engine": "fish_s2",
@@ -42,6 +43,25 @@ class KaggleCloudManager:
         }
         self._poll_thread: Optional[threading.Thread] = None
         self._stop_polling = threading.Event()
+        self._load_session()
+
+    def _save_session(self):
+        try:
+            self.session_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.session_file, "w", encoding="utf-8") as f:
+                json.dump(self._active_session, f, indent=2)
+        except Exception:
+            pass
+
+    def _load_session(self):
+        if self.session_file.exists():
+            try:
+                with open(self.session_file, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                    if saved.get("tunnel_url"):
+                        self._active_session.update(saved)
+            except Exception:
+                pass
 
     def _get_api(self, username: str, key: str) -> Optional[KaggleApi]:
         if not KaggleApi:
@@ -159,6 +179,7 @@ class KaggleCloudManager:
                 "last_log": f"{kernel_title} pushed to Kaggle. Waiting for GPU container allocation...",
                 "error": ""
             }
+            self._save_session()
 
             self._start_polling(username, key, kernel_ref)
 
@@ -208,6 +229,7 @@ class KaggleCloudManager:
                     self._active_session["status"] = "error"
                     self._active_session["error"] = fail_msg or "Kernel encountered an execution error."
                     self._active_session["tunnel_url"] = ""
+                    self._save_session()
                     break
 
                 if "cancel" in raw_status or "complete" in raw_status:
@@ -215,6 +237,7 @@ class KaggleCloudManager:
                     self._active_session["status"] = "stopped"
                     self._active_session["tunnel_url"] = ""
                     self._active_session["error"] = "Kaggle worker execution ended."
+                    self._save_session()
                     break
 
                 if "running" in raw_status:
@@ -236,6 +259,7 @@ class KaggleCloudManager:
                                 print(f"[KaggleManager] 🎉 Auto-discovered Cloudflare Tunnel URL: {tunnel_url}")
                                 self._active_session["tunnel_url"] = tunnel_url
                                 self._active_session["status"] = "ready"
+                                self._save_session()
                                 break
                 except Exception as log_err:
                     pass
@@ -252,6 +276,7 @@ class KaggleCloudManager:
                                 print(f"[KaggleManager] 🎉 Auto-discovered Cloudflare Tunnel URL (fallback logs): {tunnel_url}")
                                 self._active_session["tunnel_url"] = tunnel_url
                                 self._active_session["status"] = "ready"
+                                self._save_session()
                     except Exception:
                         pass
 
@@ -261,8 +286,10 @@ class KaggleCloudManager:
                         print(f"[KaggleManager] Kernel status changed to '{raw_status}'. Tunnel no longer active.")
                         self._active_session["status"] = "stopped"
                         self._active_session["tunnel_url"] = ""
+                        self._save_session()
                         break
                     self._active_session["status"] = "ready"
+                    self._save_session()
                     time.sleep(8)
                     continue
 
@@ -273,6 +300,22 @@ class KaggleCloudManager:
 
     def get_status(self) -> Dict[str, Any]:
         """Returns the current live session status and progress."""
+        if self._active_session["status"] in ("idle", "stopped"):
+            self._load_session()
+            if self._active_session.get("tunnel_url"):
+                # Quick check if tunnel is alive
+                import urllib.request
+                try:
+                    req = urllib.request.Request(
+                        f"{self._active_session['tunnel_url'].rstrip('/')}/v1/health",
+                        headers={"User-Agent": "FishSpeechStudio/1.0"}
+                    )
+                    with urllib.request.urlopen(req, timeout=2.0) as resp:
+                        if resp.status == 200:
+                            self._active_session["status"] = "ready"
+                except Exception:
+                    pass
+
         elapsed = 0
         if self._active_session["started_at"] > 0:
             elapsed = int(time.time() - self._active_session["started_at"])
@@ -305,4 +348,5 @@ class KaggleCloudManager:
 
         self._active_session["status"] = "stopped"
         self._active_session["tunnel_url"] = ""
+        self._save_session()
         return {"ok": True, "message": "Kaggle GPU session stopped."}

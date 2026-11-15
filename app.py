@@ -1638,24 +1638,10 @@ async def handle_kaggle_heartbeat(request):
 
 
 async def handle_kaggle_beacon_close(request):
-    """Fired via navigator.sendBeacon when user closes the browser/tab."""
-    try:
-        cfg = load_config()
-        username = cfg.get("kaggle_username", "")
-        key = cfg.get("kaggle_key", "")
-        status = kaggle_mgr.get_status().get("status", "")
-        if status in ("ready", "booting", "queued"):
-            print("[KaggleWatchdog] Studio window closed via beacon! Terminating Kaggle GPU worker to preserve quota...")
-            kaggle_mgr.stop_worker(username, key)
-            cfg["remote_worker_url"] = ""
-            cfg["fish_remote_worker_url"] = ""
-            save_config(cfg)
-            if fish_engine:
-                fish_engine.remote_url = None
-        return web.Response(text="ok")
-    except Exception as e:
-        print(f"[KaggleWatchdog] Beacon close error: {e}")
-        return web.Response(text="error", status=500)
+    """Fired via navigator.sendBeacon when user closes the browser/tab.
+    Note: Remote workers have their own 15-minute inactivity watchdog. We do not
+    kill the worker or wipe config on simple page refreshes."""
+    return web.Response(text="ok")
 
 
 def _studio_inactivity_watchdog_loop():
