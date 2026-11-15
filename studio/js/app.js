@@ -398,12 +398,16 @@ async function loadConfig() {
   }
 }
 
-function updateEngineUI(remoteUrl, active) {
-  const hasApi = Boolean(state.config.fish_api_key);
-  const isOnline = Boolean(active && remoteUrl);
+function updateEngineUI(remoteUrl, active, meta = {}) {
+  const isFish = (state.activeEngine !== "kokoro");
+  const hasApi = Boolean(state.config && state.config.fish_api_key);
+  const isHealthy = state.remoteWorkerHealthy !== false;
+  const isOnline = Boolean(active && remoteUrl && isHealthy);
+  const isOfflineWorker = Boolean(remoteUrl && state.remoteWorkerHealthy === false);
 
   let badgeText = "🐟 Fish Audio S2 Pro";
   if (isOnline) badgeText = "🚀 S2 Pro GPU Active";
+  else if (isOfflineWorker) badgeText = "🔴 GPU Offline";
   else if (hasApi) badgeText = "🔑 Fish Cloud API";
   else badgeText = "🐟 Fish Audio S2 Pro";
 
@@ -416,11 +420,18 @@ function updateEngineUI(remoteUrl, active) {
     if (!btn) return;
     const label = btn.querySelector(".engine-label");
     if (label) label.textContent = badgeText;
-    if (isOnline || hasApi) {
+    
+    btn.classList.remove("gpu-active", "gpu-offline");
+    if (isOnline) {
       btn.classList.add("gpu-active");
-      btn.title = isOnline ? `Cloud GPU Active: ${remoteUrl}` : "Fish Audio Cloud API Connected";
+      btn.title = `Cloud GPU Active: ${remoteUrl} (Connected)`;
+    } else if (isOfflineWorker) {
+      btn.classList.add("gpu-offline");
+      btn.title = `Remote GPU is OFFLINE or stopped (${remoteUrl}). Click to reconnect or launch Kaggle.`;
+    } else if (hasApi) {
+      btn.classList.add("gpu-active");
+      btn.title = "Fish Audio Cloud API Connected";
     } else {
-      btn.classList.remove("gpu-active");
       btn.title = "Configure Cloud GPU (Google Colab / Kaggle) or Fish API";
     }
   });
@@ -429,9 +440,19 @@ function updateEngineUI(remoteUrl, active) {
   const statEngineName = document.getElementById("stat-engine-name");
   const statEngineSpeed = document.getElementById("stat-engine-speed");
   const statEngineIcon = document.getElementById("stat-engine-icon");
-  if (statEngineName) statEngineName.textContent = isOnline ? "S2 Pro GPU" : (hasApi ? "Fish API" : "Fish S2 Pro");
-  if (statEngineSpeed) statEngineSpeed.textContent = (isOnline || hasApi) ? "~0.3s per sentence (Fast)" : "Requires Worker / API";
-  if (statEngineIcon) statEngineIcon.textContent = "🐟";
+  if (statEngineName) {
+    if (isOnline) statEngineName.textContent = "S2 Pro GPU";
+    else if (isOfflineWorker) statEngineName.textContent = "GPU Offline";
+    else if (hasApi) statEngineName.textContent = "Fish API";
+    else statEngineName.textContent = "Fish S2 Pro";
+  }
+  if (statEngineSpeed) {
+    if (isOnline) statEngineSpeed.textContent = "~0.3s per sentence (Fast)";
+    else if (isOfflineWorker) statEngineSpeed.textContent = "Worker Stopped — Click to Reconnect";
+    else if (hasApi) statEngineSpeed.textContent = "~0.3s per sentence (Cloud API)";
+    else statEngineSpeed.textContent = "Requires Worker / API";
+  }
+  if (statEngineIcon) statEngineIcon.textContent = isOfflineWorker ? "🔴" : "🐟";
 
   // Auto-configure parallel concurrency selector
   const concurrencySelect = document.getElementById("batch-concurrency-select");
@@ -455,7 +476,7 @@ function updateEngineUI(remoteUrl, active) {
     urlInput.value = remoteUrl || "";
   }
   const keyInput = document.getElementById("fish-api-key-input");
-  if (keyInput && state.config.fish_api_key !== undefined) {
+  if (keyInput && state.config && state.config.fish_api_key !== undefined) {
     keyInput.value = state.config.fish_api_key || "";
   }
 
@@ -464,21 +485,118 @@ function updateEngineUI(remoteUrl, active) {
   const bannerDesc = document.getElementById("banner-desc");
   const bannerEl = document.getElementById("colab-status-banner");
   if (bannerEl) {
+    bannerEl.classList.remove("online", "offline", "stopped");
     if (isOnline) {
-      bannerEl.className = "colab-status-banner online";
-      if (bannerTitle) bannerTitle.textContent = "Status: Cloud GPU Connected";
-      if (bannerDesc) bannerDesc.textContent = `Worker tunnel active at: ${remoteUrl}`;
+      bannerEl.classList.add("online");
+      if (bannerTitle) bannerTitle.textContent = "Active Mode: Cloud GPU (Tesla T4) 🟢";
+      if (bannerDesc) bannerDesc.textContent = `Connected securely to remote worker via ${remoteUrl}`;
+    } else if (isOfflineWorker) {
+      bannerEl.classList.add("stopped");
+      if (bannerTitle) bannerTitle.textContent = "⚠️ Mode: Cloud GPU Stopped / Offline 🔴";
+      if (bannerDesc) bannerDesc.textContent = `Remote worker at ${remoteUrl} stopped or is unreachable. Click 'Launch Cloud GPU' to start a new session.`;
     } else if (isFish && hasApi) {
-      bannerEl.className = "colab-status-banner online";
-      if (bannerTitle) bannerTitle.textContent = "Status: Fish Cloud API Connected";
+      bannerEl.classList.add("online");
+      if (bannerTitle) bannerTitle.textContent = "Active Mode: Fish Cloud API 🔑";
       if (bannerDesc) bannerDesc.textContent = "Inference routes directly to Fish Audio Cloud servers.";
     } else {
-      bannerEl.className = "colab-status-banner offline";
-      if (bannerTitle) bannerTitle.textContent = isFish ? "Status: No Worker or API Connected" : "Status: Local CPU Mode";
-      if (bannerDesc) bannerDesc.textContent = isFish ? "Connect Google Colab GPU or paste your Fish API key below." : "Generating on local CPU.";
+      bannerEl.classList.add("offline");
+      if (bannerTitle) bannerTitle.textContent = isFish ? "Current Mode: No Worker or API Connected" : "Current Mode: Local CPU Engine";
+      if (bannerDesc) bannerDesc.textContent = isFish ? "Connect Google Colab GPU or paste your Fish API key below." : "Generating on local CPU (~14s per sentence). Connect Cloud GPU for 100x speed!";
     }
   }
 }
+
+function updateEngineBadges() {
+  updateEngineUI(state.config?.remote_worker_url, state.config?.active);
+}
+
+// ---------------- WORKER HEALTH SENTINEL ---------------- //
+let _isCheckingHealth = false;
+
+async function checkRemoteWorkerHealth(silent = false) {
+  if (_isCheckingHealth) return;
+  const remoteUrl = (state.config && state.config.remote_worker_url) || "";
+  const hasApi = Boolean(state.config && state.config.fish_api_key);
+
+  if (!remoteUrl) {
+    state.remoteWorkerHealthy = null;
+    updateEngineUI("", false);
+    return;
+  }
+
+  _isCheckingHealth = true;
+  try {
+    const res = await fetch("/api/test_remote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: remoteUrl })
+    });
+    const data = await res.json().catch(() => ({ ok: false }));
+
+    if (res.ok && data.ok) {
+      const wasOffline = (state.remoteWorkerHealthy === false);
+      state.remoteWorkerHealthy = true;
+      state.config.active = true;
+      updateEngineUI(remoteUrl, true, { hardware: data.details?.hardware });
+      
+      const launchBtn = document.getElementById("btn-launch-kaggle");
+      const stopBtn = document.getElementById("btn-stop-kaggle");
+      if (launchBtn) {
+        launchBtn.textContent = "🟢 GPU Active & Connected";
+        launchBtn.style.background = "#10b981";
+        launchBtn.disabled = true;
+      }
+      if (stopBtn) stopBtn.style.display = "inline-block";
+
+      if (wasOffline && !silent) {
+        showToast("🟢 Cloud GPU reconnected successfully!");
+      }
+    } else {
+      const wasOnline = (state.remoteWorkerHealthy === true);
+      state.remoteWorkerHealthy = false;
+      state.config.active = false;
+      updateEngineUI(remoteUrl, false, { error: data.error });
+
+      const launchBtn = document.getElementById("btn-launch-kaggle");
+      const stopBtn = document.getElementById("btn-stop-kaggle");
+      if (launchBtn) {
+        launchBtn.disabled = false;
+        launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+        launchBtn.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
+      }
+      if (stopBtn) stopBtn.style.display = "none";
+
+      if (wasOnline && !silent) {
+        showToast("⚠️ Cloud GPU disconnected or stopped. Studio reverted to Local CPU.", 5000);
+      }
+    }
+  } catch (err) {
+    state.remoteWorkerHealthy = false;
+    state.config.active = false;
+    updateEngineUI(remoteUrl, false, { error: err.message });
+  } finally {
+    _isCheckingHealth = false;
+  }
+}
+
+// Auto-check worker health on tab focus, visibility change, and periodic poll
+window.addEventListener("focus", () => {
+  if (state.config && state.config.remote_worker_url) {
+    checkRemoteWorkerHealth(true);
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && state.config && state.config.remote_worker_url) {
+    checkRemoteWorkerHealth(true);
+  }
+});
+
+setInterval(() => {
+  if (document.visibilityState === "visible" && state.config && state.config.remote_worker_url) {
+    checkRemoteWorkerHealth(true);
+  }
+}, 25000);
 
 async function openProject(projectId, updateUrl = true) {
   try {
@@ -6740,6 +6858,11 @@ function openColabModal() {
     keyInput.value = (state.config && state.config.fish_api_key) || "";
   }
 
+  // Live test configured remote worker upon opening modal
+  if (state.config && state.config.remote_worker_url) {
+    checkRemoteWorkerHealth(true);
+  }
+
   // Auto-populate Kaggle credentials if present
   fetch("/api/config").then(r => r.json()).then(cfg => {
     if (cfg.kaggle_username) {
@@ -6794,13 +6917,21 @@ function openColabModal() {
         launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
         launchBtn.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
       }
-      if (!state.config?.remote_worker_url) {
+      if (!state.config?.remote_worker_url || state.remoteWorkerHealthy === false) {
         if (colabBanner) {
-          colabBanner.className = "colab-status-banner offline";
-          const bt = document.getElementById("banner-title");
-          if (bt) bt.textContent = "Current Mode: Local CPU Engine";
-          const bd = document.getElementById("banner-desc");
-          if (bd) bd.textContent = "Generating on laptop CPU (~14s per sentence). Connect Cloud GPU for 100x speed!";
+          if (state.config?.remote_worker_url && state.remoteWorkerHealthy === false) {
+            colabBanner.className = "colab-status-banner stopped";
+            const bt = document.getElementById("banner-title");
+            if (bt) bt.textContent = "⚠️ Mode: Cloud GPU Stopped / Offline 🔴";
+            const bd = document.getElementById("banner-desc");
+            if (bd) bd.textContent = `Remote worker at ${state.config.remote_worker_url} stopped or is unreachable. Click 'Launch Cloud GPU' to start a new session.`;
+          } else {
+            colabBanner.className = "colab-status-banner offline";
+            const bt = document.getElementById("banner-title");
+            if (bt) bt.textContent = "Current Mode: Local CPU Engine";
+            const bd = document.getElementById("banner-desc");
+            if (bd) bd.textContent = "Generating on laptop CPU (~14s per sentence). Connect Cloud GPU for 100x speed!";
+          }
         }
       }
     }
@@ -6837,13 +6968,44 @@ async function handleTestColab() {
     });
     const data = await res.json();
     if (data.ok) {
+      state.remoteWorkerHealthy = true;
       const hw = data.details?.hardware || "Cloud GPU";
       if (testRes) testRes.innerHTML = `<span style="color: var(--success); font-weight: 600;">✅ Connected! Hardware: ${hw} — Ready for instant synthesis!</span>`;
+      if (url === state.config?.remote_worker_url) {
+        state.config.active = true;
+        updateEngineUI(url, true);
+      }
     } else {
+      state.remoteWorkerHealthy = false;
       if (testRes) testRes.innerHTML = `<span style="color: var(--danger);">❌ Connection failed: ${data.error || "Could not reach remote worker"}</span>`;
+      if (url === state.config?.remote_worker_url) {
+        state.config.active = false;
+        updateEngineUI(url, false);
+      }
+      const colabBanner = document.getElementById("colab-status-banner");
+      if (colabBanner) {
+        colabBanner.className = "colab-status-banner stopped";
+        const bt = document.getElementById("banner-title");
+        if (bt) bt.textContent = "⚠️ Mode: Cloud GPU Stopped / Offline 🔴";
+        const bd = document.getElementById("banner-desc");
+        if (bd) bd.textContent = `Remote worker at ${url} stopped or is unreachable. Click 'Launch Cloud GPU' to start a new session.`;
+      }
     }
   } catch (err) {
+    state.remoteWorkerHealthy = false;
     if (testRes) testRes.innerHTML = `<span style="color: var(--danger);">❌ Connection failed: ${err.message}</span>`;
+    if (url === state.config?.remote_worker_url) {
+      state.config.active = false;
+      updateEngineUI(url, false);
+    }
+    const colabBanner = document.getElementById("colab-status-banner");
+    if (colabBanner) {
+      colabBanner.className = "colab-status-banner stopped";
+      const bt = document.getElementById("banner-title");
+      if (bt) bt.textContent = "⚠️ Mode: Cloud GPU Stopped / Offline 🔴";
+      const bd = document.getElementById("banner-desc");
+      if (bd) bd.textContent = `Remote worker at ${url} is unreachable.`;
+    }
   } finally {
     if (btn) {
       btn.textContent = "⚡ Test Connection";
@@ -6930,15 +7092,15 @@ async function handleSaveColab() {
     });
     const data = await res.json();
     state.config = data;
-    updateEngineUI(data.remote_worker_url, data.active);
     closeColabModal();
-    if (data.active) {
-      showToast(`🚀 Config saved: Active!`);
+    if (url) {
+      checkRemoteWorkerHealth(false);
     } else {
-      showToast("⚡ Config saved.");
+      updateEngineUI("", data.active);
+      showToast(data.active ? "🔑 Fish API key configured." : "⚡ Switched to Local CPU Engine.");
     }
   } catch (err) {
-    alert("Failed to save configuration: " + err);
+    showToast("⚠️ Failed to save configuration: " + err.message, 5000);
   }
 }
 
@@ -6951,6 +7113,7 @@ async function handleClearColab() {
     });
     const data = await res.json();
     state.config = data;
+    state.remoteWorkerHealthy = null;
     updateEngineUI("", false);
     const urlInput = document.getElementById("colab-url-input");
     if (urlInput) urlInput.value = "";
@@ -6959,9 +7122,9 @@ async function handleClearColab() {
     const testRes = document.getElementById("colab-test-result");
     if (testRes) testRes.innerHTML = "";
     closeColabModal();
-    showToast("⚡ Remote worker disconnected.");
+    showToast("⚡ Remote worker disconnected. Switched to Local CPU.");
   } catch (err) {
-    alert("Failed to disconnect: " + err);
+    showToast("⚠️ Failed to disconnect: " + err.message, 5000);
   }
 }
 

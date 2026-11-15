@@ -378,9 +378,15 @@ async function loadConfig() {
   }
 }
 
-function updateEngineUI(remoteUrl, active) {
-  const isOnline = Boolean(active && remoteUrl);
-  const badgeText = isOnline ? "🚀 Colab GPU (Active)" : "⚡ Local CPU Engine";
+function updateEngineUI(remoteUrl, active, meta = {}) {
+  const isHealthy = state.remoteWorkerHealthy !== false;
+  const isOnline = Boolean(active && remoteUrl && isHealthy);
+  const isOfflineWorker = Boolean(remoteUrl && state.remoteWorkerHealthy === false);
+  
+  let badgeText = "⚡ Local CPU Engine";
+  if (isOnline) badgeText = "🚀 Kokoro GPU Active";
+  else if (isOfflineWorker) badgeText = "🔴 GPU Offline";
+  else badgeText = "⚡ Local CPU Engine";
 
   // Update top bar buttons on both views
   const btns = [
@@ -391,11 +397,14 @@ function updateEngineUI(remoteUrl, active) {
     if (!btn) return;
     const label = btn.querySelector(".engine-label");
     if (label) label.textContent = badgeText;
+    btn.classList.remove("gpu-active", "gpu-offline");
     if (isOnline) {
       btn.classList.add("gpu-active");
       btn.title = `Cloud GPU Active: ${remoteUrl}`;
+    } else if (isOfflineWorker) {
+      btn.classList.add("gpu-offline");
+      btn.title = `Remote GPU is OFFLINE or stopped (${remoteUrl}). Click to reconnect or launch Kaggle.`;
     } else {
-      btn.classList.remove("gpu-active");
       btn.title = "Configure Cloud GPU (Google Colab / Kaggle)";
     }
   });
@@ -404,9 +413,9 @@ function updateEngineUI(remoteUrl, active) {
   const statEngineName = document.getElementById("stat-engine-name");
   const statEngineSpeed = document.getElementById("stat-engine-speed");
   const statEngineIcon = document.getElementById("stat-engine-icon");
-  if (statEngineName) statEngineName.textContent = isOnline ? "Colab GPU (Active)" : "Local CPU";
-  if (statEngineSpeed) statEngineSpeed.textContent = isOnline ? "~0.8s per sentence (Fast)" : "~14s per sentence";
-  if (statEngineIcon) statEngineIcon.textContent = isOnline ? "🚀" : "⚡";
+  if (statEngineName) statEngineName.textContent = isOnline ? "Kokoro GPU" : (isOfflineWorker ? "GPU Offline" : "Local CPU");
+  if (statEngineSpeed) statEngineSpeed.textContent = isOnline ? "~0.8s per sentence (Fast)" : (isOfflineWorker ? "Worker Stopped — Click to Reconnect" : "~14s per sentence");
+  if (statEngineIcon) statEngineIcon.textContent = isOnline ? "🚀" : (isOfflineWorker ? "🔴" : "⚡");
 
   // Auto-configure parallel concurrency selector according to GPU vs CPU mode
   const concurrencySelect = document.getElementById("batch-concurrency-select");
@@ -435,10 +444,15 @@ function updateEngineUI(remoteUrl, active) {
   const bannerDesc = document.getElementById("banner-desc");
 
   if (banner && bannerTitle && bannerDesc) {
+    banner.classList.remove("online", "offline", "stopped");
     if (isOnline) {
       banner.className = "colab-status-banner online";
-      bannerTitle.textContent = "Current Mode: Colab GPU Accelerated (100x Speed)";
+      bannerTitle.textContent = "Current Mode: Kokoro GPU Accelerated (100x Speed)";
       bannerDesc.textContent = `Active endpoint: ${remoteUrl} (~0.2s per sentence synthesis). Locally cached forever.`;
+    } else if (isOfflineWorker) {
+      banner.className = "colab-status-banner stopped";
+      bannerTitle.textContent = "⚠️ Mode: Cloud GPU Stopped / Offline 🔴";
+      bannerDesc.textContent = `Remote worker at ${remoteUrl} is not responding (stopped or tunnel expired). Click 'Launch Cloud GPU' to start a new session.`;
     } else {
       banner.className = "colab-status-banner offline";
       bannerTitle.textContent = "Current Mode: Local CPU Engine";
@@ -446,6 +460,97 @@ function updateEngineUI(remoteUrl, active) {
     }
   }
 }
+
+function updateEngineBadges() {
+  updateEngineUI(state.config?.remote_worker_url, state.config?.active);
+}
+
+// ---------------- WORKER HEALTH SENTINEL ---------------- //
+let _isCheckingHealth = false;
+
+async function checkRemoteWorkerHealth(silent = false) {
+  if (_isCheckingHealth) return;
+  const remoteUrl = (state.config && state.config.remote_worker_url) || "";
+
+  if (!remoteUrl) {
+    state.remoteWorkerHealthy = null;
+    updateEngineUI("", false);
+    return;
+  }
+
+  _isCheckingHealth = true;
+  try {
+    const res = await fetch("/api/test_remote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: remoteUrl })
+    });
+    const data = await res.json().catch(() => ({ ok: false }));
+
+    if (res.ok && data.ok) {
+      const wasOffline = (state.remoteWorkerHealthy === false);
+      state.remoteWorkerHealthy = true;
+      state.config.active = true;
+      updateEngineUI(remoteUrl, true, { hardware: data.details?.hardware });
+      
+      const launchBtn = document.getElementById("btn-launch-kaggle");
+      const stopBtn = document.getElementById("btn-stop-kaggle");
+      if (launchBtn) {
+        launchBtn.textContent = "🟢 GPU Active & Connected";
+        launchBtn.style.background = "#10b981";
+        launchBtn.disabled = true;
+      }
+      if (stopBtn) stopBtn.style.display = "inline-block";
+
+      if (wasOffline && !silent) {
+        showToast("🟢 Kokoro Cloud GPU reconnected successfully!");
+      }
+    } else {
+      const wasOnline = (state.remoteWorkerHealthy === true);
+      state.remoteWorkerHealthy = false;
+      state.config.active = false;
+      updateEngineUI(remoteUrl, false, { error: data.error });
+
+      const launchBtn = document.getElementById("btn-launch-kaggle");
+      const stopBtn = document.getElementById("btn-stop-kaggle");
+      if (launchBtn) {
+        launchBtn.disabled = false;
+        launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+        launchBtn.style.background = "linear-gradient(135deg, #6366f1, #4f46e5)";
+      }
+      if (stopBtn) stopBtn.style.display = "none";
+
+      if (wasOnline && !silent) {
+        showToast("⚠️ Kokoro Cloud GPU disconnected or stopped. Studio reverted to Local CPU.", 5000);
+      }
+    }
+  } catch (err) {
+    state.remoteWorkerHealthy = false;
+    state.config.active = false;
+    updateEngineUI(remoteUrl, false, { error: err.message });
+  } finally {
+    _isCheckingHealth = false;
+  }
+}
+
+// Auto-check worker health on tab focus, visibility change, and periodic poll
+window.addEventListener("focus", () => {
+  if (state.config && state.config.remote_worker_url) {
+    checkRemoteWorkerHealth(true);
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && state.config && state.config.remote_worker_url) {
+    checkRemoteWorkerHealth(true);
+  }
+});
+
+setInterval(() => {
+  if (document.visibilityState === "visible" && state.config && state.config.remote_worker_url) {
+    checkRemoteWorkerHealth(true);
+  }
+}, 25000);
 
 async function openProject(projectId, updateUrl = true) {
   try {
@@ -5753,6 +5858,11 @@ function openColabModal() {
     urlInput.value = (state.config && state.config.remote_worker_url) || "";
   }
 
+  // Live test configured remote worker upon opening modal
+  if (state.config && state.config.remote_worker_url) {
+    checkRemoteWorkerHealth(true);
+  }
+
   // Auto-populate Kaggle credentials if present
   fetch("/api/config?engine=kokoro").then(r => r.json()).then(cfg => {
     if (cfg.kaggle_username) {
@@ -5806,13 +5916,21 @@ function openColabModal() {
         launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
         launchBtn.style.background = "linear-gradient(135deg, #6366f1, #4f46e5)";
       }
-      if (!state.config?.remote_worker_url) {
+      if (!state.config?.remote_worker_url || state.remoteWorkerHealthy === false) {
         if (colabBanner) {
-          colabBanner.className = "colab-status-banner offline";
-          const bt = document.getElementById("banner-title");
-          if (bt) bt.textContent = "Current Mode: Local CPU Engine";
-          const bd = document.getElementById("banner-desc");
-          if (bd) bd.textContent = "Generating on laptop CPU (~14s per sentence). Connect Cloud GPU for 100x speed!";
+          if (state.config?.remote_worker_url && state.remoteWorkerHealthy === false) {
+            colabBanner.className = "colab-status-banner stopped";
+            const bt = document.getElementById("banner-title");
+            if (bt) bt.textContent = "⚠️ Mode: Cloud GPU Stopped / Offline 🔴";
+            const bd = document.getElementById("banner-desc");
+            if (bd) bd.textContent = `Remote worker at ${state.config.remote_worker_url} stopped or is unreachable. Click 'Launch Cloud GPU' to start a new session.`;
+          } else {
+            colabBanner.className = "colab-status-banner offline";
+            const bt = document.getElementById("banner-title");
+            if (bt) bt.textContent = "Current Mode: Local CPU Engine";
+            const bd = document.getElementById("banner-desc");
+            if (bd) bd.textContent = "Generating on laptop CPU (~14s per sentence). Connect Cloud GPU for 100x speed!";
+          }
         }
       }
     }
@@ -5849,13 +5967,44 @@ async function handleTestColab() {
     });
     const data = await res.json();
     if (data.ok) {
+      state.remoteWorkerHealthy = true;
       const hw = data.details?.hardware || "Cloud GPU";
       if (testRes) testRes.innerHTML = `<span style="color: var(--success); font-weight: 600;">✅ Connected! Hardware: ${hw} — Ready for instant synthesis!</span>`;
+      if (url === state.config?.remote_worker_url) {
+        state.config.active = true;
+        updateEngineUI(url, true);
+      }
     } else {
+      state.remoteWorkerHealthy = false;
       if (testRes) testRes.innerHTML = `<span style="color: var(--danger);">❌ Connection failed: ${data.error || "Could not reach remote worker"}</span>`;
+      if (url === state.config?.remote_worker_url) {
+        state.config.active = false;
+        updateEngineUI(url, false);
+      }
+      const colabBanner = document.getElementById("colab-status-banner");
+      if (colabBanner) {
+        colabBanner.className = "colab-status-banner stopped";
+        const bt = document.getElementById("banner-title");
+        if (bt) bt.textContent = "⚠️ Mode: Cloud GPU Stopped / Offline 🔴";
+        const bd = document.getElementById("banner-desc");
+        if (bd) bd.textContent = `Remote worker at ${url} stopped or is unreachable. Click 'Launch Cloud GPU' to start a new session.`;
+      }
     }
   } catch (err) {
+    state.remoteWorkerHealthy = false;
     if (testRes) testRes.innerHTML = `<span style="color: var(--danger);">❌ Connection failed: ${err.message}</span>`;
+    if (url === state.config?.remote_worker_url) {
+      state.config.active = false;
+      updateEngineUI(url, false);
+    }
+    const colabBanner = document.getElementById("colab-status-banner");
+    if (colabBanner) {
+      colabBanner.className = "colab-status-banner stopped";
+      const bt = document.getElementById("banner-title");
+      if (bt) bt.textContent = "⚠️ Mode: Cloud GPU Stopped / Offline 🔴";
+      const bd = document.getElementById("banner-desc");
+      if (bd) bd.textContent = `Remote worker at ${url} is unreachable.`;
+    }
   } finally {
     if (btn) {
       btn.textContent = "⚡ Test Connection";
@@ -5876,15 +6025,15 @@ async function handleSaveColab() {
     });
     const data = await res.json();
     state.config = data;
-    updateEngineUI(data.remote_worker_url, data.active);
     closeColabModal();
-    if (data.active) {
-      showToast(`🚀 Connected to Cloud GPU: ${data.remote_worker_url}`);
+    if (url) {
+      checkRemoteWorkerHealth(false);
     } else {
+      updateEngineUI("", data.active);
       showToast("⚡ Switched to Local CPU Engine");
     }
   } catch (err) {
-    alert("Failed to save configuration: " + err);
+    showToast("⚠️ Failed to save configuration: " + err.message, 5000);
   }
 }
 
@@ -5897,6 +6046,7 @@ async function handleClearColab() {
     });
     const data = await res.json();
     state.config = data;
+    state.remoteWorkerHealthy = null;
     updateEngineUI("", false);
     const urlInput = document.getElementById("colab-url-input");
     if (urlInput) urlInput.value = "";
@@ -5905,7 +6055,7 @@ async function handleClearColab() {
     closeColabModal();
     showToast("⚡ Colab disconnected. Running on Local CPU.");
   } catch (err) {
-    alert("Failed to disconnect: " + err);
+    showToast("⚠️ Failed to disconnect: " + err.message, 5000);
   }
 }
 

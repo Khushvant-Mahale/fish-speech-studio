@@ -1884,8 +1884,7 @@ async def handle_test_remote(request):
             f"{test_url.rstrip('/')}/v1/health",
             f"{test_url.rstrip('/')}/health",
             f"{test_url.rstrip('/')}/v1/tts/defaults",
-            f"{test_url.rstrip('/')}/docs",
-            f"{test_url.rstrip('/')}/"
+            f"{test_url.rstrip('/')}/docs"
         ]
 
         def _check():
@@ -1895,7 +1894,7 @@ async def handle_test_remote(request):
                         ep,
                         headers={"User-Agent": "FishSpeechStudio/1.0"}
                     )
-                    with urllib.request.urlopen(req, timeout=6) as resp:
+                    with urllib.request.urlopen(req, timeout=3.5) as resp:
                         content = resp.read().decode("utf-8")
                         try:
                             return json.loads(content)
@@ -1904,16 +1903,26 @@ async def handle_test_remote(request):
                 except urllib.error.HTTPError as he:
                     if he.code in (200, 404, 405, 422):
                         return {"status": "ok", "http_code": he.code}
+                    # Cloudflare 530 (tunnel inactive) or 502/504 means worker is dead
+                    if he.code in (530, 502, 503, 504):
+                        return None
+                except urllib.error.URLError:
+                    # DNS failure, connection refused, or host unreachable: fail immediately
+                    return None
                 except Exception:
                     continue
             return None
 
         res = await asyncio.to_thread(_check)
         if res:
-            return web.json_response({"ok": True, "details": res})
-        return web.json_response({"ok": False, "error": "Remote worker not responding to health check"}, status=502)
+            return web.json_response({"ok": True, "details": res, "url": test_url})
+        return web.json_response({
+            "ok": False, 
+            "error": "Remote worker not responding to health check (server offline or tunnel expired)",
+            "url": test_url
+        }, status=502)
     except Exception as e:
-        return web.json_response({"ok": False, "error": str(e)}, status=502)
+        return web.json_response({"ok": False, "error": str(e), "url": test_url}, status=502)
 
 
 async def handle_test_fish_key(request):

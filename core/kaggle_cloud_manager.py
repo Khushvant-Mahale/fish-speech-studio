@@ -207,10 +207,14 @@ class KaggleCloudManager:
                 if "error" in raw_status:
                     self._active_session["status"] = "error"
                     self._active_session["error"] = fail_msg or "Kernel encountered an execution error."
+                    self._active_session["tunnel_url"] = ""
                     break
 
-                if "cancel" in raw_status:
+                if "cancel" in raw_status or "complete" in raw_status:
+                    print(f"[KaggleManager] Kernel reached terminal status: {raw_status}. Session stopped.")
                     self._active_session["status"] = "stopped"
+                    self._active_session["tunnel_url"] = ""
+                    self._active_session["error"] = "Kaggle worker execution ended."
                     break
 
                 if "running" in raw_status:
@@ -251,8 +255,13 @@ class KaggleCloudManager:
                     except Exception:
                         pass
 
-                # If tunnel found, we are ready!
+                # If tunnel found, verify kernel is still running
                 if self._active_session["tunnel_url"]:
+                    if raw_status and "running" not in raw_status:
+                        print(f"[KaggleManager] Kernel status changed to '{raw_status}'. Tunnel no longer active.")
+                        self._active_session["status"] = "stopped"
+                        self._active_session["tunnel_url"] = ""
+                        break
                     self._active_session["status"] = "ready"
                     time.sleep(8)
                     continue
