@@ -6071,9 +6071,16 @@ async function loadSampleIntoNewProject() {
 }
 
 let isImportingProjectJson = false;
+let currentEpubData = null;
 
 function processImportedFile(file, targetContext) {
   if (isImportingProjectJson) return;
+
+  if (file.name.toLowerCase().endsWith(".epub")) {
+    handleEpubFileUpload(file);
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = async (event) => {
     const content = event.target.result;
@@ -6144,6 +6151,156 @@ function applyTextToFileModal(title, text, fileName) {
     populateVoiceSelects();
   }
   showToast(`✓ Loaded "${fileName}" (${(text.length / 1024).toFixed(1)} KB)`);
+}
+
+async function handleEpubFileUpload(file) {
+  showToast("📚 Inspecting EPUB ebook chapters...");
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await fetch("/api/epub/inspect", {
+      method: "POST",
+      body: formData
+    });
+    if (!res.ok) throw new Error("Could not parse EPUB file");
+    const data = await res.json();
+    if (!data.ok || !data.books || data.books.length === 0) {
+      throw new Error(data.error || "No readable chapters found in this EPUB");
+    }
+
+    currentEpubData = data;
+    openEpubModal(data);
+  } catch (err) {
+    showToast("❌ EPUB Error: " + err.message, 5000);
+  }
+}
+
+function openEpubModal(data) {
+  const modal = document.getElementById("epub-import-modal");
+  if (!modal) return;
+
+  const subtitle = document.getElementById("epub-modal-subtitle");
+  if (subtitle) {
+    subtitle.textContent = `${data.file_name} (${data.total_books} volume${data.total_books > 1 ? 's' : ''})`;
+  }
+
+  const bookPickerRow = document.getElementById("epub-book-picker-row");
+  const bookSelect = document.getElementById("epub-book-select");
+
+  if (data.total_books > 1) {
+    if (bookPickerRow) bookPickerRow.style.display = "block";
+    if (bookSelect) {
+      bookSelect.innerHTML = data.books.map(b => 
+        `<option value="${b.book_index}">Book ${b.book_index}: ${escapeHtml(b.title)} (${b.chapters_count} chs, ${b.total_words.toLocaleString()} words)</option>`
+      ).join("");
+    }
+  } else {
+    if (bookPickerRow) bookPickerRow.style.display = "none";
+  }
+
+  populateEpubChapters();
+  modal.classList.add("active");
+}
+
+function closeEpubModal() {
+  const modal = document.getElementById("epub-import-modal");
+  if (modal) modal.classList.remove("active");
+}
+
+function handleEpubBookChange() {
+  populateEpubChapters();
+}
+
+function populateEpubChapters() {
+  if (!currentEpubData) return;
+  const bookSelect = document.getElementById("epub-book-select");
+  const bIdx = (bookSelect && currentEpubData.total_books > 1) ? parseInt(bookSelect.value, 10) : 1;
+  const book = currentEpubData.books.find(b => b.book_index === bIdx) || currentEpubData.books[0];
+  if (!book) return;
+
+  const chSelect = document.getElementById("epub-chapter-select");
+  if (chSelect) {
+    chSelect.innerHTML = book.chapters.map(c => 
+      `<option value="${c.chapter_index}" data-file="${c.file_path}" data-words="${c.word_count}" data-mins="${c.estimated_minutes}">
+        Ch ${c.chapter_index}: ${escapeHtml(c.title)} (${c.word_count.toLocaleString()} words • ~${c.estimated_minutes} min)
+      </option>`
+    ).join("");
+  }
+
+  handleEpubChapterChange();
+}
+
+function handleEpubChapterChange() {
+  if (!currentEpubData) return;
+  const bookSelect = document.getElementById("epub-book-select");
+  const bIdx = (bookSelect && currentEpubData.total_books > 1) ? parseInt(bookSelect.value, 10) : 1;
+  const book = currentEpubData.books.find(b => b.book_index === bIdx) || currentEpubData.books[0];
+  if (!book) return;
+
+  const chSelect = document.getElementById("epub-chapter-select");
+  const chIdx = chSelect ? parseInt(chSelect.value, 10) : 1;
+  const ch = book.chapters.find(c => c.chapter_index === chIdx) || book.chapters[0];
+  if (!ch) return;
+
+  const statsTitle = document.getElementById("epub-stats-title");
+  const statsDesc = document.getElementById("epub-stats-desc");
+
+  if (statsTitle) {
+    statsTitle.textContent = `${book.title} - Ch ${ch.chapter_index}: ${ch.title}`;
+  }
+  if (statsDesc) {
+    statsDesc.textContent = `~${ch.word_count.toLocaleString()} words • Estimated Audio: ${ch.estimated_minutes} mins (~${Math.ceil(ch.word_count / 35)} speech blocks)`;
+  }
+}
+
+async function confirmEpubChapterImport() {
+  if (!currentEpubData) return;
+  const bookSelect = document.getElementById("epub-book-select");
+  const bIdx = (bookSelect && currentEpubData.total_books > 1) ? parseInt(bookSelect.value, 10) : 1;
+  const chSelect = document.getElementById("epub-chapter-select");
+  const chIdx = chSelect ? parseInt(chSelect.value, 10) : 1;
+  const voiceSelect = document.getElementById("epub-voice-select");
+  const voiceId = voiceSelect ? voiceSelect.value : "voice_stanley_narrator";
+
+  const confirmBtn = document.getElementById("btn-confirm-epub-import");
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "⏳ Extracting & Splitting Chapter...";
+  }
+
+  try {
+    showToast("📚 Processing chapter text & dialogue quotes...");
+    const res = await fetch("/api/epub/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        epub_path: currentEpubData.epub_path,
+        book_index: bIdx,
+        chapter_index: chIdx,
+        engine: "fish_s2",
+        default_voice: voiceId
+      })
+    });
+
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "Failed to import chapter");
+
+    closeEpubModal();
+    showToast(`✓ Created Audiobook Chapter: "${data.title}" with ${data.blocks_count} sentences!`);
+    loadProjectsList();
+
+    if (data.url) {
+      window.open(data.url, "_blank");
+    }
+  } catch (err) {
+    showToast("❌ Import failed: " + err.message, 5000);
+  } finally {
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "🚀 Create Chapter Project & Open";
+    }
+  }
 }
 
 let isCreatingProject = false;
@@ -8783,3 +8940,7 @@ window.handlePlayEvRefAudio = handlePlayEvRefAudio;
 window.handleCopyProjectToOtherEngine = handleCopyProjectToOtherEngine;
 window.handleCopyCurrentProjectToOther = handleCopyCurrentProjectToOther;
 window.showMessageCard = showMessageCard;
+window.closeEpubModal = closeEpubModal;
+window.handleEpubBookChange = handleEpubBookChange;
+window.handleEpubChapterChange = handleEpubChapterChange;
+window.confirmEpubChapterImport = confirmEpubChapterImport;

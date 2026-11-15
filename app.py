@@ -23,6 +23,7 @@ from core.dns_fallback import setup_resilient_dns
 # Ensure resilient DNS is active
 setup_resilient_dns()
 from core.project_manager import ProjectManager
+from core.epub_parser import inspect_epub, get_chapter_text
 
 BASE_DIR = Path(__file__).resolve().parent
 STUDIO_DIR = BASE_DIR / "studio"
@@ -1751,6 +1752,122 @@ async def handle_save_config(request):
     })
 
 
+async def handle_epub_inspect(request):
+    try:
+        epub_dir = BASE_DIR / "data" / "epubs"
+        epub_dir.mkdir(parents=True, exist_ok=True)
+
+        target_path = None
+        if request.content_type.startswith("multipart/"):
+            reader = await request.multipart()
+            part = await reader.next()
+            if part.name == "file":
+                filename = part.filename or "uploaded.epub"
+                safe_name = f"{uuid.uuid4().hex[:8]}_{filename}"
+                target_path = epub_dir / safe_name
+                with open(target_path, "wb") as f:
+                    while True:
+                        chunk = await part.read_chunk()
+                        if not chunk:
+                            break
+                        f.write(chunk)
+        else:
+            try:
+                data = await request.json()
+            except Exception:
+                data = {}
+            p = data.get("epub_path")
+            if p and os.path.exists(p):
+                target_path = Path(p)
+            elif (epub_dir / "Harry_Potter_Series.epub").exists():
+                target_path = epub_dir / "Harry_Potter_Series.epub"
+
+        if not target_path or not os.path.exists(target_path):
+            return web.json_response({"ok": False, "error": "No valid EPUB file provided"}, status=400)
+
+        info = inspect_epub(str(target_path))
+        info["ok"] = True
+        info["epub_path"] = str(target_path).replace("\\", "/")
+        return web.json_response(info)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
+async def handle_epub_import(request):
+    try:
+        data = await request.json()
+        epub_path = data.get("epub_path")
+        if not epub_path or not os.path.exists(epub_path):
+            default_p = BASE_DIR / "data" / "epubs" / "Harry_Potter_Series.epub"
+            if default_p.exists():
+                epub_path = str(default_p)
+            else:
+                return web.json_response({"ok": False, "error": "EPUB file not found"}, status=404)
+
+        book_idx = int(data.get("book_index", 1))
+        chapter_file = data.get("chapter_file", "")
+        chapter_idx = int(data.get("chapter_index", 1))
+
+        info = inspect_epub(epub_path)
+        if book_idx < 1 or book_idx > len(info["books"]):
+            return web.json_response({"ok": False, "error": f"Invalid book index {book_idx}"}, status=400)
+
+        book = info["books"][book_idx - 1]
+
+        target_ch_meta = None
+        if chapter_file:
+            for c in book["chapters"]:
+                if c["file_path"] == chapter_file:
+                    target_ch_meta = c
+                    break
+        if not target_ch_meta:
+            if chapter_idx < 1 or chapter_idx > len(book["chapters"]):
+                return web.json_response({"ok": False, "error": f"Invalid chapter index {chapter_idx}"}, status=400)
+            target_ch_meta = book["chapters"][chapter_idx - 1]
+
+        ch_data = get_chapter_text(epub_path, target_ch_meta["file_path"])
+
+        referer = request.headers.get("Referer", "").lower()
+        engine = data.get("engine") or ("kokoro" if "/kokoro" in referer else "fish_s2")
+        default_voice = data.get("default_voice") or ("bf_emma" if engine == "kokoro" else "voice_stanley_narrator")
+
+        custom_title = data.get("title") or f"{book['title']} - Ch {target_ch_meta['chapter_index']}: {target_ch_meta['title']}"
+
+        blocks = project_mgr.split_text_into_blocks(ch_data["text"], default_voice=default_voice)
+        for b in blocks:
+            b["engine"] = engine
+
+        proj_id = f"proj_{uuid.uuid4().hex[:8]}"
+        proj_data = {
+            "id": proj_id,
+            "title": custom_title,
+            "engine": engine,
+            "default_voice": default_voice,
+            "blocks": blocks,
+            "created_at": time.time(),
+            "updated_at": time.time(),
+            "master_filename": f"{proj_id}_master.wav"
+        }
+        project_mgr.save_project(proj_data, proj_id)
+
+        return web.json_response({
+            "ok": True,
+            "id": proj_id,
+            "title": custom_title,
+            "blocks_count": len(blocks),
+            "word_count": ch_data["word_count"],
+            "estimated_minutes": ch_data["estimated_minutes"],
+            "url": f"/kokoro/studio?project={proj_id}" if engine == "kokoro" else f"/studio?project={proj_id}"
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
+
 async def handle_test_remote(request):
     data = await request.json()
     test_url = data.get("url", "").strip()
@@ -1935,6 +2052,10 @@ def create_app():
     app.router.add_post("/api/test_fish_key", handle_test_fish_key)
     app.router.add_get("/api/colab_script", handle_get_colab_script)
     app.router.add_get("/api/sample_story", handle_get_sample_story)
+
+    # EPUB Audiobook Importer
+    app.router.add_post("/api/epub/inspect", handle_epub_inspect)
+    app.router.add_post("/api/epub/import", handle_epub_import)
 
     # Static assets
     app.router.add_static("/studio", STUDIO_DIR)

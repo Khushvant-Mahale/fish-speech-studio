@@ -26,9 +26,9 @@
           <span class="engine-label">⚡ Local CPU Engine</span>
           <span class="engine-config-tag">⚙️</span>
         </button>
-        <button class="btn btn-secondary" id="btn-dashboard-import-top" onclick="document.getElementById('dashboard-file-input').click()" title="Import text file (.txt, .md) or project JSON (.json)">📥 Import File</button>
+        <button class="btn btn-secondary" id="btn-dashboard-import-top" onclick="document.getElementById('dashboard-file-input').click()" title="Import text (.txt, .md), project (.json), or ebook (.epub)">📥 Import File</button>
         <button class="btn btn-primary" id="btn-create-project-top" onclick="openNewProjectModal()">＋ New Story Project</button>
-        <input type="file" id="dashboard-file-input" accept=".txt,.md,.json" style="display: none;" onchange="handleDashboardFileImport(event)">
+        <input type="file" id="dashboard-file-input" accept=".txt,.md,.json,.epub" style="display: none;" onchange="handleDashboardFileImport(event)">
       </div>
     </header>
 
@@ -75,15 +75,15 @@
           </div>
           <div class="hero-buttons-row">
             <button class="btn btn-primary" onclick="openNewProjectModal()">＋ New Story Project</button>
-            <button class="btn btn-secondary" onclick="document.getElementById('dashboard-file-input').click()">📥 Import File (.txt, .md, .json)</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('dashboard-file-input').click()">📥 Import File (.txt, .md, .json, .epub)</button>
             <button class="btn btn-ghost" onclick="loadSampleStoryIntoProject()" title="Quick test drive with 'The Endless Eclipse' sample manuscript">📖 Load Sample Story</button>
           </div>
         </div>
         <div class="creation-dropzone-box" id="dashboard-dropzone" onclick="document.getElementById('dashboard-file-input').click()" title="Click or drop file to import">
           <div class="dropzone-icon">📥</div>
           <div class="dropzone-text">
-            <strong>Drop Story File Here</strong>
-            <span>.txt, .md, or project .json</span>
+            <strong>Drop Story or Ebook Here</strong>
+            <span>.txt, .md, .json, or .epub</span>
           </div>
         </div>
       </div>
@@ -674,6 +674,66 @@
       <!-- Voice Cards Body -->
       <div class="voice-list-body" id="voice-list-body">
         <!-- Voice cards rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= EPUB AUDIOBOOK IMPORTER MODAL ================= -->
+  <div class="drawer-backdrop" id="epub-import-modal">
+    <div class="drawer-window" style="width: 620px;">
+      <div class="drawer-header" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(79, 70, 229, 0.05));">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">📚</span>
+          <div>
+            <span class="drawer-title" style="color: #fff;">EPUB Audiobook Chapter Importer</span>
+            <div id="epub-modal-subtitle" style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Converting book chapters into studio audio projects</div>
+          </div>
+        </div>
+        <button class="icon-btn" onclick="closeEpubModal()" style="font-size: 18px;">✕</button>
+      </div>
+
+      <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <!-- Book volume selection (if multi-volume) -->
+        <div id="epub-book-picker-row">
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Select Book / Volume</label>
+          <select id="epub-book-select" class="search-input" onchange="handleEpubBookChange()" style="width: 100%; padding: 10px; background: var(--bg-card); color: var(--text-main);">
+          </select>
+        </div>
+
+        <!-- Chapter selection -->
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Select Chapter</label>
+          <select id="epub-chapter-select" class="search-input" onchange="handleEpubChapterChange()" style="width: 100%; padding: 10px; background: var(--bg-card); color: var(--text-main);">
+          </select>
+        </div>
+
+        <!-- Chapter Stats Card -->
+        <div id="epub-chapter-stats-card" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 8px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div id="epub-stats-title" style="font-weight: 700; font-size: 14px; color: #fff;">Chapter 1: The Boy Who Lived</div>
+            <div id="epub-stats-desc" style="font-size: 12px; color: #a5b4fc; margin-top: 3px;">~4,659 words • Estimated Audio: 31 mins</div>
+          </div>
+          <span style="font-size: 22px;">🎙️</span>
+        </div>
+
+        <!-- Narrator Voice Selection -->
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Primary Narrator Voice</label>
+          <select id="epub-voice-select" class="search-input" style="width: 100%; padding: 10px; background: var(--bg-card); color: var(--text-main);">
+            <option value="bf_emma">🇬🇧 Emma (British Warm Narrator - Recommended for HP)</option>
+            <option value="bm_george">🇬🇧 George (British Classic Storyteller)</option>
+            <option value="am_adam">🇺🇸 Adam (Deep Dramatic Narrator)</option>
+            <option value="af_heart">🇺🇸 Heart (Warm & Expressive)</option>
+            <option value="blend_fenrir_onyx">🐺 Fenrir Onyx (Dark Epic Hybrid)</option>
+          </select>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px;">
+          <button class="btn btn-secondary" onclick="closeEpubModal()">Cancel</button>
+          <button class="btn btn-primary" id="btn-confirm-epub-import" onclick="confirmEpubChapterImport()" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; font-weight: 600;">
+            🚀 Create Chapter Project & Open
+          </button>
+        </div>
       </div>
     </div>
   </div>
