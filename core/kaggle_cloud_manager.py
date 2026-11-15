@@ -173,6 +173,7 @@ class KaggleCloudManager:
                 "status": "queued",
                 "engine": engine,
                 "username": username,
+                "key": key,
                 "kernel_ref": kernel_ref,
                 "tunnel_url": "",
                 "started_at": time.time(),
@@ -330,11 +331,13 @@ class KaggleCloudManager:
             "error": self._active_session["error"]
         }
 
-    def stop_worker(self, username: str, key: str, engine: str = "") -> Dict[str, Any]:
+    def stop_worker(self, username: str = "", key: str = "", engine: str = "") -> Dict[str, Any]:
         """Cancels and stops the running Kaggle GPU kernel to conserve quota."""
         self._stop_polling.set()
         eng = engine or self._active_session.get("engine", "fish_s2")
         tunnel_url = (self._active_session.get("tunnel_url") or "").strip()
+        username = (username or self._active_session.get("username", "")).strip()
+        key = (key or self._active_session.get("key", "")).strip()
 
         # 1. Tier 1: Send remote killswitch to the worker via Cloudflare tunnel (instant, ~0.5s)
         if tunnel_url:
@@ -354,38 +357,32 @@ class KaggleCloudManager:
                 except Exception as e:
                     print(f"[KaggleManager] Remote tunnel shutdown notice: {e}")
 
-        # 2. Tier 2: Terminate on Kaggle cloud side
-        api = self._get_api(username, key)
+        # 2. Tier 2: Cancel/Terminate on Kaggle cloud side
+        api = self._get_api(username, key) if (username and key) else None
         slug = "kokoro-tts-worker" if eng == "kokoro" else "fish-speech-s2-worker"
-        kernel_ref = self._active_session.get("kernel_ref") or f"{username}/{slug}"
+        kernel_ref = self._active_session.get("kernel_ref") or (f"{username}/{slug}" if username else "")
 
-        if api:
+        if api and kernel_ref:
             try:
-                st = api.kernels_status(kernel_ref)
-                raw_st = str(getattr(st, "status", "")).lower()
-                # If kernel is actively running or queued on Kaggle, cancel it by pushing a zero-cost CPU stop script
-                if any(x in raw_st for x in ["run", "queue", "boot"]):
-                    print(f"[KaggleManager] Pushing zero-resource CPU stop script to cancel GPU container {kernel_ref}...")
-                    temp_dir = Path(tempfile.mkdtemp(prefix="kaggle_stop_"))
-                    try:
-                        meta = {
-                            "id": kernel_ref,
-                            "title": "Fish Speech S2 Worker" if eng != "kokoro" else "Kokoro Story Studio Worker",
-                            "code_file": "worker.py",
-                            "language": "python",
-                            "kernel_type": "script",
-                            "is_private": True,
-                            "enable_gpu": False,
-                            "enable_internet": False
-                        }
-                        (temp_dir / "kernel-metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
-                        (temp_dir / "worker.py").write_text("# Session stopped by user\nimport os\nprint('Worker stopped.')\nos._exit(0)\n", encoding="utf-8")
-                        resp = api.kernels_push(str(temp_dir))
-                        print(f"[KaggleManager] Pushed stop kernel (version {getattr(resp, 'version_number', '?')}). Running GPU container cancelled!")
-                    finally:
-                        shutil.rmtree(temp_dir, ignore_errors=True)
-                else:
-                    print(f"[KaggleManager] Kernel status on Kaggle is already '{raw_st}'. No cancellation needed.")
+                print(f"[KaggleManager] Pushing zero-resource CPU stop script to cancel GPU container {kernel_ref}...")
+                temp_dir = Path(tempfile.mkdtemp(prefix="kaggle_stop_"))
+                try:
+                    meta = {
+                        "id": kernel_ref,
+                        "title": "Fish Speech S2 Worker" if eng != "kokoro" else "Kokoro Story Studio Worker",
+                        "code_file": "worker.py",
+                        "language": "python",
+                        "kernel_type": "script",
+                        "is_private": True,
+                        "enable_gpu": False,
+                        "enable_internet": False
+                    }
+                    (temp_dir / "kernel-metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+                    (temp_dir / "worker.py").write_text("# Session stopped by user\nimport os\nprint('Worker stopped.')\nos._exit(0)\n", encoding="utf-8")
+                    resp = api.kernels_push(str(temp_dir))
+                    print(f"[KaggleManager] Pushed stop kernel (version {getattr(resp, 'version_number', '?')}). Running GPU container cancelled!")
+                finally:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
             except Exception as e:
                 print(f"[KaggleManager] Kaggle API stop notice: {e}")
 

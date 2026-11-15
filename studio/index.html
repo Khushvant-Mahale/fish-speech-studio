@@ -1341,63 +1341,79 @@
             <div class="traffic-header">
               <div class="traffic-title">
                 <span class="traffic-pulse-icon">⚠️</span>
-                <span><strong>High Kaggle GPU Traffic Detected</strong> &bull; Server Pool Queued</span>
+                <span><strong>High Kaggle GPU Traffic Detected</strong> &bull; Free Pool Queued</span>
               </div>
               <span id="traffic-queue-timer" class="traffic-time-pill">Queued: 0s</span>
             </div>
             <div class="traffic-body">
-              <p class="traffic-msg">Kaggle's shared Tesla T4 GPU cluster is busy and machines are currently in queue. Instead of waiting, you can switch immediately to a faster option:</p>
-              <div class="traffic-alternatives-grid">
-                <div class="traffic-alt-card" onclick="handleSwitchToColabFast()">
-                  <div class="alt-card-top">
-                    <span class="alt-card-icon">⚡</span>
-                    <span class="alt-pill-fast">Instant Boot (0 Queue)</span>
+              <p class="traffic-msg">Kaggle's shared Tesla T4 GPU servers are busy and machines are currently in queue. Switch immediately to a faster option:</p>
+              
+              <div class="traffic-action-list">
+                <!-- Option 1: Colab Fast-Track -->
+                <div class="traffic-action-row" onclick="handleSwitchToColabFast()">
+                  <div class="traffic-action-left">
+                    <div class="traffic-action-icon">⚡</div>
+                    <div class="traffic-action-info">
+                      <div class="traffic-action-title">
+                        <span>Google Colab Fast-Track</span>
+                        <span class="alt-pill-fast">0s Queue &bull; Tesla T4</span>
+                      </div>
+                      <div class="traffic-action-desc">Colab spins up a dedicated Tesla T4 in &lt;5s with zero queues. 1-click copies script, opens Colab, and cancels Kaggle.</div>
+                    </div>
                   </div>
-                  <div class="alt-card-title">Google Colab Fast-Track</div>
-                  <div class="alt-card-desc">Colab spins up a dedicated Tesla T4 in &lt;5s with zero queues. 1-click copies the worker script and opens Colab.</div>
-                  <button type="button" class="alt-card-btn">🚀 Open Colab &amp; Copy Script</button>
+                  <button type="button" class="traffic-action-btn">🚀 Switch to Colab</button>
                 </div>
 
-                <div class="traffic-alt-card" id="traffic-alt-fish-api" onclick="handleSwitchToFishProFast()">
-                  <div class="alt-card-top">
-                    <span class="alt-card-icon">🔑</span>
-                    <span class="alt-pill-api">Zero Coldstart</span>
+                <!-- Option 2: Fish Audio Pro API -->
+                <div class="traffic-action-row" id="traffic-row-fish-api" onclick="handleSwitchToFishProFast()">
+                  <div class="traffic-action-left">
+                    <div class="traffic-action-icon">🔑</div>
+                    <div class="traffic-action-info">
+                      <div class="traffic-action-title">
+                        <span>Fish Audio Pro API</span>
+                        <span class="alt-pill-api">Instant Synthesis</span>
+                      </div>
+                      <div class="traffic-action-desc">Direct synthesis via official cloud API. Instant 0.2s generation with zero waiting. Cancels Kaggle queue.</div>
+                    </div>
                   </div>
-                  <div class="alt-card-title">Fish Audio Pro API</div>
-                  <div class="alt-card-desc">Bypass containers entirely. Instant 0.2s generation directly via official cloud API with zero waiting.</div>
-                  <button type="button" class="alt-card-btn">🔑 Switch to Pro API</button>
+                  <button type="button" class="traffic-action-btn">🔑 Switch to API</button>
                 </div>
 
-                <div class="traffic-alt-card" onclick="handleContinueInBackground()">
-                  <div class="alt-card-top">
-                    <span class="alt-card-icon">🎨</span>
-                    <span class="alt-pill-bg">No Waiting</span>
+                <!-- Option 3: Cancel & Direct with Local CPU -->
+                <div class="traffic-action-row" onclick="handleCancelKaggleAndDirectLocal()">
+                  <div class="traffic-action-left">
+                    <div class="traffic-action-icon">🎨</div>
+                    <div class="traffic-action-info">
+                      <div class="traffic-action-title">
+                        <span>Direct with Local CPU</span>
+                        <span class="alt-pill-bg">No Waiting</span>
+                      </div>
+                      <div class="traffic-action-desc">Cancel the slow Kaggle queue immediately and direct your story right now with Local CPU.</div>
+                    </div>
                   </div>
-                  <div class="alt-card-title">Continue in Studio</div>
-                  <div class="alt-card-desc">Direct your story with Local CPU now. Studio will keep watching Kaggle in the background and auto-activate GPU when ready!</div>
-                  <button type="button" class="alt-card-btn">🎨 Direct with Local CPU</button>
+                  <button type="button" class="traffic-action-btn alt-btn-cancel">⏹ Cancel &amp; Direct Local</button>
                 </div>
               </div>
+
               <div class="traffic-footer">
-                <button type="button" class="traffic-cancel-btn" onclick="handleStopKaggle()">⏹ Cancel Queued Job</button>
-                <button type="button" class="traffic-dismiss-btn" onclick="dismissTrafficAlert()">Dismiss &amp; Wait</button>
+                <button type="button" class="traffic-dismiss-btn" onclick="dismissTrafficAlert()">Dismiss alert &amp; wait in Kaggle queue</button>
               </div>
             </div>
           </div>
 
-          <!-- While-You-Wait Coldstart Masterclass & Directing Guide -->
-          <div id="kaggle-coldstart-guide" class="coldstart-guide-box" style="display: none;">
+          <!-- While-You-Wait Coldstart Masterclass & Directing Guide (Collapsed by default for space) -->
+          <div id="kaggle-coldstart-guide" class="coldstart-guide-box collapsed" style="display: none;">
             <div class="coldstart-guide-header">
               <div class="coldstart-guide-title">
                 <span style="font-size: 15px;">🎬</span>
-                <span>While GPU Wakes Up (~60-90s) &bull; <strong>Studio Quick Masterclass</strong></span>
+                <span>While GPU Wakes Up: <strong>Studio Quick Masterclass</strong></span>
               </div>
               <div class="coldstart-guide-controls">
                 <span id="coldstart-timer-pill" class="coldstart-timer-badge">⏳ Booting: 0s</span>
                 <button type="button" class="guide-nav-btn" onclick="prevColdstartSlide()" title="Previous Tip">◀</button>
                 <span id="coldstart-slide-counter" style="font-size: 11px; font-weight: 600; color: #a5b4fc;">1/6</span>
                 <button type="button" class="guide-nav-btn" onclick="nextColdstartSlide()" title="Next Tip">▶</button>
-                <button type="button" class="guide-nav-btn" id="btn-toggle-coldstart-guide" onclick="toggleColdstartGuideCollapse()" title="Toggle Masterclass Tips View">Hide Tips —</button>
+                <button type="button" class="guide-nav-btn" id="btn-toggle-coldstart-guide" onclick="toggleColdstartGuideCollapse()" title="Toggle Masterclass Tips View">Show Tips +</button>
               </div>
             </div>
 

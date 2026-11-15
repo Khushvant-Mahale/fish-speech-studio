@@ -1601,6 +1601,11 @@ async def handle_kaggle_launch(request):
             }, status=400)
 
         res = await asyncio.to_thread(kaggle_mgr.launch_worker, username, key, engine)
+        if res.get("ok"):
+            cfg = load_config()
+            cfg["kaggle_username"] = username
+            cfg["kaggle_key"] = key
+            save_config(cfg)
         return web.json_response(res)
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=500)
@@ -1673,18 +1678,28 @@ _watchdog_thread.start()
 async def handle_kaggle_stop(request):
     try:
         cfg = load_config()
-        username = cfg.get("kaggle_username", "")
-        key = cfg.get("kaggle_key", "")
-        referer = request.headers.get("Referer", "").lower()
-        engine = ""
+        data = {}
         try:
             data = await request.json()
-            engine = data.get("engine", "")
         except Exception:
             pass
-        if not engine:
-            engine = "kokoro" if "/kokoro" in referer else ""
+
+        referer = request.headers.get("Referer", "").lower()
+        engine = data.get("engine") or ("kokoro" if "/kokoro" in referer else "")
         target_eng = engine or kaggle_mgr._active_session.get("engine", "fish_s2")
+
+        username = (data.get("username") or cfg.get("kaggle_username", "") or kaggle_mgr._active_session.get("username", "")).strip()
+        key = (data.get("key") or cfg.get("kaggle_key", "") or kaggle_mgr._active_session.get("key", "")).strip()
+        if not username or not key:
+            p = os.path.expanduser("~/.kaggle/kaggle.json")
+            if os.path.exists(p):
+                try:
+                    c = json.load(open(p))
+                    username = username or c.get("username", "")
+                    key = key or c.get("key", "")
+                except Exception:
+                    pass
+
         res = await asyncio.to_thread(kaggle_mgr.stop_worker, username, key, target_eng)
         if target_eng == "kokoro":
             cfg["kokoro_remote_worker_url"] = ""

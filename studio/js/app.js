@@ -6974,6 +6974,17 @@ function stopColdstartGuide(success = true) {
       timerPill.style.borderColor = "rgba(16, 185, 129, 0.4)";
       timerPill.style.background = "rgba(16, 185, 129, 0.2)";
     }
+  } else if (!success && guide) {
+    guide.style.display = "none";
+    const timerPill = document.getElementById("coldstart-timer-pill");
+    if (timerPill) {
+      timerPill.textContent = "⏳ Booting: 0s";
+      timerPill.style.color = "";
+      timerPill.style.borderColor = "";
+      timerPill.style.background = "";
+    }
+    const barFill = document.getElementById("coldstart-boot-bar-fill");
+    if (barFill) barFill.style.width = "0%";
   }
   coldstartBootStartTime = null;
 }
@@ -7040,19 +7051,84 @@ async function handleSwitchToColabFast() {
   } catch (err) {
     console.warn("Clipboard copy notice:", err);
   }
+
+  // Cancel Kaggle queue immediately so it does not linger in Kaggle's queue
+  fetch("/api/cloud/kaggle/stop", { method: "POST" }).catch(() => {});
+  clearInterval(kagglePollInterval);
+  stopColdstartGuide(false);
+  const trafficBox = document.getElementById("kaggle-traffic-alert");
+  if (trafficBox) trafficBox.style.display = "none";
+  trafficAlertDismissed = false;
+  const stopBtn = document.getElementById("btn-stop-kaggle");
+  if (stopBtn) stopBtn.style.display = "none";
+  const stepper = document.getElementById("kaggle-stepper-box");
+  if (stepper) stepper.style.display = "none";
+  const launchBtn = document.getElementById("btn-launch-kaggle");
+  if (launchBtn) {
+    launchBtn.disabled = false;
+    launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+    launchBtn.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
+  }
+
   window.open("https://colab.research.google.com", "_blank");
   switchCloudTab("custom");
-  showToast("⚡ Colab opened! Paste the script into a T4 GPU notebook, click Run, then paste the tunnel URL here.", 6500);
+  showToast("⚡ Switched to Colab! Kaggle queue cancelled. Paste script into a T4 GPU notebook, click Run, then paste the tunnel URL here.", 6500);
 }
 
 function handleSwitchToFishProFast() {
+  // Cancel Kaggle queue immediately so it does not linger in Kaggle's queue
+  fetch("/api/cloud/kaggle/stop", { method: "POST" }).catch(() => {});
+  clearInterval(kagglePollInterval);
+  stopColdstartGuide(false);
+  const trafficBox = document.getElementById("kaggle-traffic-alert");
+  if (trafficBox) trafficBox.style.display = "none";
+  trafficAlertDismissed = false;
+  const stopBtn = document.getElementById("btn-stop-kaggle");
+  if (stopBtn) stopBtn.style.display = "none";
+  const stepper = document.getElementById("kaggle-stepper-box");
+  if (stepper) stepper.style.display = "none";
+  const launchBtn = document.getElementById("btn-launch-kaggle");
+  if (launchBtn) {
+    launchBtn.disabled = false;
+    launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+    launchBtn.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
+  }
+
   switchCloudTab("fish");
   const keyInput = document.getElementById("fish-api-key-input");
   if (keyInput) {
     keyInput.focus();
     keyInput.select();
   }
-  showToast("🔑 Switched to Fish Audio Pro API for instant synthesis with zero queue.");
+  showToast("🔑 Switched to Fish Audio Pro API! Kaggle queue cancelled.");
+}
+
+async function handleCancelKaggleAndDirectLocal() {
+  clearInterval(kagglePollInterval);
+  stopColdstartGuide(false);
+  const trafficBox = document.getElementById("kaggle-traffic-alert");
+  if (trafficBox) trafficBox.style.display = "none";
+  trafficAlertDismissed = false;
+
+  try {
+    await fetch("/api/cloud/kaggle/stop", { method: "POST" });
+  } catch (e) {
+    console.warn("Cancel Kaggle notice:", e);
+  }
+
+  const stopBtn = document.getElementById("btn-stop-kaggle");
+  if (stopBtn) stopBtn.style.display = "none";
+  const stepper = document.getElementById("kaggle-stepper-box");
+  if (stepper) stepper.style.display = "none";
+  const launchBtn = document.getElementById("btn-launch-kaggle");
+  if (launchBtn) {
+    launchBtn.disabled = false;
+    launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+    launchBtn.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
+  }
+
+  closeColabModal();
+  showToast("🎨 Kaggle queue cancelled. Directing story with Local CPU!");
 }
 
 function handleContinueInBackground() {
@@ -7237,9 +7313,11 @@ async function checkKaggleStatus() {
       setTimeout(() => {
         closeColabModal();
       }, 1600);
-    } else if (data.status === "stopped") {
+    } else if (data.status === "stopped" || data.status === "idle") {
       clearInterval(kagglePollInterval);
       stopColdstartGuide(false);
+      const guide = document.getElementById("kaggle-coldstart-guide");
+      if (guide) guide.style.display = "none";
       if (trafficBox) trafficBox.style.display = "none";
       trafficAlertDismissed = false;
       if (launchBtn) {
@@ -7253,6 +7331,8 @@ async function checkKaggleStatus() {
     } else if (data.status === "error") {
       clearInterval(kagglePollInterval);
       stopColdstartGuide(false);
+      const guide = document.getElementById("kaggle-coldstart-guide");
+      if (guide) guide.style.display = "none";
       if (trafficBox) trafficBox.style.display = "none";
       trafficAlertDismissed = false;
       if (launchBtn) {
@@ -7424,6 +7504,11 @@ function openColabModal() {
       // Stopped or idle
       if (stepper) stepper.style.display = "none";
       if (stopBtn) stopBtn.style.display = "none";
+      const guide = document.getElementById("kaggle-coldstart-guide");
+      if (guide) guide.style.display = "none";
+      const trafficBox = document.getElementById("kaggle-traffic-alert");
+      if (trafficBox) trafficBox.style.display = "none";
+      stopColdstartGuide(false);
       if (launchBtn) {
         launchBtn.disabled = false;
         launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
@@ -9646,6 +9731,7 @@ window.dismissTrafficAlert = dismissTrafficAlert;
 window.handleSwitchToColabFast = handleSwitchToColabFast;
 window.handleSwitchToFishProFast = handleSwitchToFishProFast;
 window.handleContinueInBackground = handleContinueInBackground;
+window.handleCancelKaggleAndDirectLocal = handleCancelKaggleAndDirectLocal;
 
 
 // Fish Audio Discovery exports
