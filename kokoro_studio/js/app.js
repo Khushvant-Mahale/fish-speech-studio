@@ -1371,15 +1371,16 @@ function renderBlocks() {
     const voice = getVoiceById(block.voice_id);
     const row = document.createElement("div");
     const currentSig = getBlockSignature(block);
-    const isReady = !!(block.cachedAudioUrl && block.cachedSig === currentSig);
+    const isProcessing = typeof activeBlockProgressQueue !== "undefined" && activeBlockProgressQueue.includes(idx);
+    const isReady = !isProcessing && !!(block.cachedAudioUrl && block.cachedSig === currentSig);
     const isPlaying = state.currentlyPlayingBlockIdx === idx && !state.storyAudioPlayer.paused;
     const isSelected = state.selectedBlockIndices.has(idx);
     const isActive = state.activeBlockIndex === idx;
 
-    row.className = `block-row ${isActive ? "active" : ""} ${isSelected ? "selected" : ""} ${isReady ? "ready" : ""} ${isPlaying ? "playing" : ""}`;
+    row.className = `block-row ${isActive ? "active" : ""} ${isSelected ? "selected" : ""} ${isReady ? "ready" : ""} ${isPlaying ? "playing" : ""} ${isProcessing ? "processing" : ""}`;
     row.dataset.index = idx;
 
-    const durText = isReady ? (block.duration ? `● ${block.duration.toFixed(1)}s` : "● Ready") : "Draft (click ▶ to render)";
+    const durText = isProcessing ? "⏳ Synthesizing..." : (isReady ? (block.duration ? `● ${block.duration.toFixed(1)}s` : "● Ready") : "Draft (click ▶ to render)");
 
     const char = getCharacterById(block.character_id);
     const blockColor = (char && char.color) ? char.color : voice.color;
@@ -1570,6 +1571,10 @@ function renderBlocks() {
 
   if (canvas && savedScrollTop > 0) {
     canvas.scrollTop = savedScrollTop;
+  }
+
+  if (typeof activeBlockProgressQueue !== "undefined" && activeBlockProgressQueue.length > 0) {
+    updateBlockQueueDisplay();
   }
 }
 
@@ -3457,6 +3462,240 @@ function handleSetCurrentAsDefault() {
   showToast(`⭐ Defaults saved! New sentences will use: ${currentDefaults.speed.toFixed(2)}x speed, ${Math.round(currentDefaults.gain * 100)}% vol, ${currentDefaults.pause_after.toFixed(1)}s pause, voice: "${voiceObj.name}", filter: ${filterLabel}.`);
 }
 
+// ---------------- BLOCK RENDERING PROGRESS TRACKER ---------------- //
+
+const activeBlockProgressQueue = [];
+const activeBlockProgressTrackers = new Map();
+let _topBarPillTimer = null;
+
+function updateTopBarRenderingPill(blockIdx, elapsedSec, pct) {
+  clearTimeout(_topBarPillTimer);
+  const btns = [
+    document.getElementById("btn-engine-status"),
+    document.getElementById("btn-dashboard-engine-status")
+  ];
+  btns.forEach(btn => {
+    if (!btn) return;
+    const label = btn.querySelector(".engine-label");
+    if (label) {
+      label.textContent = `⚡ Rendering #${blockIdx + 1} (${elapsedSec.toFixed(0)}s • ${pct}%)`;
+    }
+    btn.classList.add("gpu-rendering-pulse");
+  });
+}
+
+function resetTopBarPill(tempFlashText = null) {
+  const btns = [
+    document.getElementById("btn-engine-status"),
+    document.getElementById("btn-dashboard-engine-status")
+  ];
+  if (tempFlashText) {
+    btns.forEach(btn => {
+      if (!btn) return;
+      btn.classList.remove("gpu-rendering-pulse");
+      const label = btn.querySelector(".engine-label");
+      if (label) label.textContent = tempFlashText;
+    });
+    clearTimeout(_topBarPillTimer);
+    _topBarPillTimer = setTimeout(() => {
+      updateEngineUI(state.config?.remote_worker_url, state.config?.remote_worker_enabled);
+    }, 2800);
+  } else {
+    btns.forEach(btn => {
+      if (!btn) return;
+      btn.classList.remove("gpu-rendering-pulse");
+    });
+    updateEngineUI(state.config?.remote_worker_url, state.config?.remote_worker_enabled);
+  }
+}
+
+function tickProgress(idx) {
+  const tracker = activeBlockProgressTrackers.get(idx);
+  if (!tracker || activeBlockProgressQueue[0] !== idx) return;
+
+  const row = document.querySelector(`[data-index="${idx}"]`);
+  if (!row) return;
+
+  const fill = row.querySelector(".scrubber-fill");
+  const timeText = row.querySelector(".scrubber-time");
+  const elapsed = Math.max(0.1, (Date.now() - tracker.startTime) / 1000);
+
+  let pct = 0;
+  if (elapsed < tracker.expectedSec) {
+    pct = Math.round((elapsed / tracker.expectedSec) * 88);
+  } else {
+    const overtime = elapsed - tracker.expectedSec;
+    pct = Math.min(97, Math.round(88 + (9 * (1 - Math.exp(-overtime / 6)))));
+  }
+  pct = Math.max(4, Math.min(97, pct));
+
+  if (fill) {
+    fill.style.width = `${pct}%`;
+  }
+
+  let label = "⚡ Kokoro Neural Generating";
+  if (tracker.mode === "dsp") {
+    label = "⚡ Sculpting DSP Filters";
+  } else if (elapsed < 1.0) {
+    label = "🧠 Preparing Voice & Pitch";
+  } else if (pct < 75) {
+    label = "⚡ Kokoro Neural Synthesis";
+  } else if (pct < 90) {
+    label = "🌊 Waveform & Master Polish";
+  } else {
+    label = "⏳ Finalizing Audio Stream";
+  }
+
+  if (timeText) {
+    timeText.innerHTML = `
+      <span class="render-progress-label">
+        ${label}
+        <span class="render-progress-badge">${elapsed.toFixed(1)}s • ${pct}%</span>
+      </span>
+    `;
+  }
+
+  updateTopBarRenderingPill(idx, elapsed, pct);
+}
+
+function updateBlockQueueDisplay() {
+  activeBlockProgressQueue.forEach((idx, qPos) => {
+    const tracker = activeBlockProgressTrackers.get(idx);
+    if (!tracker) return;
+
+    const row = document.querySelector(`[data-index="${idx}"]`);
+    if (!row) return;
+
+    const track = row.querySelector(".scrubber-track");
+    const fill = row.querySelector(".scrubber-fill");
+    const timeText = row.querySelector(".scrubber-time");
+    const playBtn = row.querySelector(".play-block-btn");
+    const rerenderBtn = row.querySelector(".rerender-block-btn");
+
+    row.classList.add("processing");
+    row.classList.remove("ready", "playing");
+    if (playBtn) playBtn.textContent = "⏳";
+    if (rerenderBtn) rerenderBtn.textContent = "⏳";
+    if (track) track.classList.add("processing-track");
+    if (fill) fill.classList.add("processing-fill");
+
+    const timelineItem = document.querySelectorAll(".timeline-block-item")[idx];
+    if (timelineItem) timelineItem.classList.add("processing");
+
+    if (qPos === 0) {
+      // Actively running
+      if (!tracker.startTime) {
+        tracker.startTime = Date.now();
+      }
+      if (!tracker.timerId) {
+        tracker.timerId = setInterval(() => tickProgress(idx), 100);
+      }
+      tickProgress(idx);
+    } else {
+      // Waiting in queue
+      if (tracker.timerId) {
+        clearInterval(tracker.timerId);
+        tracker.timerId = null;
+      }
+      if (fill) fill.style.width = "4%";
+      if (timeText) {
+        timeText.innerHTML = `
+          <span class="render-progress-label">
+            ⏳ In Queue (#${qPos})
+            <span class="render-progress-badge">Waiting...</span>
+          </span>
+        `;
+      }
+    }
+  });
+}
+
+function startBlockProgress(idx, options = {}) {
+  if (idx === null || idx === undefined) return;
+  const block = state.currentProject?.blocks?.[idx];
+  const textLength = (block?.text || "").length;
+
+  if (activeBlockProgressTrackers.has(idx)) {
+    const old = activeBlockProgressTrackers.get(idx);
+    if (old.timerId) clearInterval(old.timerId);
+    activeBlockProgressTrackers.delete(idx);
+  }
+
+  const qIdx = activeBlockProgressQueue.indexOf(idx);
+  if (qIdx === -1) {
+    activeBlockProgressQueue.push(idx);
+  }
+
+  const expectedSec = Math.max(2, Math.min(25, Math.round(2.0 + (textLength * 0.03))));
+
+  const tracker = {
+    idx,
+    mode: options.mode || "synthesize",
+    startTime: null,
+    expectedSec,
+    timerId: null
+  };
+  activeBlockProgressTrackers.set(idx, tracker);
+  updateBlockQueueDisplay();
+}
+
+function stopBlockProgress(idx, success = true, duration = null) {
+  if (idx === null || idx === undefined) return;
+  const tracker = activeBlockProgressTrackers.get(idx);
+  let elapsedSec = null;
+
+  if (tracker) {
+    if (tracker.timerId) clearInterval(tracker.timerId);
+    if (tracker.startTime) {
+      elapsedSec = ((Date.now() - tracker.startTime) / 1000).toFixed(1);
+    }
+    activeBlockProgressTrackers.delete(idx);
+  }
+
+  const qIdx = activeBlockProgressQueue.indexOf(idx);
+  if (qIdx !== -1) {
+    activeBlockProgressQueue.splice(qIdx, 1);
+  }
+
+  const row = document.querySelector(`[data-index="${idx}"]`);
+  const timelineItem = document.querySelectorAll(".timeline-block-item")[idx];
+  if (timelineItem) timelineItem.classList.remove("processing");
+
+  if (row) {
+    row.classList.remove("processing");
+    const track = row.querySelector(".scrubber-track");
+    const fill = row.querySelector(".scrubber-fill");
+    const timeText = row.querySelector(".scrubber-time");
+    const playBtn = row.querySelector(".play-block-btn");
+    const rerenderBtn = row.querySelector(".rerender-block-btn");
+
+    if (track) track.classList.remove("processing-track");
+    if (fill) {
+      fill.classList.remove("processing-fill");
+      fill.style.width = "0%";
+    }
+    if (rerenderBtn) rerenderBtn.textContent = "🔄";
+    if (playBtn) playBtn.textContent = "▶";
+
+    if (success) {
+      row.classList.add("ready");
+      if (timeText) {
+        const durStr = duration ? `${duration.toFixed(1)}s` : "Ready";
+        const speedBadge = elapsedSec ? `<span class="render-done-badge" title="Synthesized in ${elapsedSec}s">(${elapsedSec}s)</span>` : "";
+        timeText.innerHTML = `● ${durStr} ${speedBadge}`;
+      }
+    } else {
+      if (timeText) timeText.textContent = "Draft (click ▶ to retry)";
+    }
+  }
+
+  if (activeBlockProgressQueue.length > 0) {
+    updateBlockQueueDisplay();
+  } else {
+    resetTopBarPill(success && elapsedSec ? `✅ #${idx + 1} Ready (${elapsedSec}s)` : null);
+  }
+}
+
 let _dspDebounceTimer = null;
 
 function triggerInstantBlockDsp(targetIndices = null) {
@@ -3474,9 +3713,7 @@ function triggerInstantBlockDsp(targetIndices = null) {
       const block = state.currentProject.blocks[idx];
       if (!block || !block.cachedAudioUrl) continue;
 
-      const row = document.querySelector(`[data-index="${idx}"]`);
-      const timeText = row?.querySelector(".scrubber-time");
-      if (timeText) timeText.textContent = "⚡ Sculpting...";
+      startBlockProgress(idx, { mode: "dsp" });
 
       try {
         const res = await fetch("/api/audio/apply_dsp", {
@@ -3502,14 +3739,7 @@ function triggerInstantBlockDsp(targetIndices = null) {
           block.cachedSig = getBlockSignature(block);
           debouncedSave();
           renderTimeline();
-
-          if (row) {
-            row.classList.remove("processing");
-            row.classList.add("ready");
-          }
-          if (timeText && data.duration) {
-            timeText.textContent = `● ${data.duration.toFixed(1)}s`;
-          }
+          stopBlockProgress(idx, true, data.duration);
 
           // If currently playing this block, update audio player seamlessly
           if (state.currentlyPlayingBlockIdx === idx && state.isPlayingStory && !state.storyAudioPlayer.paused) {
@@ -3519,15 +3749,11 @@ function triggerInstantBlockDsp(targetIndices = null) {
             state.storyAudioPlayer.play().catch(() => {});
           }
         } else {
-          if (timeText && block.duration) {
-            timeText.textContent = `● ${block.duration.toFixed(1)}s`;
-          }
+          stopBlockProgress(idx, false);
         }
       } catch (err) {
         console.error("[InstantDSP] Error sculpting block:", err);
-        if (timeText && block.duration) {
-          timeText.textContent = `● ${block.duration.toFixed(1)}s`;
-        }
+        stopBlockProgress(idx, false);
       }
     }
   }, 120);
@@ -4474,11 +4700,7 @@ async function playBlockAudio(idx, targetOffset = 0, isAutoContinuation = false)
   }
 
   // Synthesize on demand
-  if (btnEl) btnEl.textContent = "⏳";
-  if (row) {
-    row.classList.add("processing");
-    row.classList.remove("ready", "playing");
-  }
+  startBlockProgress(idx, { mode: "synthesize" });
 
   try {
     const res = await fetch("/api/synthesize_block", {
@@ -4506,12 +4728,15 @@ async function playBlockAudio(idx, targetOffset = 0, isAutoContinuation = false)
       block.duration = data.duration;
       debouncedSave();
       renderTimeline();
+      stopBlockProgress(idx, true, data.duration);
       startPlayback(data.audio_url, data.duration);
+    } else {
+      throw new Error(data.error || "Synthesis failed");
     }
   } catch (err) {
-    if (row) row.classList.remove("processing");
+    stopBlockProgress(idx, false);
     updatePlaybackUI(idx, false);
-    alert("Audio generation error: " + err);
+    showToast("⚠️ Audio generation error: " + (err.message || err));
   }
 }
 
@@ -4619,18 +4844,7 @@ async function handleReRenderBlock(idx) {
   delete block.cachedSig;
   delete block.duration;
 
-  const row = document.querySelector(`[data-index="${idx}"]`);
-  const rerenderBtn = row?.querySelector(".rerender-block-btn");
-  const playBtn = row?.querySelector(".play-block-btn");
-  const timeText = row?.querySelector(".scrubber-time");
-
-  if (row) {
-    row.classList.add("processing");
-    row.classList.remove("ready", "playing");
-  }
-  if (rerenderBtn) rerenderBtn.textContent = "⏳";
-  if (playBtn) playBtn.textContent = "⏳";
-  if (timeText) timeText.textContent = "⏳ Re-rendering fresh take...";
+  startBlockProgress(idx, { mode: "rerender" });
 
   try {
     showToast(`🔄 Generating fresh take for Sentence #${idx + 1}...`);
@@ -4669,13 +4883,7 @@ async function handleReRenderBlock(idx) {
       block.duration = data.duration;
       debouncedSave();
       renderTimeline();
-      if (row) {
-        row.classList.remove("processing");
-        row.classList.add("ready");
-      }
-      if (rerenderBtn) rerenderBtn.textContent = "🔄";
-      if (playBtn) playBtn.textContent = "▶";
-      if (timeText && data.duration) timeText.textContent = `● ${data.duration.toFixed(1)}s`;
+      stopBlockProgress(idx, true, data.duration);
       showToast(`✨ Fresh take generated for Sentence #${idx + 1} (${data.duration.toFixed(1)}s)!`);
       playBlockAudio(idx, 0, false);
     } else {
@@ -4683,11 +4891,8 @@ async function handleReRenderBlock(idx) {
     }
   } catch (err) {
     console.error("Re-render error:", err);
-    if (row) row.classList.remove("processing");
-    if (rerenderBtn) rerenderBtn.textContent = "🔄";
-    if (playBtn) playBtn.textContent = "▶";
-    if (timeText) timeText.textContent = "Error";
-    showToast(`⚠️ Re-render failed: ${err.message}`, 4000);
+    stopBlockProgress(idx, false);
+    showToast(`⚠️ Re-render failed: ${err.message || err}`, 4000);
   }
 }
 
@@ -4837,17 +5042,9 @@ async function toggleBatchRender() {
   // Single sentence render function
   async function renderBlockByIndex(idx) {
     const block = blocks[idx];
-    const row = document.querySelector(`[data-index="${idx}"]`);
-    const playBtn = row ? row.querySelector(".play-block-btn") : null;
     const currentSig = getBlockSignature(block);
 
-    if (row) {
-      row.classList.add("processing");
-      row.classList.remove("ready");
-      if (playBtn) playBtn.textContent = "⏳";
-      const timeText = row.querySelector(".scrubber-time");
-      if (timeText) timeText.textContent = "⏳ Synthesizing...";
-    }
+    startBlockProgress(idx, { mode: "batch" });
 
     try {
       const res = await fetch("/api/synthesize_block", {
@@ -4874,22 +5071,16 @@ async function toggleBatchRender() {
         block.cachedSig = currentSig;
         if (data.duration) block.duration = data.duration;
         debouncedSave();
-        if (row) {
-          row.classList.remove("processing");
-          row.classList.add("ready");
-          const timeText = row.querySelector(".scrubber-time");
-          if (timeText && data.duration) timeText.textContent = `● ${data.duration.toFixed(1)}s`;
-        }
-        if (playBtn) playBtn.textContent = "▶";
+        stopBlockProgress(idx, true, data.duration);
+        return true;
+      } else {
+        stopBlockProgress(idx, false);
+        return false;
       }
     } catch (err) {
       console.error(`Error rendering sentence ${idx}:`, err);
-      if (row) {
-        row.classList.remove("processing");
-        const timeText = row.querySelector(".scrubber-time");
-        if (timeText) timeText.textContent = "Draft (click ▶ to retry)";
-      }
-      if (playBtn) playBtn.textContent = "▶";
+      stopBlockProgress(idx, false);
+      return false;
     }
   }
 
