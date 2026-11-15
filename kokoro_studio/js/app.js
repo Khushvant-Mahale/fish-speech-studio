@@ -697,6 +697,84 @@ async function handleDuplicateProject(projectId) {
   }
 }
 
+function showMessageCard({
+  icon = "ℹ️",
+  title = "Notification",
+  subtitle = "",
+  body = "",
+  primaryText = "OK",
+  secondaryText = "Cancel",
+  showSecondary = false,
+  danger = false
+} = {}) {
+  return new Promise((resolve) => {
+    document.querySelectorAll(".message-card-backdrop").forEach(el => el.remove());
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "message-card-backdrop";
+
+    const dialog = document.createElement("div");
+    dialog.className = "message-card-dialog";
+
+    dialog.innerHTML = `
+      <div class="message-card-header">
+        <div class="message-card-icon-wrap" style="${danger ? 'background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.35);' : ''}">${icon}</div>
+        <div class="message-card-title-group">
+          <h3 class="message-card-title">${escapeHtml(title)}</h3>
+          ${subtitle ? `<span class="message-card-subtitle">${escapeHtml(subtitle)}</span>` : ''}
+        </div>
+        <button class="message-card-close" aria-label="Close">✕</button>
+      </div>
+      <div class="message-card-body">
+        ${body}
+      </div>
+      <div class="message-card-footer">
+        ${showSecondary ? `<button class="btn btn-secondary message-card-secondary-btn" style="padding: 7px 16px; border-radius: 8px; font-weight: 600; cursor: pointer;">${escapeHtml(secondaryText)}</button>` : ''}
+        <button class="btn ${danger ? 'btn-danger' : 'btn-primary'} message-card-primary-btn" style="padding: 7px 18px; border-radius: 8px; font-weight: 700; cursor: pointer;">${escapeHtml(primaryText)}</button>
+      </div>
+    `;
+
+    backdrop.appendChild(dialog);
+    document.body.appendChild(backdrop);
+
+    let resolved = false;
+    const finish = (result) => {
+      if (resolved) return;
+      resolved = true;
+      dialog.style.animation = "messageCardSlideUp 0.16s cubic-bezier(0.16, 1, 0.3, 1) reverse forwards";
+      backdrop.style.animation = "messageCardFadeIn 0.16s cubic-bezier(0.16, 1, 0.3, 1) reverse forwards";
+      setTimeout(() => {
+        backdrop.remove();
+        resolve(result);
+      }, 140);
+    };
+
+    dialog.querySelector(".message-card-close").addEventListener("click", () => finish(false));
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) finish(false);
+    });
+
+    const primaryBtn = dialog.querySelector(".message-card-primary-btn");
+    if (primaryBtn) {
+      primaryBtn.focus();
+      primaryBtn.addEventListener("click", () => finish(true));
+    }
+
+    const secondaryBtn = dialog.querySelector(".message-card-secondary-btn");
+    if (secondaryBtn) {
+      secondaryBtn.addEventListener("click", () => finish(false));
+    }
+
+    const handleKey = (e) => {
+      if (e.key === "Escape") {
+        document.removeEventListener("keydown", handleKey);
+        finish(false);
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+  });
+}
+
 async function handleCopyProjectToOtherEngine(projectId, targetEngine, title) {
   const targetName = targetEngine === "fish_s2" ? "Fish Audio Studio" : "Kokoro Studio";
   const icon = targetEngine === "fish_s2" ? "🐟" : "⚡";
@@ -716,7 +794,24 @@ async function handleCopyProjectToOtherEngine(projectId, targetEngine, title) {
     const destUrl = `${targetUrlBase}/studio?project=${encodeURIComponent(newProj.id)}`;
     showToast(`✅ Copied to ${targetName} as "${newProj.title}"!`);
 
-    if (confirm(`✅ Project "${title}" copied to ${targetName} as "${newProj.title}"!\n\nOpen it in ${targetName} now?`)) {
+    const openNow = await showMessageCard({
+      icon: icon,
+      title: "Project Copied Successfully",
+      subtitle: `Ready in ${targetName}`,
+      body: `
+        <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;">
+          <div style="font-size: 11px; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 4px;">New Project Title</div>
+          <div style="font-size: 15px; font-weight: 700; color: #f8fafc;">${escapeHtml(newProj.title)}</div>
+        </div>
+        <p style="margin: 0; color: #cbd5e1; font-size: 13.5px;">All manuscript blocks and dialogue have been transferred with voice casting mapped to <strong>${targetName}</strong>.</p>
+        <p style="margin: 8px 0 0 0; color: #94a3b8; font-size: 12.5px;">Would you like to open it in ${targetName} right now?</p>
+      `,
+      primaryText: `Open in ${targetName} ↗`,
+      secondaryText: "Stay Here",
+      showSecondary: true
+    });
+
+    if (openNow) {
       window.open(destUrl, "_blank");
     }
   } catch (err) {
@@ -924,9 +1019,9 @@ function renderDashboard() {
       </div>
 
       <div class="project-meta-grid">
-        <div class="meta-item"><span class="meta-label">Sentences:</span> <strong>${total}</strong> <span style="font-size: 11px; opacity: 0.65;">(${rendered} rendered)</span></div>
-        <div class="meta-item"><span class="meta-label">Audio:</span> <strong>${durationStr}</strong></div>
-        <div class="meta-item"><span class="meta-label">Modified:</span> <span>${dateStr}</span></div>
+        <div class="project-meta-pill"><span>📝</span> <strong>${total}</strong> <span>sentences</span> <span style="opacity: 0.6; font-size: 10.5px;">(${rendered}✓)</span></div>
+        <div class="project-meta-pill pill-duration"><span>⏱️</span> <strong>${durationStr}</strong></div>
+        <div class="project-meta-pill"><span>🕒</span> <span>${dateStr}</span></div>
       </div>
 
       <div class="project-voices-wrap">
@@ -936,11 +1031,11 @@ function renderDashboard() {
 
       <div class="project-card-footer">
         <div class="footer-left-actions">
-          <a href="${studioUrl}" target="_blank" class="btn btn-primary open-proj-btn" style="padding: 6px 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">Open in Studio ↗</a>
+          <a href="${studioUrl}" target="_blank" class="open-proj-btn" style="text-decoration: none;">Open in Studio ↗</a>
           ${p.preview_audio ? `<button class="preview-audio-btn ${isPlaying ? 'playing' : ''}" title="Quick audition of rendered dialogue">${isPlaying ? '⏸ Pause' : '▶ Preview'}</button>` : `<button class="preview-audio-btn disabled" disabled title="Render sentences in studio to audition audio">🔇 No Audio</button>`}
         </div>
         <div class="footer-right-actions">
-          <button class="card-icon-btn copy-to-other-btn" title="🐟 Copy to Fish Audio Studio" style="color: #34d399; font-weight: 700; font-size: 13px;">🐟</button>
+          <button class="card-icon-btn copy-to-other-btn" title="🐟 Copy to Fish Audio Studio">🐟</button>
           <button class="card-icon-btn duplicate-proj-btn" title="Duplicate project">📋</button>
           <button class="card-icon-btn rename-proj-btn" title="Rename project">✏️</button>
           <button class="card-icon-btn delete-proj-btn" title="Delete project">🗑️</button>
@@ -991,7 +1086,17 @@ function renderDashboard() {
     // Delete button
     card.querySelector(".delete-proj-btn")?.addEventListener("click", async (e) => {
       e.stopPropagation();
-      if (confirm(`Delete story project "${p.title}"? This cannot be undone.`)) {
+      const confirmed = await showMessageCard({
+        icon: "🗑️",
+        title: "Delete Project?",
+        subtitle: "Cannot be undone",
+        body: `<p style="margin: 0; color: #cbd5e1;">Are you sure you want to permanently delete story project <strong>"${escapeHtml(p.title)}"</strong>?</p>`,
+        primaryText: "Delete Project",
+        secondaryText: "Cancel",
+        showSecondary: true,
+        danger: true
+      });
+      if (confirmed) {
         try {
           await fetch(`/api/projects/${p.id}`, { method: "DELETE" });
           showToast(`🗑️ Deleted "${p.title}"`);
@@ -6876,5 +6981,6 @@ window.toggleBlockCustomEdited = toggleBlockCustomEdited;
 window.markAllBlocksOfCharacter = markAllBlocksOfCharacter;
 window.handleCopyProjectToOtherEngine = handleCopyProjectToOtherEngine;
 window.handleCopyCurrentProjectToOther = handleCopyCurrentProjectToOther;
+window.showMessageCard = showMessageCard;
 
 
