@@ -6788,15 +6788,58 @@ async function handleDoImport() {
 // ================= KAGGLE 1-CLICK CLOUD GPU AUTOMATION ================= //
 let kagglePollInterval = null;
 
+function switchCloudSection(sec) {
+  const gpuBtn = document.getElementById("sec-btn-gpu");
+  const apiBtn = document.getElementById("sec-btn-api");
+  const gpuSec = document.getElementById("cloud-section-gpu");
+  const apiSec = document.getElementById("cloud-section-api");
+
+  if (sec === "api") {
+    if (gpuBtn) gpuBtn.classList.remove("active");
+    if (apiBtn) apiBtn.classList.add("active");
+    if (gpuSec) {
+      gpuSec.classList.remove("active");
+      gpuSec.style.display = "none";
+    }
+    if (apiSec) {
+      apiSec.classList.add("active");
+      apiSec.style.display = "flex";
+    }
+  } else {
+    if (apiBtn) apiBtn.classList.remove("active");
+    if (gpuBtn) gpuBtn.classList.add("active");
+    if (apiSec) {
+      apiSec.classList.remove("active");
+      apiSec.style.display = "none";
+    }
+    if (gpuSec) {
+      gpuSec.classList.add("active");
+      gpuSec.style.display = "flex";
+    }
+  }
+
+  const kaggleTab = document.getElementById("tab-content-kaggle");
+  const saveBtn = document.getElementById("btn-save-colab");
+  if (saveBtn) {
+    const isKaggle = (sec === "gpu" && kaggleTab && kaggleTab.classList.contains("active"));
+    saveBtn.style.display = isKaggle ? "none" : "inline-block";
+  }
+}
+
 function switchCloudTab(tabName) {
-  document.querySelectorAll(".cloud-tab-btn").forEach(b => b.classList.remove("active"));
-  document.querySelectorAll(".cloud-tab-content").forEach(c => c.classList.remove("active"));
+  if (tabName === "fish" || tabName === "api") {
+    switchCloudSection("api");
+    return;
+  }
+  switchCloudSection("gpu");
+
+  document.querySelectorAll("#cloud-section-gpu .cloud-tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll("#cloud-section-gpu .cloud-tab-content").forEach(c => c.classList.remove("active"));
   const btn = document.getElementById(`tab-btn-${tabName}`);
   const content = document.getElementById(`tab-content-${tabName}`);
   if (btn) btn.classList.add("active");
   if (content) content.classList.add("active");
 
-  // De-congest footer: on Kaggle tab, Launch/Stop is in the tab itself, so hide redundant Save & Activate
   const saveBtn = document.getElementById("btn-save-colab");
   if (saveBtn) {
     saveBtn.style.display = (tabName === "kaggle") ? "none" : "inline-block";
@@ -7070,9 +7113,12 @@ async function handleSwitchToColabFast() {
     launchBtn.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
   }
 
-  window.open("https://colab.research.google.com", "_blank");
-  switchCloudTab("custom");
-  showToast("⚡ Switched to Colab! Kaggle queue cancelled. Paste script into a T4 GPU notebook, click Run, then paste the tunnel URL here.", 6500);
+  showToast("📋 1-Cell Worker Script copied to clipboard! Opening Google Colab...", 4500);
+  setTimeout(() => {
+    window.open("https://colab.research.google.com", "_blank");
+  }, 250);
+  switchCloudSection("gpu");
+  switchCloudTab("colab");
 }
 
 function handleSwitchToFishProFast() {
@@ -7428,6 +7474,10 @@ function openColabModal() {
   if (urlInput) {
     urlInput.value = (state.config && state.config.remote_worker_url) || "";
   }
+  const customInput = document.getElementById("custom-gpu-url-input");
+  if (customInput) {
+    customInput.value = (state.config && state.config.remote_worker_url) || "";
+  }
   const keyInput = document.getElementById("fish-api-key-input");
   if (keyInput) {
     keyInput.value = (state.config && state.config.fish_api_key) || "";
@@ -7673,7 +7723,8 @@ function handleClearApiKeyInput() {
 
 async function handleSaveColab() {
   const urlInput = document.getElementById("colab-url-input");
-  const url = (urlInput?.value || "").trim();
+  const customInput = document.getElementById("custom-gpu-url-input");
+  const url = (urlInput?.value || customInput?.value || "").trim();
   const apiKeyInput = document.getElementById("fish-api-key-input");
   const apiKey = (apiKeyInput?.value || "").trim();
 
@@ -7717,10 +7768,14 @@ async function handleClearColab() {
     updateEngineUI("", false);
     const urlInput = document.getElementById("colab-url-input");
     if (urlInput) urlInput.value = "";
+    const customInput = document.getElementById("custom-gpu-url-input");
+    if (customInput) customInput.value = "";
     const apiKeyInput = document.getElementById("fish-api-key-input");
     if (apiKeyInput) apiKeyInput.value = "";
     const testRes = document.getElementById("colab-test-result");
     if (testRes) testRes.innerHTML = "";
+    const customTestRes = document.getElementById("custom-gpu-test-result");
+    if (customTestRes) customTestRes.innerHTML = "";
     closeColabModal();
     showToast("⚡ Remote worker disconnected. Switched to Local CPU.");
   } catch (err) {
@@ -7728,15 +7783,122 @@ async function handleClearColab() {
   }
 }
 
-async function handleCopyColabScript(engineChoice = "fish_s2") {
-  try {
-    const res = await fetch(`/api/colab_script?engine=fish_s2`);
-    const scriptText = await res.text();
-    await navigator.clipboard.writeText(scriptText);
-    showToast(`📋 Copied 1-Click Fish Audio S2 Pro Worker Script!`);
-  } catch (err) {
-    alert("Copy failed: " + err);
+function syncCustomUrlToColabUrl(val) {
+  const colabInput = document.getElementById("colab-url-input");
+  if (colabInput) colabInput.value = val;
+}
+
+function handleClearCustomGpuInput() {
+  const input = document.getElementById("custom-gpu-url-input");
+  if (input) input.value = "";
+  const colabInput = document.getElementById("colab-url-input");
+  if (colabInput) colabInput.value = "";
+  const res = document.getElementById("custom-gpu-test-result");
+  if (res) res.innerHTML = "";
+  showToast("Cleared Custom GPU URL.");
+}
+
+async function handleTestCustomGpu() {
+  const input = document.getElementById("custom-gpu-url-input");
+  const testRes = document.getElementById("custom-gpu-test-result");
+  const btn = document.getElementById("btn-test-custom-gpu");
+  const url = (input?.value || "").trim();
+
+  if (!url) {
+    if (testRes) testRes.innerHTML = `<span style="color: var(--danger);">⚠️ Please enter your custom worker or local GPU URL (e.g. http://localhost:8080 or https://...trycloudflare.com).</span>`;
+    return;
   }
+
+  const colabInput = document.getElementById("colab-url-input");
+  if (colabInput) colabInput.value = url;
+
+  if (btn) {
+    btn.textContent = "⏳ Testing...";
+    btn.disabled = true;
+  }
+  if (testRes) testRes.innerHTML = `<span style="color: var(--text-muted);">Pinging ${url}/health...</span>`;
+
+  try {
+    const res = await fetch(`/api/remote_worker/health?url=${encodeURIComponent(url)}`);
+    const data = await res.json();
+    if (data.ok) {
+      const hw = data.gpu_name || data.device || (data.cuda_available ? "NVIDIA CUDA GPU" : "CPU");
+      testRes.innerHTML = `<span style="color: var(--success); font-weight: 600;">✅ Connected! Hardware: ${hw} — Ready for instant synthesis!</span>`;
+      if (url === state.config?.remote_worker_url) {
+        state.config.active = true;
+        updateEngineUI(url, true);
+      }
+    } else {
+      testRes.innerHTML = `<span style="color: var(--danger);">❌ Connection failed: ${data.error || "Could not reach remote worker"}</span>`;
+    }
+  } catch (err) {
+    testRes.innerHTML = `<span style="color: var(--danger);">❌ Connection failed: ${err.message}</span>`;
+  } finally {
+    if (btn) {
+      btn.textContent = "⚡ Test Connection";
+      btn.disabled = false;
+    }
+  }
+}
+
+async function handleCopyColabScriptAndOpen(engineChoice = "fish_s2") {
+  const btn = document.getElementById("btn-copy-colab-fish") || document.getElementById("btn-copy-colab-code");
+  const origHtml = btn ? btn.innerHTML : "📋 Copy 1-Cell Worker Script & Open Colab ↗";
+
+  let scriptText = "";
+  try {
+    const res = await fetch(`/api/colab_script?engine=${encodeURIComponent(engineChoice)}`);
+    scriptText = await res.text();
+  } catch (err) {
+    console.warn("Colab script fetch error:", err);
+  }
+
+  let copied = false;
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(scriptText);
+      copied = true;
+    } catch (e) {
+      console.warn("navigator.clipboard failed:", e);
+    }
+  }
+  if (!copied) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = scriptText;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      copied = true;
+    } catch (e) {
+      console.error("Copy fallback error:", e);
+    }
+  }
+
+  if (btn) {
+    btn.classList.add("copied");
+    btn.innerHTML = `✅ Copied to Clipboard! Opening Colab...`;
+  }
+
+  showToast("📋 1-Cell Worker Script copied! Opening Google Colab in a new tab...", 4500);
+
+  setTimeout(() => {
+    window.open("https://colab.research.google.com", "_blank");
+  }, 350);
+
+  setTimeout(() => {
+    if (btn) {
+      btn.classList.remove("copied");
+      btn.innerHTML = origHtml;
+    }
+  }, 3200);
+}
+
+async function handleCopyColabScript(engineChoice = "fish_s2") {
+  return handleCopyColabScriptAndOpen(engineChoice);
 }
 
 // ---------------- FISH AUDIO S2 PRO ENGINE & CONTROLS ---------------- //
@@ -9713,6 +9875,11 @@ window.handleReferenceVoiceFileUpload = handleReferenceVoiceFileUpload;
 window.handleTestFishKey = handleTestFishKey;
 window.handleClearTunnelInput = handleClearTunnelInput;
 window.handleClearApiKeyInput = handleClearApiKeyInput;
+window.switchCloudSection = switchCloudSection;
+window.handleCopyColabScriptAndOpen = handleCopyColabScriptAndOpen;
+window.syncCustomUrlToColabUrl = syncCustomUrlToColabUrl;
+window.handleClearCustomGpuInput = handleClearCustomGpuInput;
+window.handleTestCustomGpu = handleTestCustomGpu;
 
 
 

@@ -838,11 +838,32 @@
           </div>
         </div>
 
-        <!-- Cloud Mode Tabs Navigation -->
-        <div class="cloud-tabs-nav">
-          <button class="cloud-tab-btn active" id="tab-btn-kaggle" onclick="switchCloudTab('kaggle')">🚀 1-Click Kaggle GPU (Free)</button>
-          <button class="cloud-tab-btn" id="tab-btn-custom" onclick="switchCloudTab('custom')">🛠️ Colab / Custom Worker</button>
+        <!-- Top-Level Acceleration Section Switcher -->
+        <div class="cloud-mode-selector">
+          <button type="button" class="cloud-mode-btn active" id="sec-btn-gpu" onclick="switchCloudSection('gpu')">
+            <span class="mode-btn-icon">⚡</span>
+            <div class="mode-btn-content">
+              <span class="mode-btn-title">Cloud &amp; Local GPU</span>
+              <span class="mode-btn-sub">Kaggle Free &bull; Google Colab &bull; Custom GPU</span>
+            </div>
+          </button>
+          <button type="button" class="cloud-mode-btn" id="sec-btn-api" onclick="switchCloudSection('api')">
+            <span class="mode-btn-icon">🔑</span>
+            <div class="mode-btn-content">
+              <span class="mode-btn-title">Cloud Model APIs</span>
+              <span class="mode-btn-sub">Kokoro Cloud &bull; Zero Coldstart</span>
+            </div>
+          </button>
         </div>
+
+        <!-- ================= SECTION 1: CLOUD & LOCAL GPU ================= -->
+        <div id="cloud-section-gpu" class="cloud-section-content active">
+          <!-- GPU Sub-Tabs Nav: Kaggle, Colab, and Custom GPU -->
+          <div class="cloud-tabs-nav">
+            <button class="cloud-tab-btn active" id="tab-btn-kaggle" onclick="switchCloudTab('kaggle')">🚀 1-Click Kaggle GPU (Free 30h)</button>
+            <button class="cloud-tab-btn" id="tab-btn-colab" onclick="switchCloudTab('colab')">⚡ Google Colab (Tesla T4)</button>
+            <button class="cloud-tab-btn" id="tab-btn-custom" onclick="switchCloudTab('custom')">🖥️ Custom Worker / Local GPU</button>
+          </div>
 
         <!-- ================= TAB 1: KAGGLE 1-CLICK GPU ================= -->
         <div class="cloud-tab-content active" id="tab-content-kaggle">
@@ -1108,17 +1129,109 @@
           </div>
           <div id="colab-test-result" style="font-size: 12px; min-height: 18px;"></div>
 
-          <!-- Quick Colab Instructions & Copy Code -->
-          <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column; gap: 10px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">1-Click Colab / Kaggle Setup:</span>
-              <button class="btn btn-secondary" id="btn-copy-colab-code" onclick="handleCopyColabScript()" style="padding: 4px 10px; font-size: 12px;">📋 Copy Colab Script</button>
+          <!-- SUBTAB 2: GOOGLE COLAB (Dedicated Colab Tab with Copy & Open!) -->
+          <div class="cloud-tab-content" id="tab-content-colab">
+            <div class="colab-workflow-card">
+              <div class="colab-workflow-step">
+                <div class="colab-step-number">1</div>
+                <div class="colab-step-body">
+                  <div class="colab-step-title">Copy 1-Cell Worker Script &amp; Open Google Colab</div>
+                  <div class="colab-step-desc">Spins up a dedicated Tesla T4 GPU on Google's cloud with zero queue. Clicking the button automatically copies the ready-to-run worker script and opens Colab in a new tab.</div>
+                  <button type="button" class="btn btn-primary colab-copy-launch-btn" id="btn-copy-colab-code" onclick="handleCopyColabScriptAndOpen('kokoro')">
+                    📋 Copy 1-Cell Worker Script &amp; Open Colab ↗
+                  </button>
+                </div>
+              </div>
+
+              <div class="colab-workflow-step">
+                <div class="colab-step-number">2</div>
+                <div class="colab-step-body">
+                  <div class="colab-step-title">Run the Script in Colab (T4 GPU)</div>
+                  <div class="colab-step-desc">In Colab, verify <strong>Runtime &rarr; Change runtime type &rarr; T4 GPU</strong> is selected. Paste the script into the cell and press <strong>Run</strong> (or press Ctrl+F9).</div>
+                </div>
+              </div>
+
+              <div class="colab-workflow-step">
+                <div class="colab-step-number">3</div>
+                <div class="colab-step-body">
+                  <div class="colab-step-title">Paste the Cloudflare Tunnel URL Below</div>
+                  <div class="colab-step-desc">Copy the <code>https://...trycloudflare.com</code> URL displayed at the bottom of the cell output and paste it here:</div>
+                  <div style="display: flex; gap: 8px; margin-top: 6px;">
+                    <input type="text" id="colab-url-input" class="search-input" placeholder="https://random-words.trycloudflare.com" style="flex: 1; font-size: 12.5px;">
+                    <button class="btn btn-secondary" id="btn-test-colab" onclick="handleTestColab()" style="white-space: nowrap;">⚡ Test Connection</button>
+                    <button class="btn btn-ghost" id="btn-clear-tunnel-url" onclick="handleClearTunnelInput()" title="Clear Tunnel URL" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
+                  </div>
+                  <div id="colab-test-result" style="font-size: 12px; min-height: 18px; margin-top: 4px;"></div>
+                </div>
+              </div>
             </div>
-            <ol style="font-size: 12.5px; color: var(--text-muted); margin: 0; padding-left: 20px; line-height: 1.6;">
-              <li>Open a free <a href="https://colab.research.google.com" target="_blank" style="color: var(--primary); text-decoration: underline;">Google Colab notebook</a>.</li>
-              <li>In the top menu: <strong>Runtime → Change runtime type</strong> and select <strong>T4 GPU</strong>.</li>
-              <li>Paste the 1-cell script, press <strong>Run</strong>, then copy the <code>https://*.trycloudflare.com</code> URL it gives you!</li>
-            </ol>
+          </div>
+
+          <!-- SUBTAB 3: CUSTOM WORKER / LOCAL GPU -->
+          <div class="cloud-tab-content" id="tab-content-custom">
+            <div class="colab-workflow-card">
+              <div style="font-size: 12.5px; color: #cbd5e1; line-height: 1.45;">
+                <strong>Run on your own GPU:</strong> Connect a local desktop or laptop with an NVIDIA GPU (RTX 3060/3080/4090), RunPod pod, or Vast.ai instance.
+              </div>
+              <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #94a3b8; margin-top: 4px; line-height: 1.45;">
+                <div>&bull; <strong>Local NVIDIA GPU:</strong> Run <code>python colab_worker.py --port 8080</code> and connect via <code>http://localhost:8080</code></div>
+                <div style="margin-top: 3px;">&bull; <strong>RunPod / Remote Server:</strong> Run with Cloudflare tunnel and paste your <code>https://...trycloudflare.com</code> URL.</div>
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <input type="text" id="custom-gpu-url-input" class="search-input" placeholder="http://localhost:8080 or https://your-tunnel.trycloudflare.com" style="flex: 1; font-size: 12.5px;" oninput="syncCustomUrlToColabUrl(this.value)">
+                <button class="btn btn-secondary" id="btn-test-custom-gpu" onclick="handleTestCustomGpu()" style="white-space: nowrap;">⚡ Test Connection</button>
+                <button class="btn btn-ghost" onclick="handleClearCustomGpuInput()" title="Clear URL" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
+              </div>
+              <div id="custom-gpu-test-result" style="font-size: 12px; min-height: 18px; margin-top: 4px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= SECTION 2: CLOUD MODEL APIS ================= -->
+        <div id="cloud-section-api" class="cloud-section-content" style="display: none;">
+          <div class="api-section-header">
+            <div style="font-size: 13px; font-weight: 600; color: #f1f5f9;">Official Cloud Model APIs</div>
+            <div style="font-size: 11.5px; color: var(--text-muted); line-height: 1.4;">
+              Instant synthesis via cloud inference APIs. Zero GPU booting, no queue times, and zero wait time.
+            </div>
+          </div>
+
+          <!-- Active API: Kokoro Cloud TTS -->
+          <div class="model-api-card">
+            <div class="model-api-top">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px;">🌸</span>
+                <div>
+                  <div style="font-size: 13px; font-weight: 700; color: #f1f5f9;">Kokoro Cloud TTS API</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">High-speed cloud inference &bull; 82M lightweight multi-voice engine</div>
+                </div>
+              </div>
+              <span class="badge-status" style="background: rgba(16, 185, 129, 0.15); color: #10b981; padding: 2px 6px;">Ready</span>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+              <input type="password" id="kokoro-api-key-input" class="search-input" placeholder="Paste your Cloud TTS endpoint or API token..." style="flex: 1; font-size: 12.5px;">
+              <button class="btn btn-secondary" onclick="showToast('Cloud API endpoint configured!')" style="white-space: nowrap;">🔑 Save Key</button>
+            </div>
+          </div>
+
+          <!-- Architecture & Extensibility for additional model APIs -->
+          <div class="model-api-upcoming">
+            <div style="font-size: 11.5px; font-weight: 600; color: #94a3b8; margin-bottom: 8px;">Studio Model API Ecosystem:</div>
+            <div class="api-integration-grid">
+              <div class="api-integration-badge active">
+                <span>✓ Kokoro ONNX Local / GPU</span>
+                <span class="badge-status">Active</span>
+              </div>
+              <div class="api-integration-badge ready">
+                <span>Fish Audio S2 Pro</span>
+                <span class="badge-status">Compatible</span>
+              </div>
+              <div class="api-integration-badge planned">
+                <span>OpenAI / Compatible API</span>
+                <span class="badge-status">Plug &amp; Play</span>
+              </div>
+            </div>
           </div>
         </div>
 

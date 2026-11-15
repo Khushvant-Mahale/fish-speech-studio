@@ -1270,12 +1270,32 @@
           </div>
         </div>
 
-        <!-- Cloud Mode Tabs Navigation -->
-        <div class="cloud-tabs-nav">
-          <button class="cloud-tab-btn active" id="tab-btn-kaggle" onclick="switchCloudTab('kaggle')">🚀 1-Click Kaggle GPU (Free)</button>
-          <button class="cloud-tab-btn" id="tab-btn-fish" onclick="switchCloudTab('fish')">🔑 Fish Audio Pro API</button>
-          <button class="cloud-tab-btn" id="tab-btn-custom" onclick="switchCloudTab('custom')">🛠️ Colab / Custom Worker</button>
+        <!-- Top-Level Acceleration Section Switcher -->
+        <div class="cloud-mode-selector">
+          <button type="button" class="cloud-mode-btn active" id="sec-btn-gpu" onclick="switchCloudSection('gpu')">
+            <span class="mode-btn-icon">⚡</span>
+            <div class="mode-btn-content">
+              <span class="mode-btn-title">Cloud &amp; Local GPU</span>
+              <span class="mode-btn-sub">Kaggle Free &bull; Google Colab &bull; Custom GPU</span>
+            </div>
+          </button>
+          <button type="button" class="cloud-mode-btn" id="sec-btn-api" onclick="switchCloudSection('api')">
+            <span class="mode-btn-icon">🔑</span>
+            <div class="mode-btn-content">
+              <span class="mode-btn-title">Cloud Model APIs</span>
+              <span class="mode-btn-sub">Fish Audio Pro API &bull; Zero Coldstart</span>
+            </div>
+          </button>
         </div>
+
+        <!-- ================= SECTION 1: CLOUD & LOCAL GPU ================= -->
+        <div id="cloud-section-gpu" class="cloud-section-content active">
+          <!-- GPU Sub-Tabs Nav: Kaggle, Colab, and Custom GPU -->
+          <div class="cloud-tabs-nav">
+            <button class="cloud-tab-btn active" id="tab-btn-kaggle" onclick="switchCloudTab('kaggle')">🚀 1-Click Kaggle GPU (Free 30h)</button>
+            <button class="cloud-tab-btn" id="tab-btn-colab" onclick="switchCloudTab('colab')">⚡ Google Colab (Tesla T4)</button>
+            <button class="cloud-tab-btn" id="tab-btn-custom" onclick="switchCloudTab('custom')">🖥️ Custom Worker / Local GPU</button>
+          </div>
 
         <!-- ================= TAB 1: KAGGLE 1-CLICK GPU ================= -->
         <div class="cloud-tab-content active" id="tab-content-kaggle">
@@ -1547,40 +1567,115 @@
           </div>
         </div>
 
-        <!-- ================= TAB 2: FISH AUDIO PRO API ================= -->
-        <div class="cloud-tab-content" id="tab-content-fish">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 12.5px; color: var(--text-muted);">Direct synthesis via official Fish Audio servers. Instant (~0.3s) generation with zero wait time.</span>
-            <a href="https://fish.audio/go-api" target="_blank" style="font-size: 11.5px; color: #10b981; text-decoration: underline;">Get API Key ↗</a>
+          <!-- SUBTAB 2: GOOGLE COLAB (Dedicated Colab Tab with Copy & Open!) -->
+          <div class="cloud-tab-content" id="tab-content-colab">
+            <div class="colab-workflow-card">
+              <div class="colab-workflow-step">
+                <div class="colab-step-number">1</div>
+                <div class="colab-step-body">
+                  <div class="colab-step-title">Copy 1-Cell Worker Script &amp; Open Google Colab</div>
+                  <div class="colab-step-desc">Spins up a dedicated Tesla T4 GPU on Google's cloud with zero queue. Clicking the button automatically copies the ready-to-run worker script and opens Colab in a new tab.</div>
+                  <button type="button" class="btn btn-primary colab-copy-launch-btn" id="btn-copy-colab-fish" onclick="handleCopyColabScriptAndOpen('fish_s2')">
+                    📋 Copy 1-Cell Worker Script &amp; Open Colab ↗
+                  </button>
+                </div>
+              </div>
+
+              <div class="colab-workflow-step">
+                <div class="colab-step-number">2</div>
+                <div class="colab-step-body">
+                  <div class="colab-step-title">Run the Script in Colab (T4 GPU)</div>
+                  <div class="colab-step-desc">In Colab, verify <strong>Runtime &rarr; Change runtime type &rarr; T4 GPU</strong> is selected. Paste the script into the cell and press <strong>Run</strong> (or press Ctrl+F9).</div>
+                </div>
+              </div>
+
+              <div class="colab-workflow-step">
+                <div class="colab-step-number">3</div>
+                <div class="colab-step-body">
+                  <div class="colab-step-title">Paste the Cloudflare Tunnel URL Below</div>
+                  <div class="colab-step-desc">Copy the <code>https://...trycloudflare.com</code> URL displayed at the bottom of the cell output and paste it here:</div>
+                  <div style="display: flex; gap: 8px; margin-top: 6px;">
+                    <input type="text" id="colab-url-input" class="search-input" placeholder="https://random-words.trycloudflare.com" style="flex: 1; font-size: 12.5px;">
+                    <button class="btn btn-secondary" id="btn-test-colab" onclick="handleTestColab()" style="white-space: nowrap;">⚡ Test Connection</button>
+                    <button class="btn btn-ghost" id="btn-clear-tunnel-url" onclick="handleClearTunnelInput()" title="Clear Tunnel URL" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
+                  </div>
+                  <div id="colab-test-result" style="font-size: 12px; min-height: 18px; margin-top: 4px;"></div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div style="display: flex; gap: 8px;">
-            <input type="password" id="fish-api-key-input" class="search-input" placeholder="Paste your api.fish.audio API key..." style="flex: 1;">
-            <button class="btn btn-secondary" id="btn-test-fish-key" onclick="handleTestFishKey()" style="white-space: nowrap;">🔑 Test Key</button>
-            <button class="btn btn-ghost" id="btn-clear-api-key" onclick="handleClearApiKeyInput()" title="Clear API Key" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
+
+          <!-- SUBTAB 3: CUSTOM WORKER / LOCAL GPU -->
+          <div class="cloud-tab-content" id="tab-content-custom">
+            <div class="colab-workflow-card">
+              <div style="font-size: 12.5px; color: #cbd5e1; line-height: 1.45;">
+                <strong>Run on your own GPU:</strong> Connect a local desktop or laptop with an NVIDIA GPU (RTX 3060/3080/4090), RunPod pod, or Vast.ai instance.
+              </div>
+              <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #94a3b8; margin-top: 4px; line-height: 1.45;">
+                <div>&bull; <strong>Local NVIDIA GPU:</strong> Run <code>python colab_worker.py --port 8080</code> and connect via <code>http://localhost:8080</code></div>
+                <div style="margin-top: 3px;">&bull; <strong>RunPod / Remote Server:</strong> Run with Cloudflare tunnel and paste your <code>https://...trycloudflare.com</code> URL.</div>
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 8px;">
+                <input type="text" id="custom-gpu-url-input" class="search-input" placeholder="http://localhost:8080 or https://your-tunnel.trycloudflare.com" style="flex: 1; font-size: 12.5px;" oninput="syncCustomUrlToColabUrl(this.value)">
+                <button class="btn btn-secondary" id="btn-test-custom-gpu" onclick="handleTestCustomGpu()" style="white-space: nowrap;">⚡ Test Connection</button>
+                <button class="btn btn-ghost" onclick="handleClearCustomGpuInput()" title="Clear URL" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
+              </div>
+              <div id="custom-gpu-test-result" style="font-size: 12px; min-height: 18px; margin-top: 4px;"></div>
+            </div>
           </div>
-          <div id="fish-key-test-result" style="font-size: 12px; min-height: 18px; margin-top: 2px;"></div>
         </div>
 
-        <!-- ================= TAB 3: COLAB / CUSTOM WORKER ================= -->
-        <div class="cloud-tab-content" id="tab-content-custom">
-          <div style="font-size: 12.5px; color: var(--text-muted);">Connect an existing Google Colab notebook, RunPod container, or local GPU server via tunnel.</div>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="colab-url-input" class="search-input" placeholder="https://random-words.trycloudflare.com" style="flex: 1;">
-            <button class="btn btn-secondary" id="btn-test-colab" onclick="handleTestColab()" style="white-space: nowrap;">⚡ Test Connection</button>
-            <button class="btn btn-ghost" id="btn-clear-tunnel-url" onclick="handleClearTunnelInput()" title="Clear Tunnel URL" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
-          </div>
-          <div id="colab-test-result" style="font-size: 12px; min-height: 18px;"></div>
-
-          <!-- Quick Colab Copy Code -->
-          <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 12.5px; font-weight: 600; color: var(--text-main);">1-Click Colab Script:</span>
-              <button class="btn btn-primary" id="btn-copy-colab-fish" onclick="handleCopyColabScript('fish_s2')" style="padding: 3px 8px; font-size: 11px; background: #10b981;">📋 Copy S2 Pro Worker</button>
+        <!-- ================= SECTION 2: CLOUD MODEL APIS ================= -->
+        <div id="cloud-section-api" class="cloud-section-content" style="display: none;">
+          <div class="api-section-header">
+            <div style="font-size: 13px; font-weight: 600; color: #f1f5f9;">Official Cloud Model APIs</div>
+            <div style="font-size: 11.5px; color: var(--text-muted); line-height: 1.4;">
+              Instant synthesis via official cloud APIs. Zero GPU queuing, no container booting, and zero wait time.
             </div>
-            <ol style="font-size: 12px; color: var(--text-muted); margin: 0; padding-left: 18px; line-height: 1.5;">
-              <li>Open a free <a href="https://colab.research.google.com" target="_blank" style="color: var(--primary); text-decoration: underline;">Google Colab notebook</a> with T4 GPU enabled.</li>
-              <li>Paste the 1-cell worker script and press <strong>Run</strong>.</li>
-            </ol>
+          </div>
+
+          <!-- Active API: Fish Audio S2 Pro -->
+          <div class="model-api-card">
+            <div class="model-api-top">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px;">🐟</span>
+                <div>
+                  <div style="font-size: 13px; font-weight: 700; color: #f1f5f9;">Fish Audio S2 Pro API</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">Direct synthesis via api.fish.audio &bull; ~0.2s generation &bull; Full emotion prompt support</div>
+                </div>
+              </div>
+              <a href="https://fish.audio/go-api" target="_blank" class="model-api-link">Get API Key ↗</a>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+              <input type="password" id="fish-api-key-input" class="search-input" placeholder="Paste your api.fish.audio key (starts with sk-fish-)..." style="flex: 1; font-size: 12.5px;">
+              <button class="btn btn-secondary" id="btn-test-fish-key" onclick="handleTestFishKey()" style="white-space: nowrap;">🔑 Test Key</button>
+              <button class="btn btn-ghost" id="btn-clear-api-key" onclick="handleClearApiKeyInput()" title="Clear API Key" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
+            </div>
+            <div id="fish-key-test-result" style="font-size: 12px; min-height: 18px; margin-top: 4px;"></div>
+          </div>
+
+          <!-- Architecture & Extensibility for additional model APIs -->
+          <div class="model-api-upcoming">
+            <div style="font-size: 11.5px; font-weight: 600; color: #94a3b8; margin-bottom: 8px;">Studio Model API Ecosystem:</div>
+            <div class="api-integration-grid">
+              <div class="api-integration-badge active">
+                <span>✓ Fish Audio S2 Pro</span>
+                <span class="badge-status">Active</span>
+              </div>
+              <div class="api-integration-badge ready">
+                <span>Kokoro TTS Cloud</span>
+                <span class="badge-status">Ready</span>
+              </div>
+              <div class="api-integration-badge planned">
+                <span>OpenAI / Compatible API</span>
+                <span class="badge-status">Plug &amp; Play</span>
+              </div>
+              <div class="api-integration-badge planned">
+                <span>ElevenLabs / Replicate</span>
+                <span class="badge-status">Upcoming</span>
+              </div>
+            </div>
           </div>
         </div>
 
