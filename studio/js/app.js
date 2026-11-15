@@ -6881,6 +6881,104 @@ async function handleVerifyKaggle() {
   }
 }
 
+// ================= COLDSTART MASTERCLASS GUIDE ================= //
+
+let coldstartSlideIdx = 0;
+let coldstartSlideInterval = null;
+let coldstartBootStartTime = null;
+let coldstartBootTimerInterval = null;
+
+function startColdstartGuide() {
+  const guide = document.getElementById("kaggle-coldstart-guide");
+  if (!guide) return;
+  guide.style.display = "block";
+
+  if (!coldstartBootStartTime) {
+    coldstartBootStartTime = Date.now();
+  }
+
+  // Update boot timer & progress bar
+  clearInterval(coldstartBootTimerInterval);
+  coldstartBootTimerInterval = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - coldstartBootStartTime) / 1000);
+    const timerPill = document.getElementById("coldstart-timer-pill");
+    const barFill = document.getElementById("coldstart-boot-bar-fill");
+
+    if (timerPill) {
+      timerPill.textContent = `⏳ Booting: ${elapsed}s`;
+    }
+    if (barFill) {
+      // Progress over typical 75s
+      const pct = Math.min(94, Math.round((elapsed / 75) * 90));
+      barFill.style.width = `${pct}%`;
+    }
+  }, 1000);
+
+  // Auto-advance slides every 7 seconds
+  clearInterval(coldstartSlideInterval);
+  coldstartSlideInterval = setInterval(() => {
+    nextColdstartSlide();
+  }, 7000);
+}
+
+function stopColdstartGuide(success = true) {
+  const guide = document.getElementById("kaggle-coldstart-guide");
+  clearInterval(coldstartSlideInterval);
+  clearInterval(coldstartBootTimerInterval);
+
+  if (success && guide) {
+    const barFill = document.getElementById("coldstart-boot-bar-fill");
+    const timerPill = document.getElementById("coldstart-timer-pill");
+    if (barFill) barFill.style.width = "100%";
+    if (timerPill && coldstartBootStartTime) {
+      const elapsed = Math.floor((Date.now() - coldstartBootStartTime) / 1000);
+      timerPill.textContent = `✅ Ready in ${elapsed}s!`;
+      timerPill.style.color = "#10b981";
+      timerPill.style.borderColor = "rgba(16, 185, 129, 0.4)";
+      timerPill.style.background = "rgba(16, 185, 129, 0.2)";
+    }
+  }
+  coldstartBootStartTime = null;
+}
+
+function goToColdstartSlide(idx) {
+  const totalSlides = 6;
+  coldstartSlideIdx = ((idx % totalSlides) + totalSlides) % totalSlides;
+
+  // Update tabs
+  document.querySelectorAll(".coldstart-tab").forEach(tab => {
+    const sIdx = Number(tab.dataset.slide);
+    tab.classList.toggle("active", sIdx === coldstartSlideIdx);
+  });
+
+  // Update slides
+  document.querySelectorAll(".coldstart-slide").forEach((slide, i) => {
+    slide.classList.toggle("active", i === coldstartSlideIdx);
+  });
+
+  // Counter
+  const counter = document.getElementById("coldstart-slide-counter");
+  if (counter) counter.textContent = `${coldstartSlideIdx + 1}/${totalSlides}`;
+
+  // Reset auto-advance timer on manual interaction
+  clearInterval(coldstartSlideInterval);
+  coldstartSlideInterval = setInterval(() => {
+    nextColdstartSlide();
+  }, 7000);
+}
+
+function nextColdstartSlide() {
+  goToColdstartSlide(coldstartSlideIdx + 1);
+}
+
+function prevColdstartSlide() {
+  goToColdstartSlide(coldstartSlideIdx - 1);
+}
+
+window.goToColdstartSlide = goToColdstartSlide;
+window.nextColdstartSlide = nextColdstartSlide;
+window.prevColdstartSlide = prevColdstartSlide;
+
 async function handleLaunchKaggle() {
   const uInput = document.getElementById("kaggle-username-input");
   const kInput = document.getElementById("kaggle-key-input");
@@ -6905,7 +7003,7 @@ async function handleLaunchKaggle() {
     const res = await fetch("/api/config");
     const cfg = await res.json();
     if (!cfg.kaggle_username && !cfg.kaggle_has_key) {
-      alert("Please provide your Kaggle Username & API Key or drop your kaggle.json file first.");
+      showToast("⚠️ Please provide your Kaggle Username & API Key or drop your kaggle.json file first.");
       return;
     }
   }
@@ -6918,6 +7016,7 @@ async function handleLaunchKaggle() {
   setKaggleStep(1, "active");
   setKaggleStep(2, "idle");
   setKaggleStep(3, "idle");
+  startColdstartGuide();
 
   try {
     const res = await fetch("/api/cloud/kaggle/launch", {
@@ -6987,15 +7086,18 @@ async function checkKaggleStatus() {
     if (data.status === "queued") {
       setKaggleStep(1, "completed");
       setKaggleStep(2, "active");
+      startColdstartGuide();
       if (launchBtn) launchBtn.textContent = `⏳ Queued (${data.elapsed_seconds}s)...`;
     } else if (data.status === "booting") {
       setKaggleStep(1, "completed");
       setKaggleStep(2, "active");
+      startColdstartGuide();
       if (launchBtn) launchBtn.textContent = `⏳ Booting GPU & Weights (${data.elapsed_seconds}s)...`;
     } else if (data.status === "ready" && data.tunnel_url) {
       setKaggleStep(1, "completed");
       setKaggleStep(2, "completed");
       setKaggleStep(3, "completed");
+      stopColdstartGuide(true);
       clearInterval(kagglePollInterval);
       if (launchBtn) {
         launchBtn.textContent = "🟢 GPU Active & Connected!";
@@ -7022,6 +7124,7 @@ async function checkKaggleStatus() {
       }, 1600);
     } else if (data.status === "stopped") {
       clearInterval(kagglePollInterval);
+      stopColdstartGuide(false);
       if (launchBtn) {
         launchBtn.disabled = false;
         launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
@@ -7032,6 +7135,7 @@ async function checkKaggleStatus() {
       if (stepper) stepper.style.display = "none";
     } else if (data.status === "error") {
       clearInterval(kagglePollInterval);
+      stopColdstartGuide(false);
       if (launchBtn) {
         launchBtn.disabled = false;
         launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
@@ -7070,6 +7174,7 @@ async function handleStopKaggle() {
     }
     const stepper = document.getElementById("kaggle-stepper-box");
     if (stepper) stepper.style.display = "none";
+    stopColdstartGuide(false);
 
     // Clean up local state & banner
     localStorage.removeItem("fish_speech_remote_url");

@@ -1323,6 +1323,138 @@
             </details>
           </div>
 
+          <!-- While-You-Wait Coldstart Masterclass & Directing Guide -->
+          <div id="kaggle-coldstart-guide" class="coldstart-guide-box" style="display: none;">
+            <div class="coldstart-guide-header">
+              <div class="coldstart-guide-title">
+                <span style="font-size: 15px;">🎬</span>
+                <span>While GPU Wakes Up (~60-90s) &bull; <strong>Studio Quick Masterclass</strong></span>
+              </div>
+              <div class="coldstart-guide-controls">
+                <span id="coldstart-timer-pill" class="coldstart-timer-badge">⏳ Booting: 0s</span>
+                <button type="button" class="guide-nav-btn" onclick="prevColdstartSlide()" title="Previous Tip">◀</button>
+                <span id="coldstart-slide-counter" style="font-size: 11px; font-weight: 600; color: #a5b4fc;">1/6</span>
+                <button type="button" class="guide-nav-btn" onclick="nextColdstartSlide()" title="Next Tip">▶</button>
+              </div>
+            </div>
+
+            <!-- Booting Progress Indicator -->
+            <div class="coldstart-boot-bar-track">
+              <div id="coldstart-boot-bar-fill" class="coldstart-boot-bar-fill"></div>
+            </div>
+
+            <!-- Interactive Category Tabs -->
+            <div class="coldstart-tabs">
+              <button type="button" class="coldstart-tab active" data-slide="0" onclick="goToColdstartSlide(0)">🎭 Multi-Casting</button>
+              <button type="button" class="coldstart-tab" data-slide="1" onclick="goToColdstartSlide(1)">🎙️ Emotion Tags</button>
+              <button type="button" class="coldstart-tab" data-slide="2" onclick="goToColdstartSlide(2)">⚡ Instant FX</button>
+              <button type="button" class="coldstart-tab" data-slide="3" onclick="goToColdstartSlide(3)">✂️ Split & Pacing</button>
+              <button type="button" class="coldstart-tab" data-slide="4" onclick="goToColdstartSlide(4)">🧬 Voice Cloning</button>
+              <button type="button" class="coldstart-tab" data-slide="5" onclick="goToColdstartSlide(5)">⌨️ Shortcuts</button>
+            </div>
+
+            <!-- Carousel Slides -->
+            <div class="coldstart-slides-wrapper">
+              <!-- Slide 0: Multi-Casting -->
+              <div class="coldstart-slide active" id="c-slide-0">
+                <div class="slide-visual">
+                  <div class="mock-dialogue-row">
+                    <div class="mock-avatar narrator">NA</div>
+                    <div class="mock-bubble">"Mr Dursley hummed as he picked out his boring tie..."</div>
+                  </div>
+                  <div class="mock-dialogue-row">
+                    <div class="mock-avatar character">HP</div>
+                    <div class="mock-bubble character-bubble">"I don't think it was an accident at all."</div>
+                  </div>
+                </div>
+                <div class="slide-content">
+                  <h4>🎭 Direct Full Multi-Voice Audiobook Casts</h4>
+                  <p>Give every character their own actor! Click any sentence's voice avatar to assign a character. Use <strong>"Active Default Narrator"</strong> to change narrator lines across the whole story without overwriting custom character dialogues.</p>
+                  <div class="slide-tip">💡 <strong>Pro-Tip:</strong> Select multiple sentences using checkboxes to bulk-apply a character or narrator in one click!</div>
+                </div>
+              </div>
+
+              <!-- Slide 1: Emotion Tags -->
+              <div class="coldstart-slide" id="c-slide-1">
+                <div class="slide-visual">
+                  <div class="mock-emotion-demo">
+                    <span class="mock-pill">[whispering in terror]</span>
+                    <span class="mock-pill">[laughing uncontrollably]</span>
+                    <span class="mock-pill">[authoritative, cold]</span>
+                  </div>
+                </div>
+                <div class="slide-content">
+                  <h4>🎙️ Prompt Dramatic Emotion & Delivery</h4>
+                  <p>Shape acting on demand! Type bracketed emotion tags like <code>[whispering in terror]</code> or <code>[sarcastic, irritated]</code> at the start of any sentence. The Dual-AR neural engine directly reacts to natural language performance prompts.</p>
+                  <div class="slide-tip">💡 <strong>Pro-Tip:</strong> Click the prompt pill above the sentence textarea to quickly insert pre-designed emotional intents!</div>
+                </div>
+              </div>
+
+              <!-- Slide 2: Instant FX -->
+              <div class="coldstart-slide" id="c-slide-2">
+                <div class="slide-visual">
+                  <div class="mock-fx-panel">
+                    <div class="mock-slider-row"><span>Warmth (Bass EQ)</span><div class="mock-slider-bar"><div style="width: 65%;"></div></div></div>
+                    <div class="mock-slider-row"><span>Air Presence</span><div class="mock-slider-bar"><div style="width: 50%;"></div></div></div>
+                    <div class="mock-slider-row"><span>Atmosphere (Reverb)</span><div class="mock-slider-bar"><div style="width: 30%;"></div></div></div>
+                  </div>
+                </div>
+                <div class="slide-content">
+                  <h4>⚡ Post-Processing Studio FX in &lt;20ms</h4>
+                  <p>Master your audiobook without re-rendering on GPU! The left FX panel gives you broadcast mastering: <strong>Warmth (Bass), Air Presence (Clarity), Reverb, Pitch, and Radio Filters</strong>. Edits apply in milliseconds using local DSP.</p>
+                  <div class="slide-tip">💡 <strong>Pro-Tip:</strong> Click <strong>"Apply FX (&lt;20ms)"</strong> or test on one sentence before applying to all selected sentences!</div>
+                </div>
+              </div>
+
+              <!-- Slide 3: Smart Splits & Pacing -->
+              <div class="coldstart-slide" id="c-slide-3">
+                <div class="slide-visual">
+                  <div class="mock-split-demo">
+                    <div>"Long sprawling sentence part 1 <span class="mock-cursor">|</span> part 2"</div>
+                    <div style="font-size: 9.5px; color: #a5b4fc; margin-top: 4px;">Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to split</div>
+                  </div>
+                </div>
+                <div class="slide-content">
+                  <h4>✂️ Perfect Pacing & Natural Breathing</h4>
+                  <p>Natural speech pacing is key to a gripping story. Place your cursor anywhere in a sentence and press <code>Ctrl + Enter</code> to split it into two blocks. Select short, choppy clauses and click <strong>"Merge Short"</strong> to combine them into fluid narration.</p>
+                  <div class="slide-tip">💡 <strong>Pro-Tip:</strong> Adjust <strong>"Trailing Breath Gap"</strong> (default 0.6s) to give dramatic pause between sentences.</div>
+                </div>
+              </div>
+
+              <!-- Slide 4: Voice Cloning -->
+              <div class="coldstart-slide" id="c-slide-4">
+                <div class="slide-visual">
+                  <div class="mock-upload-box">
+                    <span style="font-size: 16px;">🎙️</span>
+                    <span>Upload 3-10s WAV Reference</span>
+                  </div>
+                </div>
+                <div class="slide-content">
+                  <h4>🧬 Zero-Shot Voice Cloning</h4>
+                  <p>Clone any person or character's vocal timbre instantly. Upload a clean, noise-free 3 to 10 second audio clip of any voice actor in the <strong>Voice Reference Audio</strong> section. Fish Speech S2 will mimic their exact timbre and pitch.</p>
+                  <div class="slide-tip">💡 <strong>Pro-Tip:</strong> Save your cloned voice to the Character Voices library to reuse them across chapters anytime!</div>
+                </div>
+              </div>
+
+              <!-- Slide 5: Shortcuts -->
+              <div class="coldstart-slide" id="c-slide-5">
+                <div class="slide-visual">
+                  <div class="mock-kbd-grid">
+                    <div class="kbd-item"><kbd>Space</kbd> <span>Play / Pause</span></div>
+                    <div class="kbd-item"><kbd>Ctrl+Enter</kbd> <span>Split Sentence</span></div>
+                    <div class="kbd-item"><kbd>Alt + ↑ / ↓</kbd> <span>Reorder Block</span></div>
+                    <div class="kbd-item"><kbd>Ctrl + A</kbd> <span>Select All</span></div>
+                  </div>
+                </div>
+                <div class="slide-content">
+                  <h4>⌨️ Speed Producer Keyboard Shortcuts</h4>
+                  <p>Direct at the speed of thought without touching the mouse! Tap <code>Space</code> to play/pause the active sentence. Use <code>Alt + ↑</code> or <code>Alt + ↓</code> to move sentences up and down. Click anywhere in text or on waveform to seek instantly.</p>
+                  <div class="slide-tip">💡 <strong>Pro-Tip:</strong> Press <code>Ctrl + Z</code> and <code>Ctrl + Y</code> for full multi-level Undo & Redo on any text or voice edit!</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Auto-Shutdown Quota Protection Notice -->
           <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #10b981;">
             <span>🛡️</span>
