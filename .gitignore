@@ -31,6 +31,14 @@ output/*.zip
 # Local user configuration & project data
 projects/config.json
 projects/proj_*.json
+kaggle.json
+.env
+
+# Scratch & temporary artifacts
+scratch/
+scratch_*.wav
+*.log
+temp/
 
 # OS & IDE temporary files
 .DS_Store

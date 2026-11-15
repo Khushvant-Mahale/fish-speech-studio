@@ -483,5 +483,6 @@
     }
   ],
   "master_filename": "The_Endless_Eclipse_Master_Track.wav",
-  "default_voice": "blend_adam_onyx"
+  "default_voice": "blend_adam_onyx",
+  "engine": "kokoro"
 }

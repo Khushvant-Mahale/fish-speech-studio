@@ -158,7 +158,12 @@ class FishEngine:
         clarity: float = 0.0,
         reverb: float = 0.0,
         radio_fx: bool = False,
-        fx_filter: str = "none"
+        fx_filter: str = "none",
+        force_refresh: bool = False,
+        prev_audio: Optional[str] = None,
+        prev_text: Optional[str] = None,
+        enable_rolling_context: bool = True,
+        **kwargs
     ) -> Dict:
         """
         Synthesizes a single text block using Fish Audio S2 Pro.
@@ -192,7 +197,7 @@ class FishEngine:
         )
         cache_file = CACHE_DIR / f"{cache_hash}.wav"
 
-        if cache_file.exists():
+        if not force_refresh and cache_file.exists():
             try:
                 data, sr = sf.read(str(cache_file))
                 duration = len(data) / sr
@@ -218,8 +223,12 @@ class FishEngine:
                 )
                 source_tag = "cloud_gpu_fish"
             except Exception as e:
-                print(f"[FishEngine] Remote GPU worker failed: {e}")
-                last_error = f"Colab GPU worker ({self.remote_url}) failed: {e}"
+                err_str = str(e)
+                print(f"[FishEngine] Remote GPU worker failed: {err_str}")
+                if "502" in err_str or "504" in err_str or "refused" in err_str.lower() or "not found" in err_str.lower():
+                    last_error = "Cloud GPU Worker is offline or tunnel disconnected (HTTP 502). Click 🚀 Cloud GPU in the top bar to launch a fresh Tesla T4 session."
+                else:
+                    last_error = f"Cloud GPU worker ({self.remote_url}) error: {err_str}"
                 audio_bytes = None
 
         # ---------------- 2. Fish Audio Cloud API ----------------

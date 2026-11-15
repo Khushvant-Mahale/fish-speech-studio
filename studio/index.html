@@ -6,7 +6,7 @@
   <title>Fish Audio S2 Pro Studio — Cinematic Voice Drama</title>
   <link rel="icon" type="image/svg+xml" href="/studio/favicon.svg">
   <link rel="alternate icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/studio/css/studio.css?v=482">
+  <link rel="stylesheet" href="/studio/css/studio.css?v=553">
 </head>
 <body>
 
@@ -14,8 +14,8 @@
   <div id="view-dashboard">
     <header class="dashboard-header">
       <div class="brand-row">
-        <span class="brand-badge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff;">Fish Speech</span>
-        <span class="brand-title">S2 Pro Studio</span>
+        <span class="brand-badge" id="dashboard-brand-badge" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff;">Fish Speech</span>
+        <span class="brand-title" id="dashboard-brand-title">S2 Pro Studio</span>
       </div>
       <div style="display: flex; align-items: center; gap: 12px;">
         <div class="engine-mode-toggle-group">
@@ -31,6 +31,7 @@
           <span class="engine-label" id="dashboard-engine-label">🐟 Fish Audio S2 Pro</span>
           <span class="engine-config-tag">⚙️</span>
         </button>
+        <button class="btn btn-secondary" id="btn-dashboard-library-top" onclick="openVoiceDrawer()" title="Explore and manage custom voices and celebrity narrators">📚 Voice Library</button>
         <button class="btn btn-secondary" id="btn-dashboard-import-top" onclick="document.getElementById('dashboard-file-input').click()" title="Import text file (.txt, .md) or project JSON (.json)">📥 Import File</button>
         <button class="btn btn-primary" id="btn-create-project-top" onclick="openNewProjectModal()">＋ New Story Project</button>
         <input type="file" id="dashboard-file-input" accept=".txt,.md,.json" style="display: none;" onchange="handleDashboardFileImport(event)">
@@ -80,6 +81,7 @@
           </div>
           <div class="hero-buttons-row">
             <button class="btn btn-primary" onclick="openNewProjectModal()">＋ New Story Project</button>
+            <button class="btn btn-secondary" onclick="openVoiceDrawer()" title="Explore and manage Voice Library">📚 Voice Library</button>
             <button class="btn btn-secondary" onclick="document.getElementById('dashboard-file-input').click()">📥 Import File (.txt, .md, .json)</button>
             <button class="btn btn-ghost" onclick="loadSampleStoryIntoProject()" title="Quick test drive with 'The Endless Eclipse' sample manuscript">📖 Load Sample Story</button>
           </div>
@@ -161,11 +163,7 @@
 
       <div class="nav-right">
         <div style="display: flex; align-items: center; gap: 6px;">
-          <select id="batch-concurrency-select" class="action-pill-btn" style="background: var(--bg-surface); padding: 5px 8px; font-size: 11.5px; border-radius: 6px; cursor: pointer; color: var(--text-main); border: 1px solid var(--border-color);" title="Parallel GPU Synthesis Concurrency (1x for CPU, 3x-5x for GPU)">
-            <option value="1">⚡ 1x Sequential</option>
-            <option value="3" selected>🚀 3x Parallel (GPU)</option>
-            <option value="5">🔥 5x Turbo (GPU)</option>
-          </select>
+
           <button class="btn batch-btn" id="btn-batch-generate" onclick="toggleBatchRender()" title="Render all sentences into audio cache">⚡ Render All</button>
         </div>
         <button class="btn btn-secondary" id="btn-import-story" onclick="openImportModal()">📄 Import Text</button>
@@ -258,8 +256,8 @@
           <span>FX</span>
         </button>
         <div class="rail-nav-divider"></div>
-        <button class="rail-btn" id="rail-voices-btn" onclick="openVoiceDrawer()" title="Kokoro Voice Library">
-          👥
+        <button class="rail-btn" id="rail-voices-btn" onclick="openVoiceDrawer()" title="Voice Catalogue & Library">
+          📚
           <span>Library</span>
         </button>
       </nav>
@@ -326,7 +324,7 @@
                 <span title="Higher temperature adds unpredictable emotional nuance; lower is disciplined">Acting Temperature</span>
                 <span class="control-val" id="val-temperature">0.70</span>
               </div>
-              <input type="range" id="slider-temperature" min="0.30" max="1.10" step="0.05" value="0.70">
+              <input type="range" id="slider-temperature" min="0.20" max="1.00" step="0.05" value="0.70">
             </div>
           </div>
 
@@ -365,13 +363,19 @@
             </div>
           </div>
 
-          <!-- Voice Audio Sculpting (Pitch, EQ & Effects) -->
-          <div class="inspector-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <span class="section-label">Voice Audio & Tone (DSP)</span>
-              <button type="button" onclick="resetDspToNeutral()" style="background: none; border: none; font-size: 11px; color: #60a5fa; cursor: pointer; text-decoration: underline;" title="Reset Pitch, Warmth, Clarity and Reverb to neutral">
-                ↺ Reset
+          <!-- Voice Audio Sculpting (Instant Post-Processing FX) -->
+          <div class="inspector-section" style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="section-label" style="font-weight: 700; color: #e2e8f0;">🎛️ Post-Processing FX</span>
+                <span style="font-size: 9.5px; background: rgba(16,185,129,0.15); color: #34d399; padding: 1px 5px; border-radius: 4px; font-weight: 600;">Instant Edit</span>
+              </div>
+              <button type="button" onclick="handleResetActiveToRawVoice()" style="background: none; border: none; font-size: 11px; color: #60a5fa; cursor: pointer; text-decoration: underline;" title="Instantly restore the untouched, pure neural model audio in 1ms">
+                ↺ Pure Voice
               </button>
+            </div>
+            <div style="font-size: 10.5px; color: var(--text-muted); line-height: 1.35; margin-bottom: 8px;">
+              Non-destructive edits applied in &lt;20ms directly to generated audio without GPU re-rendering.
             </div>
 
             <!-- Pitch Shift -->
@@ -410,12 +414,22 @@
               <input type="range" id="slider-reverb" min="0" max="40" step="5" value="0">
             </div>
 
-            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+            <!-- Instant Audio FX Action Buttons -->
+            <div style="display: flex; gap: 6px; margin-top: 10px;">
+              <button type="button" class="btn btn-secondary" onclick="handleApplyInstantDspToActive()" style="flex: 1; font-size: 11px; padding: 6px 8px; justify-content: center; background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.45); color: #a5b4fc; font-weight: 600;" title="Apply Pitch, Warmth, Clarity, Reverb & Speed to generated audio in <20ms">
+                ⚡ Apply FX (&lt;20ms)
+              </button>
+              <button type="button" class="btn btn-secondary" onclick="handleResetActiveToRawVoice()" style="flex: 1; font-size: 11px; padding: 6px 8px; justify-content: center; background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-muted);" title="Revert to untouched raw neural audio">
+                ↺ Reset FX
+              </button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 10px; border-top: 1px dashed var(--border-color); padding-top: 8px;">
               <button type="button" class="btn btn-primary btn-apply-both-to-selected" onclick="handleApplyVoiceAndSettingsToSelected()" style="width: 100%; font-size: 11.5px; justify-content: center; padding: 7px 10px;" title="Apply active voice AND all audio/pacing/filter settings to selected sentence(s)">
                 ✨ Apply Voice & Settings to Selected
               </button>
-              <button type="button" class="btn btn-secondary" id="btn-apply-settings-to-selected" onclick="handleApplySettingsToSelected()" style="width: 100%; font-size: 11px; justify-content: center; padding: 5px 8px;" title="Apply current pacing, pitch, warmth, clarity, reverb and filter (from last clicked sentence) to selected sentence(s)">
-                ⚡ Apply Audio FX & Pacing Only
+              <button type="button" class="btn btn-secondary" id="btn-apply-settings-to-selected" onclick="handleApplySettingsToSelected()" style="width: 100%; font-size: 11px; justify-content: center; padding: 5px 8px;" title="Apply current pacing & FX instantly (<30ms) to selected sentence(s)">
+                ⚡ Apply FX & Pacing to Selected
               </button>
             </div>
           </div>
@@ -470,6 +484,14 @@
                 <button type="button" class="icon-btn" id="btn-play-ref-voice" onclick="handlePlayReferenceVoice(event)" style="display: none; padding: 4px;" title="Play reference clip">▶</button>
               </div>
             </div>
+            <div style="display: flex; gap: 6px; margin-top: 6px;">
+              <button type="button" class="action-pill-btn secondary" onclick="openReferenceLibraryModal()" style="flex: 1; font-size: 11px; padding: 5px 8px; justify-content: center; display: flex; align-items: center; gap: 4px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-main); cursor: pointer;" title="Browse previously uploaded reference clips">
+                <span>📚 Choose from Library</span>
+              </button>
+              <button type="button" class="action-pill-btn secondary" onclick="document.getElementById('ref-voice-file-input').click()" style="flex: 1; font-size: 11px; padding: 5px 8px; justify-content: center; display: flex; align-items: center; gap: 4px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-main); cursor: pointer;" title="Upload a new audio file">
+                <span>⬆️ Upload New</span>
+              </button>
+            </div>
             <input type="file" id="ref-voice-file-input" accept=".wav,.mp3,.ogg,.flac,.m4a" style="display: none;" onchange="handleReferenceVoiceFileUpload(event)">
             
             <!-- Reference Audio Transcript input -->
@@ -479,6 +501,11 @@
               </div>
               <input type="text" id="input-ref-transcript" class="search-input" placeholder="e.g. Keep your flashlight down, they're outside." oninput="handleRefTranscriptInput(this.value)" style="font-size: 11px; padding: 5px 8px; width: 100%;">
             </div>
+
+            <!-- Prompt-to-Voice Designer Button -->
+            <button type="button" class="action-pill-btn primary" onclick="openVoiceDesignerModal()" style="width: 100%; margin-top: 10px; padding: 8px 10px; font-size: 11.5px; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; font-weight: 600; cursor: pointer; border-radius: var(--radius-sm); color: #fff; box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);">
+              <span>✨ Design Voice from Prompt</span>
+            </button>
           </div>
 
           <!-- Saved Character Voices Section -->
@@ -489,6 +516,9 @@
                 <span id="characters-count-badge" class="badge-mini" style="font-size: 10px;">0</span>
               </div>
               <div style="display: flex; align-items: center; gap: 5px;">
+                <button type="button" class="action-pill-btn secondary" id="btn-save-cast-to-library" onclick="handleSaveActiveToLibrary()" style="padding: 4px 7px; font-size: 11px; color: #34d399; border-color: rgba(16,185,129,0.35); background: rgba(16,185,129,0.12);" title="Save current voice & reference audio permanently to Global Voice Library">
+                  📚 Save to Library
+                </button>
                 <button type="button" class="action-pill-btn secondary" id="btn-import-cast" onclick="handleOpenImportCastModal()" style="padding: 4px 7px; font-size: 11px;" title="Import character cast from another project">
                   📥 Import
                 </button>
@@ -600,8 +630,11 @@
             <button class="action-pill-btn" id="btn-merge-short" onclick="handleMergeShortBlocks()" title="Merge ultra-small consecutive sentences of the same narrator (e.g. 'No network. No emergency lines.') into single blocks">
               🔗 Merge Short
             </button>
-            <button class="action-pill-btn" id="btn-auto-split" onclick="handleAutoSplitAll()" title="Split multi-sentence paragraphs into individual sentences for 5x faster rendering">
+            <button class="action-pill-btn" id="btn-auto-split" onclick="handleAutoSplitAll()" title="Auto-split paragraphs at [pause] pacing markers and sentences for dramatic pauses and 5x faster rendering">
               ✂️ Auto-Split Sentences
+            </button>
+            <button class="action-pill-btn" id="btn-clean-pauses" onclick="handleCleanPauses()" title="Remove useless [pause] tags before scene cuts/cards and convert them to Card Spacing (eliminates 1-sec dead silence)">
+              🧹 Clean [pause]
             </button>
             <button class="action-pill-btn primary" id="btn-bulk-change-voice" onclick="openVoiceDrawer()" title="Change voice for selected sentences" style="display: none;">
               👥 Voice
@@ -690,7 +723,7 @@
           </span>
         </div>
         <div>
-          <span style="font-size: 11px; color: var(--text-muted);">24kHz High Fidelity</span>
+          <span id="footer-sample-rate-label" style="font-size: 11px; color: var(--text-muted); font-family: monospace;">44.1kHz Studio Master</span>
         </div>
       </div>
 
@@ -702,44 +735,379 @@
     </footer>
   </div>
 
-  <!-- ================= VOICE DRAWER MODAL ================= -->
-  <div class="drawer-backdrop" id="voice-drawer">
-    <div class="drawer-window">
+  <!-- ================= VOICE LIBRARY SIDEBAR DRAWER OVERLAY ================= -->
+  <div class="drawer-backdrop" id="voice-drawer" onclick="handleVoiceDrawerBackdropClick(event)">
+    <div class="drawer-window" id="voice-drawer-window" onclick="event.stopPropagation()">
+      <!-- DRAWER HEADER -->
       <div class="drawer-header">
-        <span class="drawer-title">Voice Catalogue</span>
-        <button class="icon-btn" id="drawer-close-btn" style="font-size: 18px;">✕</button>
+        <div class="drawer-header-left" style="display: flex; align-items: center; gap: 10px;">
+          <button type="button" class="icon-btn" id="drawer-btn-back" onclick="switchDrawerMode('fish')" style="display: none; font-size: 13px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer;" title="Back to Voice Catalogue">
+            ← Back
+          </button>
+          <span class="drawer-title" id="drawer-main-title">🎙️ Voice Library</span>
+          <span class="badge-mini" id="drawer-voices-count" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; font-weight: 600;">2M+ Voices</span>
+        </div>
+
+        <!-- SCOPE NAVIGATION TABS -->
+        <div class="drawer-tabs-nav" id="drawer-tabs-nav">
+          <button type="button" class="drawer-tab-btn active" id="tab-nav-fish" onclick="switchDrawerMode('fish')">
+            🌐 Fish Audio Discovery (2M+)
+          </button>
+          <button type="button" class="drawer-tab-btn" id="tab-nav-browse" onclick="switchDrawerMode('browse')">
+            💾 My Saved Library
+          </button>
+          <button type="button" class="drawer-tab-btn" id="tab-nav-create" onclick="switchDrawerMode('create')">
+            ✨ Create Voice
+          </button>
+          <button type="button" class="drawer-tab-btn" id="tab-nav-cast" onclick="switchDrawerMode('cast')">
+            🎭 Project Cast
+          </button>
+        </div>
+
+        <div class="drawer-header-actions" style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="icon-btn" id="drawer-toggle-size-btn" onclick="toggleDrawerExpanded()" title="Toggle Wide Explorer / Sidebar view" style="font-size: 12px; padding: 5px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); color: var(--text-muted); font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+            <span id="drawer-size-icon">⤢</span> <span id="drawer-size-text">Wide</span>
+          </button>
+          <button class="icon-btn" id="drawer-close-btn" onclick="closeVoiceDrawer()" style="font-size: 18px; cursor: pointer;" title="Close Library">✕</button>
+        </div>
       </div>
 
-      <!-- Search & Sort Row -->
-      <div class="search-and-sort-bar">
-        <input type="text" class="search-input" id="drawer-search" placeholder="Search by name, timbre, accent, or genre...">
-        <select class="sort-select" id="drawer-sort">
-          <option value="recommended">Sort: Recommended</option>
-          <option value="name_asc">Sort: Name (A-Z)</option>
-          <option value="deep_first">Sort: Deep Voice First</option>
-          <option value="female_first">Sort: Female First</option>
-          <option value="male_first">Sort: Male First</option>
-        </select>
+      <!-- SUBVIEW 0: FISH AUDIO DISCOVERY (2M+ CLOUD VOICES) -->
+      <div id="drawer-view-fish" class="drawer-subview active">
+        <!-- HERO BANNER -->
+        <div class="fish-discovery-hero">
+          <div class="fish-hero-title">Explore Our AI Voice Library</div>
+          <div class="fish-hero-subtitle">Search 2M+ AI voice models across languages, styles, and use cases dynamically from Fish Audio.</div>
+
+          <!-- SEARCH & FILTER BAR -->
+          <div class="fish-search-wrapper">
+            <div class="fish-search-input-box">
+              <span class="fish-search-icon">🔍</span>
+              <input type="text" id="fish-search-input" class="fish-search-input" placeholder="Search 2M+ voices by name, timbre, style (e.g. adam, anime, whisper)..." oninput="handleFishSearchInput(this.value)" autocomplete="off">
+              <button type="button" id="fish-search-clear" class="fish-search-clear-btn" onclick="clearFishSearch()" style="display: none;" title="Clear search">✕</button>
+            </div>
+
+            <div class="fish-search-dropdowns">
+              <div class="fish-dropdown-group">
+                <select id="fish-lang-select" class="fish-dropdown-select" onchange="handleFishFilterChange()">
+                  <option value="all">🌐 All Languages</option>
+                  <option value="en" selected>🇺🇸 English</option>
+                  <option value="es">🇪🇸 Spanish</option>
+                  <option value="ja">🇯🇵 Japanese</option>
+                  <option value="zh">🇨🇳 Chinese</option>
+                  <option value="fr">🇫🇷 French</option>
+                  <option value="de">🇩🇪 German</option>
+                  <option value="ko">🇰🇷 Korean</option>
+                  <option value="it">🇮🇹 Italian</option>
+                  <option value="pt">🇧🇷 Portuguese</option>
+                  <option value="ru">🇷🇺 Russian</option>
+                  <option value="ar">🇸🇦 Arabic</option>
+                  <option value="hi">🇮🇳 Hindi</option>
+                </select>
+              </div>
+
+              <div class="fish-dropdown-group">
+                <select id="fish-sort-select" class="fish-dropdown-select" onchange="handleFishFilterChange()">
+                  <option value="score" selected>🌟 Top Trending</option>
+                  <option value="task_count">🔥 Most Popular</option>
+                  <option value="created_at">🆕 Newest Releases</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- CATEGORY PILL CHIPS -->
+          <div class="fish-tags-scroller" id="fish-tags-chips">
+            <button class="fish-tag-pill active" data-tag="all" onclick="selectFishTag('all')">🌐 All Voices</button>
+            <button class="fish-tag-pill" data-tag="fish-official" onclick="selectFishTag('fish-official')">✨ Fish Official</button>
+            <button class="fish-tag-pill" data-tag="narration" onclick="selectFishTag('narration')">📖 Narration</button>
+            <button class="fish-tag-pill" data-tag="anime" onclick="selectFishTag('anime')">⚔️ Anime</button>
+            <button class="fish-tag-pill" data-tag="cinematic" onclick="selectFishTag('cinematic')">🎬 Cinematic</button>
+            <button class="fish-tag-pill" data-tag="gaming" onclick="selectFishTag('gaming')">🎮 Gaming</button>
+            <button class="fish-tag-pill" data-tag="documentary" onclick="selectFishTag('documentary')">🎥 Documentary</button>
+            <button class="fish-tag-pill" data-tag="deep" onclick="selectFishTag('deep')">🔊 Deep</button>
+            <button class="fish-tag-pill" data-tag="soft" onclick="selectFishTag('soft')">🍃 Soft</button>
+            <button class="fish-tag-pill" data-tag="energetic" onclick="selectFishTag('energetic')">⚡ Energetic</button>
+            <button class="fish-tag-pill" data-tag="dramatic" onclick="selectFishTag('dramatic')">🎭 Dramatic</button>
+            <button class="fish-tag-pill" data-tag="mysterious" onclick="selectFishTag('mysterious')">🔮 Mysterious</button>
+            <button class="fish-tag-pill" data-tag="male" onclick="selectFishTag('male')">👨 Male</button>
+            <button class="fish-tag-pill" data-tag="female" onclick="selectFishTag('female')">👩 Female</button>
+            <button class="fish-tag-pill" data-tag="young" onclick="selectFishTag('young')">🌱 Young</button>
+            <button class="fish-tag-pill" data-tag="middle-aged" onclick="selectFishTag('middle-aged')">☕ Middle Aged</button>
+          </div>
+        </div>
+
+        <!-- VALUE PROPOSITION CALLOUT BANNER -->
+        <div class="fish-discovery-banner">
+          <div class="fish-banner-left">
+            <span class="fish-banner-icon">⚡</span>
+            <span class="fish-banner-text">Discover the most realistic and expressive AI voices ready to use in your next project</span>
+          </div>
+          <div class="fish-banner-watermark">
+            <span>明日</span><span>Ya está arreglado</span><span>Happy to help!</span><span>기다려 주세요</span>
+          </div>
+        </div>
+
+        <!-- DYNAMIC CONTENT (Curated Rails or Search Grid) -->
+        <div class="fish-discovery-content" id="fish-discovery-content">
+          <div class="fish-loading-state">
+            <div class="spinner"></div>
+            <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">Fetching 2M+ voices from Fish Audio...</div>
+          </div>
+        </div>
       </div>
 
-      <!-- Filter Pills (Clean Wrapped Layout) -->
-      <div class="filter-pills-row">
-        <button class="filter-pill active" data-filter="all">All Voices</button>
-        <button class="filter-pill" data-filter="characters" id="pill-filter-characters">🎭 My Characters <span id="drawer-characters-badge" class="badge-mini" style="display:none; margin-left: 4px;">0</span></button>
-        <button class="filter-pill" data-filter="mystery">🔥 Mystery & Horror</button>
-        <button class="filter-pill" data-filter="blends">🎭 Custom Blends</button>
-        <button class="filter-pill" data-filter="female">Female</button>
-        <button class="filter-pill" data-filter="male">Male</button>
-        <button class="filter-pill" data-filter="american">American</button>
-        <button class="filter-pill" data-filter="british">British</button>
-        <button class="filter-pill" data-filter="hindi">Hindi</button>
-        <button class="filter-pill" data-filter="international">International</button>
+      <!-- SUBVIEW 1: BROWSE & MANAGE CATALOGUE -->
+      <div id="drawer-view-browse" class="drawer-subview">
+        <!-- Search & Sort Row -->
+        <div class="search-and-sort-bar">
+          <div style="position: relative; flex: 1;">
+            <input type="text" class="search-input" id="drawer-search" placeholder="Search by name, timbre, accent, genre..." oninput="handleDrawerSearch(this.value)" style="width: 100%; padding-left: 28px;">
+            <span style="position: absolute; left: 9px; top: 50%; transform: translateY(-50%); font-size: 12px; opacity: 0.5;">🔍</span>
+          </div>
+          <select class="sort-select" id="drawer-sort" onchange="handleDrawerSort(this.value)">
+            <option value="recommended">Sort: Recommended</option>
+            <option value="newest">Sort: Recently Added</option>
+            <option value="name_asc">Sort: Name (A → Z)</option>
+            <option value="name_desc">Sort: Name (Z → A)</option>
+            <option value="female_first">Sort: Female First</option>
+            <option value="male_first">Sort: Male First</option>
+            <option value="deep_first">Sort: Deep Voice First</option>
+          </select>
+        </div>
+
+        <!-- Filter Pills -->
+        <div class="filter-pills-row" id="drawer-filter-pills">
+          <button class="filter-pill active" data-filter="all" onclick="setDrawerFilter('all')">All Voices</button>
+          <button class="filter-pill" data-filter="famous" onclick="setDrawerFilter('famous')">🌟 Famous Voices</button>
+          <button class="filter-pill" data-filter="library" onclick="setDrawerFilter('library')">📚 My Library</button>
+          <button class="filter-pill" data-filter="characters" id="pill-filter-characters" onclick="setDrawerFilter('characters')">🎭 My Cast <span id="drawer-characters-badge" class="badge-mini" style="display:none; margin-left: 4px;">0</span></button>
+          <button class="filter-pill" data-filter="mystery" onclick="setDrawerFilter('mystery')">🔥 Narrative & Drama</button>
+          <button class="filter-pill" data-filter="female" onclick="setDrawerFilter('female')">Female</button>
+          <button class="filter-pill" data-filter="male" onclick="setDrawerFilter('male')">Male</button>
+          <button class="filter-pill" data-filter="american" onclick="setDrawerFilter('american')">American</button>
+          <button class="filter-pill" data-filter="british" onclick="setDrawerFilter('british')">British</button>
+          <button class="filter-pill" data-filter="international" onclick="setDrawerFilter('international')">International</button>
+        </div>
+
+        <!-- Voice Cards Body -->
+        <div class="voice-list-body" id="voice-list-body">
+          <!-- Voice cards rendered dynamically -->
+        </div>
       </div>
 
-      <!-- Voice Cards Body -->
-      <div class="voice-list-body" id="voice-list-body">
-        <!-- Voice cards rendered dynamically -->
+      <!-- SUBVIEW 2: CREATE / CLONE VOICE -->
+      <div id="drawer-view-create" class="drawer-subview" style="display: none; flex-direction: column; flex: 1; overflow-y: auto; padding: 18px 22px; gap: 14px;">
+        <div style="display: flex; gap: 6px; background: var(--bg-card); padding: 4px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+          <button type="button" id="btn-create-mode-ref" class="action-pill-btn active" onclick="switchCreateVoiceMode('ref')" style="flex: 1; justify-content: center; font-size: 11.5px; padding: 6px;">
+            🎙️ Reference Audio Clone
+          </button>
+          <button type="button" id="btn-create-mode-prompt" class="action-pill-btn" onclick="switchCreateVoiceMode('prompt')" style="flex: 1; justify-content: center; font-size: 11.5px; padding: 6px;">
+            ✨ Text Prompt (AI Forge)
+          </button>
+        </div>
+
+        <!-- MODE A: REFERENCE AUDIO CLONE -->
+        <div id="create-voice-pane-ref" style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+            Clone any voice from a 3–8s clean reference audio clip and transcript. Saves permanently to your Voice Library.
+          </div>
+
+          <div class="control-group">
+            <div class="control-label-row"><span>Voice Name *</span></div>
+            <input type="text" id="cv-ref-name" class="search-input" placeholder="e.g. Arthur Morgan, Joe Rogan, Sarah Connor" style="width: 100%; font-size: 12px; padding: 7px 10px;">
+          </div>
+
+          <div style="display: flex; gap: 10px;">
+            <div class="control-group" style="flex: 1;">
+              <div class="control-label-row"><span>Gender</span></div>
+              <select id="cv-ref-gender" class="search-input" style="width: 100%; font-size: 12px; padding: 7px 8px; cursor: pointer;">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Neutral">Neutral</option>
+                <option value="Otherworldly">Otherworldly</option>
+              </select>
+            </div>
+            <div class="control-group" style="flex: 1;">
+              <div class="control-label-row"><span>Accent / Origin</span></div>
+              <select id="cv-ref-accent" class="search-input" style="width: 100%; font-size: 12px; padding: 7px 8px; cursor: pointer;">
+                <option value="American">American</option>
+                <option value="British">British</option>
+                <option value="Irish">Irish</option>
+                <option value="Australian">Australian</option>
+                <option value="Fantasy">Fantasy</option>
+                <option value="International">International</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <div class="control-label-row">
+              <span>Reference Audio File (3–8s) *</span>
+              <span id="cv-ref-duration-badge" style="font-size: 11px; color: #10b981; font-weight: 600;"></span>
+            </div>
+            <div class="ref-upload-card" id="cv-ref-card" onclick="document.getElementById('cv-ref-file-input').click()" style="cursor: pointer; padding: 12px; border: 1.5px dashed var(--border-color); border-radius: var(--radius-sm); background: var(--bg-card); transition: all 0.2s;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">📁</span>
+                <div style="overflow: hidden; flex: 1;">
+                  <div id="cv-ref-filename-label" style="font-size: 12px; font-weight: 600; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">Click to Browse Audio Clip</div>
+                  <div id="cv-ref-file-sub" style="font-size: 11px; color: var(--text-muted);">Supports WAV, MP3, FLAC, OGG</div>
+                </div>
+                <button type="button" class="icon-btn" id="btn-play-cv-ref" onclick="handlePlayCvRefAudio(event)" style="display: none; padding: 5px 8px; font-size: 12px;" title="Play audio">▶</button>
+              </div>
+            </div>
+            <input type="file" id="cv-ref-file-input" accept=".wav,.mp3,.ogg,.flac,.m4a" style="display: none;" onchange="handleCvRefFileUpload(event)">
+            <div style="display: flex; gap: 8px; margin-top: 6px;">
+              <button type="button" class="action-pill-btn secondary" onclick="openReferenceLibraryModal()" style="flex: 1; font-size: 11px; padding: 6px; justify-content: center;">
+                📚 Choose from Uploads
+              </button>
+              <button type="button" class="action-pill-btn secondary" onclick="document.getElementById('cv-ref-file-input').click()" style="flex: 1; font-size: 11px; padding: 6px; justify-content: center;">
+                ⬆️ Upload New File
+              </button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <div class="control-label-row">
+              <span title="The exact words spoken in the audio clip">Reference Transcript *</span>
+            </div>
+            <textarea id="cv-ref-transcript" class="search-input" rows="2" placeholder="Type the exact sentence spoken in the audio clip for accurate phoneme alignment..." style="width: 100%; font-size: 11.5px; padding: 7px 10px; resize: vertical;"></textarea>
+          </div>
+
+          <div class="control-group">
+            <div class="control-label-row"><span>Vocal Timbre / Description</span></div>
+            <input type="text" id="cv-ref-timbre" class="search-input" placeholder="e.g. Gritty, weathered cowboy with a low gravelly drawl" style="width: 100%; font-size: 11.5px; padding: 6px 10px;">
+          </div>
+
+          <div class="control-group">
+            <div class="control-label-row"><span>Default Emotion Tag</span></div>
+            <input type="text" id="cv-ref-emotion" class="search-input" placeholder="e.g. [slow, low raspy whisper, weary sigh]" style="width: 100%; font-size: 11.5px; padding: 6px 10px;">
+          </div>
+
+          <button type="button" class="btn btn-primary" onclick="handleSaveCreatedVoiceRef()" style="width: 100%; font-size: 12.5px; padding: 10px; justify-content: center; background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 600; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3); margin-top: 6px;">
+            💾 Save Voice to Global Library
+          </button>
+        </div>
+
+        <!-- MODE B: TEXT PROMPT (VOICE FORGE) -->
+        <div id="create-voice-pane-prompt" style="display: none; flex-direction: column; gap: 12px;">
+          <div style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+            Forge an entirely new voice timbre purely from an acoustic description. The AI creates a custom voice actor sample you can test and save.
+          </div>
+
+          <div class="control-group">
+            <div class="control-label-row"><span>Voice Name *</span></div>
+            <input type="text" id="cv-prompt-name" class="search-input" placeholder="e.g. Ancient Wizard, Cyberpunk Rebel, Noir Detective" style="width: 100%; font-size: 12px; padding: 7px 10px;">
+          </div>
+
+          <div class="control-group">
+            <div class="control-label-row"><span>Voice Description Prompt *</span></div>
+            <textarea id="cv-prompt-desc" class="search-input" rows="3" placeholder="e.g. 50-year-old grizzled detective with a deep, smoky raspy whisper, slow measured cadence, American baritone..." style="width: 100%; font-size: 11.5px; padding: 7px 10px; resize: vertical;"></textarea>
+          </div>
+
+          <div class="control-group">
+            <div class="control-label-row"><span>Sample Test Sentence</span></div>
+            <input type="text" id="cv-prompt-sample-text" class="search-input" value="In the deepest shadows of the abandoned corridor, something began to move." style="width: 100%; font-size: 11.5px; padding: 6px 10px;">
+          </div>
+
+          <button type="button" class="btn btn-secondary" id="btn-forge-voice-preview" onclick="handleForgeVoicePreview()" style="width: 100%; font-size: 12px; padding: 8px 10px; justify-content: center;">
+            ⚡ Generate & Test Voice Preview
+          </button>
+
+          <div id="cv-prompt-preview-card" style="display: none; padding: 10px; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 11px; font-weight: 600; color: #10b981;">✅ Voice Generated</span>
+              <span id="cv-prompt-preview-dur" style="font-size: 11px; color: var(--text-muted);">4.5s</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button type="button" class="action-pill-btn primary" id="btn-play-prompt-preview" onclick="handlePlayCvPromptPreview()" style="font-size: 11.5px; padding: 4px 10px;">
+                ▶ Play Sample
+              </button>
+              <span id="cv-prompt-preview-timbre" style="font-size: 11px; color: var(--text-muted); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; flex: 1;"></span>
+            </div>
+          </div>
+
+          <button type="button" class="btn btn-primary" id="btn-save-prompt-to-library" onclick="handleSaveCreatedVoicePrompt()" disabled style="width: 100%; font-size: 12.5px; padding: 10px; justify-content: center; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; font-weight: 600; opacity: 0.5; cursor: not-allowed; margin-top: 6px;">
+            💾 Save Voice to Global Library
+          </button>
+        </div>
       </div>
+
+      <!-- SUBVIEW 3: EDIT VOICE -->
+      <div id="drawer-view-edit" class="drawer-subview" style="display: none; flex-direction: column; flex: 1; overflow-y: auto; padding: 18px 22px; gap: 14px;">
+        <div style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+          Update voice details, timbre description, phoneme transcript, or acoustic tags.
+        </div>
+
+        <div class="control-group">
+          <div class="control-label-row"><span>Voice Name *</span></div>
+          <input type="text" id="ev-name" class="search-input" placeholder="Voice Name" style="width: 100%; font-size: 12px; padding: 7px 10px;">
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <div class="control-group" style="flex: 1;">
+            <div class="control-label-row"><span>Gender</span></div>
+            <select id="ev-gender" class="search-input" style="width: 100%; font-size: 12px; padding: 7px 8px; cursor: pointer;">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Neutral">Neutral</option>
+              <option value="Otherworldly">Otherworldly</option>
+            </select>
+          </div>
+          <div class="control-group" style="flex: 1;">
+            <div class="control-label-row"><span>Accent / Origin</span></div>
+            <select id="ev-accent" class="search-input" style="width: 100%; font-size: 12px; padding: 7px 8px; cursor: pointer;">
+              <option value="American">American</option>
+              <option value="British">British</option>
+              <option value="Irish">Irish</option>
+              <option value="Australian">Australian</option>
+              <option value="Fantasy">Fantasy</option>
+              <option value="International">International</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label-row"><span>Vocal Timbre / Description</span></div>
+          <input type="text" id="ev-timbre" class="search-input" placeholder="e.g. Deep, resonant baritone with slow cinematic pacing" style="width: 100%; font-size: 11.5px; padding: 6px 10px;">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label-row"><span>Default Emotion Tag</span></div>
+          <input type="text" id="ev-emotion" class="search-input" placeholder="e.g. [calm, sinister whisper]" style="width: 100%; font-size: 11.5px; padding: 6px 10px;">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label-row"><span>Reference Transcript</span></div>
+          <textarea id="ev-transcript" class="search-input" rows="2" placeholder="Exact transcript spoken in the reference audio clip..." style="width: 100%; font-size: 11.5px; padding: 7px 10px; resize: vertical;"></textarea>
+        </div>
+
+        <div class="control-group">
+          <div class="control-label-row">
+            <span>Reference Audio File</span>
+            <span id="ev-ref-filename-label" style="font-size: 11px; color: var(--accent); font-weight: 600;"></span>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <button type="button" class="action-pill-btn secondary" id="btn-play-ev-ref" onclick="handlePlayEvRefAudio(event)" style="flex: 1; font-size: 11px; padding: 6px; justify-content: center;">
+              ▶ Play Audio Clip
+            </button>
+            <button type="button" class="action-pill-btn secondary" onclick="document.getElementById('ev-file-input').click()" style="flex: 1; font-size: 11px; padding: 6px; justify-content: center;">
+              ⬆️ Replace Audio
+            </button>
+          </div>
+          <input type="file" id="ev-file-input" accept=".wav,.mp3,.ogg,.flac,.m4a" style="display: none;" onchange="handleEvRefFileUpload(event)">
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          <button type="button" class="btn btn-secondary" onclick="switchDrawerMode('browse')" style="flex: 1; justify-content: center; font-size: 12px; padding: 8px;">
+            Cancel
+          </button>
+          <button type="button" class="btn btn-primary" onclick="handleSaveEditedVoice()" style="flex: 2; justify-content: center; font-size: 12px; padding: 8px; font-weight: 600; background: linear-gradient(135deg, #10b981, #059669); border: none;">
+            💾 Save Changes
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -809,6 +1177,16 @@
         </select>
 
         <textarea id="import-textarea" rows="8" style="width: 100%; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); padding: 12px; border-radius: var(--radius-md); font-family: inherit; font-size: 13.5px; resize: none; transition: border-color 0.2s;" placeholder="Paste text here or drop a file..."></textarea>
+        <div style="background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; color: var(--text-main); font-weight: 500;">
+            <input type="checkbox" id="import-clean-pauses" checked style="accent-color: var(--accent-primary);">
+            <span>Convert [pause] to Card Spacing (strip redundant [pause] tags, use card gap)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; color: var(--text-muted); margin-left: 22px;">
+            <input type="checkbox" id="import-inline-pause-ellipsis" checked style="accent-color: var(--accent-primary);">
+            <span>Convert mid-sentence [pause] to natural breath (...)</span>
+          </label>
+        </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px;">
           <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
           <button class="btn btn-primary" id="btn-do-import" onclick="handleDoImport()">Split & Import Sentences</button>
@@ -819,18 +1197,18 @@
 
   <!-- ================= CLOUD GPU / COLAB MODAL ================= -->
   <div class="drawer-backdrop" id="colab-modal">
-    <div class="drawer-window" style="width: 640px; max-width: 95vw;">
-      <div class="drawer-header">
+    <div class="drawer-window" style="width: 660px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.85);">
+      <div class="drawer-header" style="flex-shrink: 0; border-bottom: 1px solid var(--border-color); background: var(--bg-surface); z-index: 10;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <span style="font-size: 20px;">🚀</span>
           <div>
             <div class="drawer-title">Cloud GPU Acceleration</div>
-            <div style="font-size: 12px; color: var(--text-muted);">Offload synthesis to Google Colab or Kaggle (T4 GPU ~0.2s generation)</div>
+            <div style="font-size: 12px; color: var(--text-muted);">Offload synthesis to Google Colab or Kaggle (Tesla T4 GPU ~0.2s generation)</div>
           </div>
         </div>
         <button class="icon-btn" id="colab-close-btn" onclick="closeColabModal()" style="font-size: 18px;">✕</button>
       </div>
-      <div style="padding: 22px; display: flex; flex-direction: column; gap: 16px;">
+      <div id="colab-modal-scroll-body" style="padding: 22px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; min-height: 0;">
         
         <!-- Active Status Banner -->
         <div id="colab-status-banner" class="colab-status-banner offline">
@@ -838,27 +1216,82 @@
             <span class="status-indicator-dot" id="banner-dot"></span>
             <div>
               <div style="font-weight: 600; font-size: 14px;" id="banner-title">Current Mode: Local CPU Engine</div>
-              <div style="font-size: 12px; color: var(--text-muted);" id="banner-desc">Generating on laptop CPU (~14s per new sentence). Connect Colab for 100x speed!</div>
+              <div style="font-size: 12px; color: var(--text-muted);" id="banner-desc">Generating on laptop CPU (~14s per sentence). Connect Cloud GPU for 100x speed!</div>
             </div>
           </div>
         </div>
 
-        <!-- Worker URL Input -->
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Cloudflare Tunnel / Remote Worker URL (Colab / Local GPU)</label>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="colab-url-input" class="search-input" placeholder="https://random-words.trycloudflare.com" style="flex: 1;">
-            <button class="btn btn-secondary" id="btn-test-colab" onclick="handleTestColab()" style="white-space: nowrap;">⚡ Test Connection</button>
-            <button class="btn btn-ghost" id="btn-clear-tunnel-url" onclick="handleClearTunnelInput()" title="Clear Tunnel URL" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
-          </div>
-          <div id="colab-test-result" style="font-size: 12px; min-height: 18px;"></div>
+        <!-- Cloud Mode Tabs Navigation -->
+        <div class="cloud-tabs-nav">
+          <button class="cloud-tab-btn active" id="tab-btn-kaggle" onclick="switchCloudTab('kaggle')">🚀 1-Click Kaggle GPU (Free)</button>
+          <button class="cloud-tab-btn" id="tab-btn-fish" onclick="switchCloudTab('fish')">🔑 Fish Audio Pro API</button>
+          <button class="cloud-tab-btn" id="tab-btn-custom" onclick="switchCloudTab('custom')">🛠️ Colab / Custom Worker</button>
         </div>
 
-        <!-- Fish Audio Cloud API Key (Optional) -->
-        <div style="display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+        <!-- ================= TAB 1: KAGGLE 1-CLICK GPU ================= -->
+        <div class="cloud-tab-content active" id="tab-content-kaggle">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Fish Audio Cloud API Key (Optional)</label>
-            <a href="https://fish.audio/go-api" target="_blank" style="font-size: 11px; color: #10b981; text-decoration: underline;">Get API Key ↗</a>
+            <span style="font-size: 12.5px; color: var(--text-muted);">30 hours / week of free dedicated cloud GPU (Tesla T4). No manual coding or URL copying required.</span>
+            <a href="https://www.kaggle.com/settings" target="_blank" style="font-size: 11.5px; color: #818cf8; text-decoration: underline; white-space: nowrap;">Get Token on Kaggle ↗</a>
+          </div>
+
+          <!-- Drag and Drop Dropzone -->
+          <div class="kaggle-dropzone" id="kaggle-dropzone" onclick="document.getElementById('kaggle-file-input').click()" ondragover="handleKaggleDragOver(event)" ondragleave="handleKaggleDragLeave(event)" ondrop="handleKaggleDrop(event)">
+            <input type="file" id="kaggle-file-input" accept=".json" style="display: none;" onchange="handleKaggleFileSelect(event)">
+            <div style="font-size: 24px; margin-bottom: 4px;">📄</div>
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-main);">Drop your kaggle.json file here</div>
+            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Downloaded from Kaggle.com -> Settings -> API -> "Create New Token"</div>
+          </div>
+
+          <!-- Or Manual Credentials Form -->
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="kaggle-username-input" class="search-input" placeholder="Kaggle Username" style="flex: 1; font-size: 12.5px;">
+            <input type="password" id="kaggle-key-input" class="search-input" placeholder="Kaggle API Key (32-character token)" style="flex: 2; font-size: 12.5px;">
+            <button class="btn btn-secondary" id="btn-verify-kaggle" onclick="handleVerifyKaggle()" style="white-space: nowrap;">⚡ Verify Token</button>
+          </div>
+          <div id="kaggle-verify-status" style="font-size: 12px; min-height: 18px;"></div>
+          <div id="kaggle-key-warning" style="display: none; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #fbbf24; margin-top: 2px;"></div>
+
+          <!-- Live Progress Stepper (hidden while idle) -->
+          <div id="kaggle-stepper-box" class="kaggle-stepper" style="display: none;">
+            <div class="kaggle-step-item" id="k-step-1">
+              <span class="kaggle-step-dot" id="k-step-dot-1">1</span>
+              <span>Pushing neural GPU worker kernel to Kaggle account</span>
+            </div>
+            <div class="kaggle-step-item" id="k-step-2">
+              <span class="kaggle-step-dot" id="k-step-dot-2">2</span>
+              <span>Allocating Tesla T4 GPU container & mounting S2 Pro weights (~60-90s)</span>
+            </div>
+            <div class="kaggle-step-item" id="k-step-3">
+              <span class="kaggle-step-dot" id="k-step-dot-3">3</span>
+              <span>Secure encrypted Cloudflare tunnel connected & ready!</span>
+            </div>
+            
+            <!-- Collapsible Live Log Viewer -->
+            <details style="margin-top: 6px;">
+              <summary style="font-size: 11.5px; color: var(--text-muted); cursor: pointer;">Show live container boot logs</summary>
+              <div class="kaggle-terminal" id="kaggle-log-terminal" style="margin-top: 6px;">Waiting for container output...</div>
+            </details>
+          </div>
+
+          <!-- Auto-Shutdown Quota Protection Notice -->
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #10b981;">
+            <span>🛡️</span>
+            <span><strong>Smart Quota Protection Active:</strong> Auto-terminates container after 15 min of idle or when Studio is closed to preserve your free weekly GPU hours.</span>
+          </div>
+
+          <!-- Launch & Stop Action Area -->
+          <div style="display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 6px; padding-bottom: 6px;">
+            <button class="btn btn-secondary" id="btn-stop-kaggle" onclick="handleStopKaggle()" style="display: none; color: #ef4444; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1); font-weight: 600;">⏹ Stop GPU Session</button>
+            <button class="btn btn-primary" id="btn-launch-kaggle" onclick="handleLaunchKaggle()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 9px 20px; font-weight: 600; font-size: 13px;">🚀 Launch Cloud GPU (Tesla T4)</button>
+          </div>
+        </div>
+
+        <!-- ================= TAB 2: FISH AUDIO PRO API ================= -->
+        <div class="cloud-tab-content" id="tab-content-fish">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 12.5px; color: var(--text-muted);">Direct synthesis via official Fish Audio servers. Instant (~0.3s) generation with zero wait time.</span>
+            <a href="https://fish.audio/go-api" target="_blank" style="font-size: 11.5px; color: #10b981; text-decoration: underline;">Get API Key ↗</a>
           </div>
           <div style="display: flex; gap: 8px;">
             <input type="password" id="fish-api-key-input" class="search-input" placeholder="Paste your api.fish.audio API key..." style="flex: 1;">
@@ -866,27 +1299,36 @@
             <button class="btn btn-ghost" id="btn-clear-api-key" onclick="handleClearApiKeyInput()" title="Clear API Key" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
           </div>
           <div id="fish-key-test-result" style="font-size: 12px; min-height: 18px; margin-top: 2px;"></div>
-          <div style="font-size: 11px; color: var(--text-muted);">If provided, synthesis routes directly to Fish Audio Cloud servers without needing a running Colab notebook.</div>
         </div>
 
-        <!-- Quick Colab Instructions & Copy Code -->
-        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column; gap: 10px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">1-Click Colab Setup:</span>
-            <div style="display: flex; gap: 6px;">
-              <button class="btn btn-primary" id="btn-copy-colab-fish" onclick="handleCopyColabScript('fish_s2')" style="padding: 4px 10px; font-size: 11.5px; background: #10b981;">📋 Copy S2 Pro Worker</button>
-              <button class="btn btn-secondary" id="btn-copy-colab-code" onclick="handleCopyColabScript('kokoro')" style="padding: 4px 10px; font-size: 11.5px;">📋 Kokoro Worker</button>
-            </div>
+        <!-- ================= TAB 3: COLAB / CUSTOM WORKER ================= -->
+        <div class="cloud-tab-content" id="tab-content-custom">
+          <div style="font-size: 12.5px; color: var(--text-muted);">Connect an existing Google Colab notebook, RunPod container, or local GPU server via tunnel.</div>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="colab-url-input" class="search-input" placeholder="https://random-words.trycloudflare.com" style="flex: 1;">
+            <button class="btn btn-secondary" id="btn-test-colab" onclick="handleTestColab()" style="white-space: nowrap;">⚡ Test Connection</button>
+            <button class="btn btn-ghost" id="btn-clear-tunnel-url" onclick="handleClearTunnelInput()" title="Clear Tunnel URL" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
           </div>
-          <ol style="font-size: 12.5px; color: var(--text-muted); margin: 0; padding-left: 20px; line-height: 1.6;">
-            <li>Open a free <a href="https://colab.research.google.com" target="_blank" style="color: var(--primary); text-decoration: underline;">Google Colab notebook</a>.</li>
-            <li>In the top menu: <strong>Runtime → Change runtime type</strong> and select <strong>T4 GPU</strong>.</li>
-            <li>Paste the 1-cell script, press <strong>Run</strong>, then copy the <code>https://*.trycloudflare.com</code> URL it gives you!</li>
-          </ol>
+          <div id="colab-test-result" style="font-size: 12px; min-height: 18px;"></div>
+
+          <!-- Quick Colab Copy Code -->
+          <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12.5px; font-weight: 600; color: var(--text-main);">1-Click Colab Scripts:</span>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-primary" id="btn-copy-colab-fish" onclick="handleCopyColabScript('fish_s2')" style="padding: 3px 8px; font-size: 11px; background: #10b981;">📋 Copy S2 Pro Worker</button>
+                <button class="btn btn-secondary" id="btn-copy-colab-code" onclick="handleCopyColabScript('kokoro')" style="padding: 3px 8px; font-size: 11px;">📋 Kokoro Worker</button>
+              </div>
+            </div>
+            <ol style="font-size: 12px; color: var(--text-muted); margin: 0; padding-left: 18px; line-height: 1.5;">
+              <li>Open a free <a href="https://colab.research.google.com" target="_blank" style="color: var(--primary); text-decoration: underline;">Google Colab notebook</a> with T4 GPU enabled.</li>
+              <li>Paste the 1-cell worker script and press <strong>Run</strong>.</li>
+            </ol>
+          </div>
         </div>
 
         <!-- Action Buttons -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.07);">
           <button class="btn btn-secondary" id="btn-clear-colab" onclick="handleClearColab()" style="color: var(--danger);">Disconnect (Use Local CPU)</button>
           <div style="display: flex; gap: 8px;">
             <button class="btn btn-secondary" onclick="closeColabModal()">Close</button>
@@ -1077,7 +1519,96 @@
     </div>
   </div>
 
+  <!-- Neural Voice Designer Modal (Prompt-to-Voice) -->
+  <div id="voice-designer-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 540px; border-radius: var(--radius-md); background: var(--bg-card); border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding: 14px 20px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">✨</span>
+          <h3 style="font-size: 15px; font-weight: 600; margin: 0; color: var(--text-main);">Neural Voice Designer</h3>
+        </div>
+        <button class="icon-btn" onclick="closeVoiceDesignerModal()" style="font-size: 18px;">✕</button>
+      </div>
+
+      <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="font-size: 12px; color: var(--text-muted); line-height: 1.45;">
+          Describe any character persona, timbre, age, or accent. Our neural voice forge will synthesize a custom reference audio asset for zero-shot cloning.
+        </div>
+
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Character Name</label>
+          <input type="text" id="designer-char-name" class="search-input" placeholder="e.g. Detective Vance" style="padding: 8px 10px; font-size: 13px; background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-color); border-radius: var(--radius-sm); width: 100%;">
+        </div>
+
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Voice Description Prompt</label>
+            <span style="font-size: 10.5px; color: var(--text-muted);">Natural Language</span>
+          </div>
+          <textarea id="designer-voice-prompt" class="search-input" rows="3" placeholder="e.g. A 55-year-old raspy noir detective, gravelly baritone, cynical American tone speaking slowly in a rainy alleyway" style="padding: 10px; font-size: 12.5px; line-height: 1.4; background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-color); border-radius: var(--radius-sm); width: 100%; resize: vertical;"></textarea>
+
+          <!-- Quick Preset Inspiration Chips -->
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+            <button type="button" class="action-pill-btn secondary" style="font-size: 10.5px; padding: 3px 8px;" onclick="applyDesignerPreset('55-year-old raspy noir detective, gravelly baritone, cynical American tone', 'Detective Vance')">🕵️ Noir Detective</button>
+            <button type="button" class="action-pill-btn secondary" style="font-size: 10.5px; padding: 3px 8px;" onclick="applyDesignerPreset('Deep, ominous cinematic movie trailer narrator with chilling resonant bass', 'Epic Narrator')">🎙️ Trailer Narrator</button>
+            <button type="button" class="action-pill-btn secondary" style="font-size: 10.5px; padding: 3px 8px;" onclick="applyDesignerPreset('Breathless terrified young female survivor, urgent whisper, voice trembling with tears', 'Fearful Heroine')">😱 Thriller Heroine</button>
+            <button type="button" class="action-pill-btn secondary" style="font-size: 10.5px; padding: 3px 8px;" onclick="applyDesignerPreset('Weathered 70-year-old ancient sage, gravelly British whisper, scholarly tone', 'Ancient Scholar')">🧙 Ancient Sage</button>
+            <button type="button" class="action-pill-btn secondary" style="font-size: 10.5px; padding: 3px 8px;" onclick="applyDesignerPreset('Cold, guttural otherworldly shadow monster, sinister raspy demonic cadence', 'Shadow Entity')">👁️ Shadow Monster</button>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Reference Speech Sample Line</label>
+          <input type="text" id="designer-sample-text" class="search-input" value="In the deepest shadows of the abandoned corridor, something began to move." style="padding: 7px 10px; font-size: 12px; background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-color); border-radius: var(--radius-sm); width: 100%;">
+        </div>
+
+        <!-- Audio Audition Player Container (Visible after generation) -->
+        <div id="designer-audio-container" style="display: none; background: var(--bg-base); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 11.5px; font-weight: 600; color: #10b981;">✅ Voice Generated Successfully</span>
+            <span id="designer-voice-timbre-tag" style="font-size: 10.5px; color: var(--text-muted);"></span>
+          </div>
+          <audio id="designer-audio-player" controls style="width: 100%; height: 36px;"></audio>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+          <button type="button" class="btn btn-secondary" onclick="closeVoiceDesignerModal()">Cancel</button>
+          <button type="button" class="btn btn-secondary" id="btn-forge-voice" onclick="handleForgeVoicePreview()" style="display: flex; align-items: center; gap: 6px; background: var(--bg-base); border: 1px solid var(--border-color);">
+            <span>⚡ Forge Voice Preview</span>
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-save-designed-voice" onclick="handleSaveDesignedVoice()" disabled style="background: linear-gradient(135deg, #10b981, #059669); border: none;">
+            <span>✅ Save & Use Voice</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REFERENCE VOICE LIBRARY MODAL -->
+  <div id="ref-library-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 520px; width: 90%;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">📚</span>
+          <span class="modal-title">Reference Voice Library</span>
+        </div>
+        <button class="icon-btn" onclick="closeReferenceLibraryModal()" style="font-size: 18px;">✕</button>
+      </div>
+      <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+          Select any previously uploaded reference audio clip to instantly use its timbre for voice cloning without re-uploading.
+        </div>
+        <div id="ref-library-list" style="max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+          <div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading saved voice clips...</div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+          <button type="button" class="btn btn-secondary" onclick="closeReferenceLibraryModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="studio-toast" class="studio-toast"></div>
-  <script src="/studio/js/app.js?v=482"></script>
+  <script src="/studio/js/app.js?v=553"></script>
 </body>
 </html>

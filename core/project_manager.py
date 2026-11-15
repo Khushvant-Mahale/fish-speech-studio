@@ -1,368 +1,667 @@
 import json
+
 import re
+
 from pathlib import Path
+
 from typing import Dict, List, Optional
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 PROJECTS_DIR = BASE_DIR / "projects"
+
 INPUT_DIR = BASE_DIR / "input"
+
 OUTPUT_DIR = BASE_DIR / "output"
+
 VOICES_FILE = BASE_DIR / "core" / "voices_metadata.json"
 
 PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 
-
 class ProjectManager:
+
     # Keyword patterns for speaker attribution
+
     FEMALE_CUES = re.compile(r"\b(she|her|woman|girl|mother|lady|mrs|sister|daughter|female)\b", re.IGNORECASE)
+
     MALE_CUES = re.compile(r"\b(he|him|his|man|boy|father|mr|brother|son|guy|male)\b", re.IGNORECASE)
+
     CHILD_CUES = re.compile(r"\b(child|little boy|little girl|kid|toddler|baby)\b", re.IGNORECASE)
 
     # Keyword patterns for delivery style and emotion
+
     WHISPER_CUES = re.compile(r"\b(whisper|whispered|whispering|breathed|hissed|murmured|faintly|low voice|softly|quietly)\b", re.IGNORECASE)
+
     SCREAM_CUES = re.compile(r"\b(scream|screamed|screaming|shout|shouted|shouting|yelled|yelling|cried out|panicked|shrieked|bellowed|hollered)\b", re.IGNORECASE)
+
     DIALOGUE_INTRO_CUES = re.compile(r"\b(whispered|screamed|said|asked|shouted|cried|murmured|replied|answered|called out|muttered)[,:]\s*$", re.IGNORECASE)
 
     def __init__(self):
+
         self._preset_blends_cache = None
 
     def _get_preset_blends(self) -> Dict[str, Dict[str, float]]:
+
         if self._preset_blends_cache is None:
+
             self._preset_blends_cache = {}
+
             if VOICES_FILE.exists():
+
                 try:
+
                     with open(VOICES_FILE, "r", encoding="utf-8") as f:
+
                         meta = json.load(f)
+
                     for item in meta:
+
                         if item.get("is_blend") and "blend_weights" in item:
+
                             self._preset_blends_cache[item["id"]] = item["blend_weights"]
+
                 except Exception:
+
                     pass
+
         return self._preset_blends_cache
 
     def get_project_path(self, project_id: str) -> Path:
+
         safe_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", project_id) or "default"
+
         return PROJECTS_DIR / f"{safe_id}.json"
 
     def auto_direct_blocks(self, blocks: List[Dict], default_voice: str = "blend_fenrir_onyx", expand_dialogue: bool = True, defaults: Optional[Dict] = None) -> List[Dict]:
+
         """
+
         Dynamically directs speech and character casting across blocks.
+
         Detects quotes, dialogue tags, whispers, screams/exaggerations, and pacing gaps.
+
         """
+
         if not blocks:
+
             return []
 
         preset_blends = self._get_preset_blends()
+
         default_is_blend = default_voice in preset_blends
+
         default_blend_weights = preset_blends.get(default_voice) if default_is_blend else None
 
         def_speed = float(defaults.get("speed", 0.90)) if defaults and "speed" in defaults else 0.90
+
         def_gain = float(defaults.get("gain", 1.0)) if defaults and "gain" in defaults else 1.0
+
         def_pause = float(defaults.get("pause_after", 0.6)) if defaults and "pause_after" in defaults else 0.6
+
         def_pitch = float(defaults.get("pitch_shift", 0.0)) if defaults and "pitch_shift" in defaults else 0.0
+
         def_warmth = float(defaults.get("warmth", 0.0)) if defaults and "warmth" in defaults else 0.0
+
         def_clarity = float(defaults.get("clarity", 0.0)) if defaults and "clarity" in defaults else 0.0
+
         def_reverb = float(defaults.get("reverb", 0.0)) if defaults and "reverb" in defaults else 0.0
+
         def_filter = str(defaults.get("fx_filter", "none")) if defaults and "fx_filter" in defaults else "none"
+
         def_radio = bool(defaults.get("radio_fx", False)) if defaults and "radio_fx" in defaults else (def_filter == "radio")
 
         # Step 1: Optionally expand blocks that contain both dialogue tags and speech
+
         expanded_blocks = []
+
         block_counter = 1
 
         for b in blocks:
+
             text = (b.get("text") or "").strip()
+
             if not text:
+
                 continue
 
             # Preserve non-spoken Scene Headings
+
             if b.get("type") == "heading" or not b.get("is_spoken", True):
+
                 expanded_blocks.append({
+
                     "id": b.get("id") or f"h_{block_counter}",
+
                     "text": text,
+
                     "_is_heading": True,
+
                     "_orig": b
+
                 })
+
                 block_counter += 1
+
                 continue
 
             if text.endswith(":"):
+
                 expanded_blocks.append({
+
                     "id": b.get("id") or f"b_{block_counter}",
+
                     "text": text,
+
                     "_orig": b
+
                 })
+
                 block_counter += 1
+
                 continue
 
             # Check unquoted lead-in: "A little boy whispered, Why did you leave us outside?"
+
             unquoted_match = re.match(r'^(.*?\b(?:whispered|whispering|screamed|cried|said|asked|shouted|murmured)[,:]\s*)([A-Z].{3,}[.?!]?)$', text, re.IGNORECASE)
+
             # Check quoted dialogue tag: 'She whispered, "Don\'t move."'
+
             quoted_intro_match = re.match(r'^(.*?\b(?:whispered|whispering|screamed|cried|said|asked|shouted|murmured)[,:]\s*)([\"“][^\"”]+[\"”])$', text, re.IGNORECASE)
+
             # Check quoted speech followed by tag: '"Don\'t move," she whispered.'
+
             trailing_tag_match = re.match(r'^([\"“][^\"”]+[\"”])\s*([,]?\s*(?:she|he|they|the\s+\w+)?\s*(?:whispered|screamed|said|asked|shouted|murmured).*)$', text, re.IGNORECASE)
 
             if expand_dialogue and unquoted_match:
+
                 tag = unquoted_match.group(1).strip()
+
                 speech = unquoted_match.group(2).strip()
+
                 expanded_blocks.append({"id": f"b_{block_counter}", "text": tag, "_orig": b})
+
                 block_counter += 1
+
                 expanded_blocks.append({"id": f"b_{block_counter}", "text": speech, "_orig": b})
+
                 block_counter += 1
+
             elif expand_dialogue and quoted_intro_match:
+
                 tag = quoted_intro_match.group(1).strip()
+
                 speech = quoted_intro_match.group(2).strip()
+
                 expanded_blocks.append({"id": f"b_{block_counter}", "text": tag, "_orig": b})
+
                 block_counter += 1
+
                 expanded_blocks.append({"id": f"b_{block_counter}", "text": speech, "_orig": b})
+
                 block_counter += 1
+
             elif expand_dialogue and trailing_tag_match:
+
                 speech = trailing_tag_match.group(1).strip()
+
                 tag = trailing_tag_match.group(2).strip().lstrip(",").strip()
+
                 expanded_blocks.append({"id": f"b_{block_counter}", "text": speech, "_orig": b})
+
                 block_counter += 1
+
                 if tag:
+
                     expanded_blocks.append({"id": f"b_{block_counter}", "text": tag, "_orig": b})
+
                     block_counter += 1
+
             else:
+
                 expanded_blocks.append({
+
                     "id": b.get("id") or f"b_{block_counter}",
+
                     "text": text,
+
                     "_orig": b
+
                 })
+
                 block_counter += 1
 
         # Step 2: Contextual classification for all blocks
+
         directed_blocks = []
+
         n = len(expanded_blocks)
 
         for i, item in enumerate(expanded_blocks):
+
             if item.get("_is_heading"):
+
                 orig = item.get("_orig", {})
+
                 directed_blocks.append({
+
                     "id": item.get("id"),
+
                     "type": "heading",
+
                     "text": item.get("text"),
+
                     "is_spoken": False,
+
                     "pause_after": float(orig.get("pause_after", 1.2) or 1.2)
+
                 })
+
                 continue
 
             text = item["text"]
+
             orig = item.get("_orig", {})
+
             prev_text = expanded_blocks[i - 1]["text"] if i > 0 else ""
+
             prev_prev_text = expanded_blocks[i - 2]["text"] if i > 1 else ""
+
             next_text = expanded_blocks[i + 1]["text"] if i < n - 1 else ""
+
             # Check quotes and dialogue nature
+
             is_quoted = bool(re.search(r'[\"“].+?[\"”]', text)) or (text.startswith(('"', '“', "'", '‘')) and text.endswith(('"', '”', "'", '’')))
+
             is_intro_lead = text.endswith(":") or bool(self.DIALOGUE_INTRO_CUES.search(text))
+
             prev_was_intro = prev_text.endswith(":") or bool(self.DIALOGUE_INTRO_CUES.search(prev_text))
+
             next_is_trailing = bool(re.match(r'^(?:she|he|they|the\s+\w+)?\s*(?:whispered|screamed|said|asked|shouted|murmured|cried|breathed)', next_text, re.IGNORECASE))
 
             is_dialogue = is_quoted or (prev_was_intro and not is_intro_lead)
 
             # Context specifically tailored for dialogue attribution
+
             if is_dialogue:
+
                 ctx_parts = [text]
+
                 if prev_was_intro:
+
                     ctx_parts.append(prev_text)
+
                     if prev_prev_text.endswith(":") or bool(self.DIALOGUE_INTRO_CUES.search(prev_prev_text)):
+
                         ctx_parts.append(prev_prev_text)
+
                 if next_is_trailing:
+
                     ctx_parts.append(next_text)
+
                 context = " ".join(ctx_parts)
+
             else:
+
                 context = f"{prev_text} {text} {next_text}"
 
             # Cues detection
+
             is_whisper = bool(self.WHISPER_CUES.search(text) or (is_dialogue and self.WHISPER_CUES.search(context)))
+
             is_scream = bool(self.SCREAM_CUES.search(text) or (is_dialogue and (self.SCREAM_CUES.search(context) or "!" in text)))
+
             is_child = bool(self.CHILD_CUES.search(text) or (is_dialogue and self.CHILD_CUES.search(context)))
+
             is_female = bool(self.FEMALE_CUES.search(text) or (is_dialogue and self.FEMALE_CUES.search(context)))
+
             is_male = bool(self.MALE_CUES.search(text) or (is_dialogue and self.MALE_CUES.search(context)))
 
-            # Default parameters
+            # Pacing & Casting Defaults
+
             voice_id = default_voice
+
             blend_weights = default_blend_weights if default_is_blend else None
-            speed = 0.90
-            gain = 1.0
-            pause = 0.6
+
+            speed = def_speed
+
+            gain = def_gain
+
+            pause = def_pause
+
+            # Emotion / Acting Tag: NEVER inject random tags!
+
+            # Only use what the user explicitly wrote or tagged.
+
             emotion_tag = None
 
-            if is_intro_lead:
-                # Narrator lead-in before dialogue: short pause
-                voice_id = default_voice
-                blend_weights = default_blend_weights if default_is_blend else None
-                speed = 0.90
-                gain = 1.0
-                pause = 0.4
-                emotion_tag = "[tense, suspenseful lead-in narration]"
-            elif is_dialogue:
-                if is_child and is_whisper:
-                    voice_id = "af_river"
-                    blend_weights = None
-                    speed = 0.78
-                    gain = 0.70
-                    pause = 1.2
-                    emotion_tag = "[frightened child whisper, trembling voice]"
-                elif is_whisper:
-                    voice_id = "af_river" if is_female else "am_echo"
-                    blend_weights = None
-                    speed = 0.80
-                    gain = 0.75
-                    pause = 1.0
-                    emotion_tag = "[whispering in breathy terror, secretive]"
-                elif is_scream:
-                    # Screamed / panicked dialogue: faster pace, higher volume
-                    voice_id = "af_heart" if is_female else "am_fenrir"
-                    blend_weights = None
-                    speed = 1.04
-                    gain = 1.15
-                    pause = 0.8
-                    emotion_tag = "[screaming frantically in sheer panic, adrenaline pumping]"
-                elif is_female:
-                    voice_id = "af_heart"
-                    blend_weights = None
-                    speed = 0.86
-                    gain = 1.0
-                    pause = 0.8
-                    emotion_tag = "[tense, urgent female dialogue]"
-                elif is_male:
-                    voice_id = "am_michael"
-                    blend_weights = None
-                    speed = 0.88
-                    gain = 1.0
-                    pause = 0.8
-                    emotion_tag = "[tense, breathless survivor tone]"
-                else:
-                    voice_id = "am_michael"
-                    blend_weights = None
-                    speed = 0.88
-                    gain = 1.0
-                    pause = 0.8
-                    emotion_tag = "[tense, breathless dialogue]"
-            else:
-                # Narration
-                clean_lower = text.lower()
-                if clean_lower.startswith(("day ", "part ", "chapter ", "episode ")):
-                    pause = 1.2
-                    emotion_tag = "[slow, deep dramatic horror narration, ominous pause]"
-                elif is_whisper:
-                    voice_id = "af_river" if is_female else "am_echo"
-                    blend_weights = None
-                    speed = 0.80
-                    gain = 0.75
-                    pause = 0.9
-                    emotion_tag = "[whispering in breathy terror, secretive narration]"
-                elif is_scream:
-                    voice_id = "am_fenrir"
-                    blend_weights = None
-                    speed = 0.96
-                    gain = 1.10
-                    pause = 0.7
-                    emotion_tag = "[screaming frantically, intense suspense narration]"
-                else:
-                    voice_id = default_voice
-                    blend_weights = (defaults.get("blend_weights") if (defaults and defaults.get("blend_weights")) else (default_blend_weights if default_is_blend else None))
-                    speed = def_speed
-                    gain = def_gain
-                    pause = def_pause
-                    emotion_tag = "[slow, deep atmospheric horror narration]"
-
-            # Retain user's custom emotion tag if already present
             if orig and orig.get("emotion_tag"):
+
                 emotion_tag = orig.get("emotion_tag")
 
+            elif orig and orig.get("text"):
+
+                # Detect inline bracket tag at start of text, e.g. [calm], [anxious, low voice]
+
+                m_inline = re.match(r'^\s*\[(.*?)\]', orig.get("text", ""))
+
+                if m_inline and not m_inline.group(1).lower().startswith("pause"):
+
+                    emotion_tag = f"[{m_inline.group(1).strip()}]"
+
+            elif text:
+
+                m_inline = re.match(r'^\s*\[(.*?)\]', text)
+
+                if m_inline and not m_inline.group(1).lower().startswith("pause"):
+
+                    emotion_tag = f"[{m_inline.group(1).strip()}]"
+
+            if is_intro_lead:
+
+                # Narrator lead-in before dialogue: short pause
+
+                voice_id = default_voice
+
+                blend_weights = default_blend_weights if default_is_blend else None
+
+                speed = 0.90
+
+                gain = 1.0
+
+                pause = 0.4
+
+            elif is_dialogue:
+
+                if is_child and is_whisper:
+
+                    voice_id = "af_river"
+
+                    blend_weights = None
+
+                    speed = 0.78
+
+                    gain = 0.70
+
+                    pause = 1.2
+
+                elif is_whisper:
+
+                    voice_id = "af_river" if is_female else "am_echo"
+
+                    blend_weights = None
+
+                    speed = 0.80
+
+                    gain = 0.75
+
+                    pause = 1.0
+
+                elif is_scream:
+
+                    voice_id = "af_heart" if is_female else "am_fenrir"
+
+                    blend_weights = None
+
+                    speed = 1.04
+
+                    gain = 1.15
+
+                    pause = 0.8
+
+                elif is_female:
+
+                    voice_id = "af_heart"
+
+                    blend_weights = None
+
+                    speed = 0.86
+
+                    gain = 1.0
+
+                    pause = 0.8
+
+                elif is_male:
+
+                    voice_id = "am_michael"
+
+                    blend_weights = None
+
+                    speed = 0.88
+
+                    gain = 1.0
+
+                    pause = 0.8
+
+                else:
+
+                    voice_id = "am_michael"
+
+                    blend_weights = None
+
+                    speed = 0.88
+
+                    gain = 1.0
+
+                    pause = 0.8
+
+            else:
+
+                # Narration
+
+                clean_lower = text.lower()
+
+                if clean_lower.startswith(("day ", "part ", "chapter ", "episode ")):
+
+                    pause = 1.2
+
+                elif is_whisper:
+
+                    voice_id = "af_river" if is_female else "am_echo"
+
+                    blend_weights = None
+
+                    speed = 0.80
+
+                    gain = 0.75
+
+                    pause = 0.9
+
+                elif is_scream:
+
+                    voice_id = "am_fenrir"
+
+                    blend_weights = None
+
+                    speed = 0.96
+
+                    gain = 1.10
+
+                    pause = 0.7
+
+                else:
+
+                    voice_id = default_voice
+
+                    blend_weights = (defaults.get("blend_weights") if (defaults and defaults.get("blend_weights")) else (default_blend_weights if default_is_blend else None))
+
+                    speed = def_speed
+
+                    gain = def_gain
+
+                    pause = float(orig.get("pause_after", def_pause)) if (orig and orig.get("pause_after") is not None) else def_pause
+
+            eng = orig.get("engine") or (defaults.get("engine") if defaults else None) or "fish_s2"
+
+            ref_a = orig.get("reference_audio") or (defaults.get("reference_audio") if defaults else None) or ""
+
+            ref_t = orig.get("reference_text") or (defaults.get("reference_text") if defaults else None) or ""
+
+            if str(eng).strip().lower() in ("none", "null", "undefined"):
+
+                eng = "fish_s2"
+
+            if str(ref_a).strip().lower() in ("none", "null", "undefined"):
+
+                ref_a = ""
+
+            if str(ref_t).strip().lower() in ("none", "null", "undefined"):
+
+                ref_t = ""
+
             block_data = {
+
                 "id": item["id"],
+
                 "text": text,
+
                 "voice_id": voice_id,
-                "engine": str(orig.get("engine") or (defaults.get("engine") if defaults else "fish_s2")),
+
+                "engine": str(eng),
+
                 "emotion_tag": emotion_tag,
-                "reference_audio": str(orig.get("reference_audio") or (defaults.get("reference_audio") if defaults else "")),
-                "reference_text": str(orig.get("reference_text") or (defaults.get("reference_text") if defaults else "")),
+
+                "reference_audio": str(ref_a),
+
+                "reference_text": str(ref_t),
+
                 "temperature": float(orig.get("temperature", 0.7) if orig else 0.7),
+
                 "top_p": float(orig.get("top_p", 0.85) if orig else 0.85),
+
                 "speed": round(speed, 2),
+
                 "gain": round(gain, 2),
-                "pause_after": round(pause, 1),
+
+                "pause_after": round(float(orig.get("pause_after")), 2) if (orig and orig.get("pause_after") is not None) else round(pause, 2),
+
                 "pitch_shift": round(float(orig.get("pitch_shift", def_pitch)), 1) if orig else round(def_pitch, 1),
+
                 "warmth": round(float(orig.get("warmth", def_warmth)), 1) if orig else round(def_warmth, 1),
+
                 "clarity": round(float(orig.get("clarity", def_clarity)), 1) if orig else round(def_clarity, 1),
+
                 "reverb": round(float(orig.get("reverb", def_reverb)), 2) if orig else round(def_reverb, 2),
+
                 "fx_filter": str(orig.get("fx_filter", def_filter)) if orig else def_filter,
+
                 "radio_fx": bool(orig.get("radio_fx", def_radio)) if orig else def_radio
+
             }
+
             if orig and orig.get("character_id"):
+
                 block_data["character_id"] = orig.get("character_id")
+
+            if orig and orig.get("is_pause_split"):
+
+                block_data["is_pause_split"] = True
+
             if blend_weights:
+
                 block_data["blend_weights"] = blend_weights
 
             # Check if unchanged from original cached audio
+
             if orig:
+
                 if (orig.get("voice_id") == voice_id and
+
                     orig.get("speed") == block_data["speed"] and
+
                     orig.get("gain") == block_data["gain"] and
+
                     orig.get("pause_after") == block_data["pause_after"] and
+
                     orig.get("cachedAudioUrl")):
+
                     block_data["cachedAudioUrl"] = orig.get("cachedAudioUrl")
+
                     block_data["cachedSig"] = orig.get("cachedSig")
+
                     if orig.get("duration"):
+
                         block_data["duration"] = orig.get("duration")
 
             directed_blocks.append(block_data)
 
         return directed_blocks
 
-    def split_text_into_blocks(self, raw_text: str, default_voice: str = "blend_fenrir_onyx", defaults: Optional[Dict] = None) -> List[Dict]:
-        """Splits raw story text into structured sentence blocks and dynamically directs them."""
+    def split_text_into_blocks(self, raw_text: str, default_voice: str = "blend_fenrir_onyx", defaults: Optional[Dict] = None, clean_pauses: bool = True, inline_ellipsis: bool = True) -> List[Dict]:
+        """
+        Splits raw story text into structured sentence blocks before emotion tags,
+        cleans trailing [pause] tags into card spacing, and dynamically directs them.
+        """
         lines = [l.strip() for l in raw_text.replace("\r\n", "\n").split("\n") if l.strip()]
-        quote_pattern = re.compile(r'([\"“][^\"”]+[\"”])')
         heading_re = re.compile(
             r'^(?:#+\s*|(?:scene|chapter|act|part|section)\s+\d+|prologue|epilogue)(?:[:\s\-–—].*)?$',
             re.IGNORECASE
         )
         candidate_items = []
 
-        for line in lines:
-            line_str = line.strip()
-            # Check if line is a scene heading / chapter divider
-            if (heading_re.match(line_str) or 
-                (line_str.startswith("[") and line_str.endswith("]") and len(line_str) < 60) or
-                (line_str.startswith("***") and line_str.endswith("***"))):
-                candidate_items.append({"is_heading": True, "text": line_str})
-                continue
-
-            if line.endswith(":"):
-                candidate_items.append({"is_heading": False, "text": line})
-                continue
-
-            parts = quote_pattern.split(line)
-            if len(parts) > 1:
-                for part in parts:
-                    part = part.strip()
-                    if not part:
-                        continue
-                    if part.startswith(('"', '“')) and part.endswith(('"', '”')):
-                        candidate_items.append({"is_heading": False, "text": part})
-                    else:
-                        sub_sents = [s.strip() for s in re.split(r'(?<=[.!?])\s+', part) if s.strip()]
-                        for s in (sub_sents if sub_sents else [part]):
-                            candidate_items.append({"is_heading": False, "text": s})
-            else:
-                sents = [s.strip() for s in re.split(r'(?<=[.!?])\s+', line) if s.strip()]
-                for s in (sents if sents else [line]):
-                    candidate_items.append({"is_heading": False, "text": s})
-
         def_speed = float(defaults.get("speed", 0.90)) if defaults and "speed" in defaults else 0.90
         def_gain = float(defaults.get("gain", 1.0)) if defaults and "gain" in defaults else 1.0
-        def_pause = float(defaults.get("pause_after", 0.6)) if defaults and "pause_after" in defaults else 0.6
+        def_pause = float(defaults.get("pause_after", 0.5)) if defaults and "pause_after" in defaults else 0.5
         def_pitch = float(defaults.get("pitch_shift", 0.0)) if defaults and "pitch_shift" in defaults else 0.0
         def_warmth = float(defaults.get("warmth", 0.0)) if defaults and "warmth" in defaults else 0.0
         def_clarity = float(defaults.get("clarity", 0.0)) if defaults and "clarity" in defaults else 0.0
         def_reverb = float(defaults.get("reverb", 0.0)) if defaults and "reverb" in defaults else 0.0
         def_filter = str(defaults.get("fx_filter", "none")) if defaults and "fx_filter" in defaults else "none"
         def_radio = bool(defaults.get("radio_fx", False)) if defaults and "radio_fx" in defaults else (def_filter == "radio")
+
+        for line in lines:
+            line_str = line.strip()
+            # Check if line is a scene heading / chapter divider
+            if (heading_re.match(line_str) or 
+                (re.match(r'^\[(?:scene|chapter|act|part|setting|location)\b', line_str, re.I) and line_str.endswith("]")) or
+                (line_str.startswith("***") and line_str.endswith("***"))):
+                candidate_items.append({"is_heading": True, "text": line_str})
+                continue
+
+            if line_str.endswith(":"):
+                candidate_items.append({"is_heading": False, "text": line_str})
+                continue
+
+            # Split ONLY before non-pause [tag] not at the start of line (e.g. "...? [gasps]Tell me below.")
+            def mark_tag_splits(match):
+                tag = match.group(0)
+                content = tag.strip("[] \t").lower()
+                if content.startswith("pause"):
+                    return tag
+                if match.start() == 0:
+                    return tag
+                return "\x00" + tag
+
+            line_marked = re.sub(r'\[[^\]]+\]', mark_tag_splits, line_str)
+            tag_chunks = [c.strip() for c in line_marked.split("\x00") if c.strip()]
+
+            for chunk in tag_chunks:
+                clean_chunk = re.sub(r'^(\[[^\]]+\])([A-Za-z0-9])', r'\1 \2', chunk).strip()
+                if not clean_chunk:
+                    continue
+
+                item_pause = def_pause
+                if clean_pauses:
+                    # Strip trailing [pause] or [pause: Xs] and convert duration to card pause_after
+                    trailing_pause = re.search(r'\[pause(?:\s*[:=]?\s*([\d.]+)\s*s?)?\]\s*$', clean_chunk, re.IGNORECASE)
+                    if trailing_pause:
+                        if trailing_pause.group(1):
+                            try:
+                                item_pause = float(trailing_pause.group(1))
+                            except ValueError:
+                                pass
+                        clean_chunk = re.sub(r'\[pause(?:\s*[:=]?\s*[\d.]+\s*s?)?\]\s*$', '', clean_chunk, flags=re.IGNORECASE).strip()
+
+                    # Strip leading [pause]
+                    clean_chunk = re.sub(r'^\s*\[pause(?:\s*[:=]?\s*[\d.]+\s*s?)?\]\s*', '', clean_chunk, flags=re.IGNORECASE).strip()
+
+                if inline_ellipsis:
+                    # Convert mid-sentence [pause] to ellipsis '... ' for smooth breath without splitting
+                    clean_chunk = re.sub(r'\s*\[pause(?:\s*[:=]?\s*[\d.]+\s*s?)?\]\s*', '... ', clean_chunk, flags=re.IGNORECASE).strip()
+
+                clean_chunk = re.sub(r'\s{2,}', ' ', clean_chunk).strip()
+
+                if clean_chunk:
+                    candidate_items.append({"is_heading": False, "text": clean_chunk, "pause_after": item_pause})
 
         initial_blocks = []
         for idx, item in enumerate(candidate_items, 1):
@@ -375,13 +674,14 @@ class ProjectManager:
                     "pause_after": 1.2
                 })
             else:
+                item_pause = float(item.get("pause_after", def_pause))
                 init_b = {
                     "id": f"b_{idx}",
                     "text": item["text"],
                     "voice_id": default_voice,
                     "speed": round(def_speed, 2),
                     "gain": round(def_gain, 2),
-                    "pause_after": round(def_pause, 1),
+                    "pause_after": round(item_pause, 2),
                     "pitch_shift": round(def_pitch, 1),
                     "warmth": round(def_warmth, 1),
                     "clarity": round(def_clarity, 1),
@@ -397,121 +697,212 @@ class ProjectManager:
         return self.merge_ultra_small_blocks(directed)
 
     def merge_ultra_small_blocks(self, blocks: List[Dict], max_chars: int = 35, max_words: int = 5, max_merged_chars: int = 160) -> List[Dict]:
+
         """
+
         Merges consecutive ultra-small sentence blocks of the same narrator/voice.
+
         Preserves dialogue quotes, colons, chapter headers, scene headings, and character boundaries.
+
         """
+
         if not blocks:
+
             return []
 
         merged = []
+
         i = 0
+
         n = len(blocks)
+
         counter = 1
 
         while i < n:
+
             curr = dict(blocks[i])
+
             if curr.get("type") == "heading" or not curr.get("is_spoken", True):
+
                 curr["id"] = curr.get("id") or f"h_{counter}"
+
                 counter += 1
+
                 merged.append(curr)
+
                 i += 1
+
                 continue
 
             curr_text = (curr.get("text") or "").strip()
 
             while i + 1 < n:
+
                 nxt = blocks[i + 1]
+
                 if nxt.get("type") == "heading" or not nxt.get("is_spoken", True):
+
                     break
+
                 nxt_text = (nxt.get("text") or "").strip()
 
                 # Voice, Character & Emotion matching
+
                 same_engine = (curr.get("engine", "fish_s2") == nxt.get("engine", "fish_s2"))
+
                 same_voice = (curr.get("voice_id") == nxt.get("voice_id"))
+
                 same_char = (curr.get("character_id") == nxt.get("character_id"))
+
                 same_emotion = (curr.get("emotion_tag") == nxt.get("emotion_tag"))
+
                 same_ref = (curr.get("reference_audio") == nxt.get("reference_audio"))
+
                 same_blend = (curr.get("blend_weights") == nxt.get("blend_weights"))
+
                 same_filter = (curr.get("fx_filter", "none") == nxt.get("fx_filter", "none"))
+
                 same_pitch = (curr.get("pitch_shift", 0.0) == nxt.get("pitch_shift", 0.0))
+
                 if not (same_engine and same_voice and same_char and same_emotion and same_ref and same_blend and same_filter and same_pitch):
+
                     break
 
                 # Never merge colon intro leads
+
                 if curr_text.endswith(":") or nxt_text.endswith(":"):
+
                     break
 
                 # Never merge chapter/day headers
+
                 if curr_text.lower().startswith(("day ", "part ", "chapter ")) or nxt_text.lower().startswith(("day ", "part ", "chapter ")):
+
+                    break
+
+                # Never merge into a block starting with an emotion tag e.g. [gasps]
+
+                if nxt_text.startswith("[") and not nxt_text.lower().startswith("[pause"):
+
+                    break
+
+                # Never merge across [pause] pacing breaks
+
+                if curr.get("is_pause_split") or nxt.get("is_pause_split") or curr.get("pause_after", 0.6) > 0.8:
+
+                    break
+
+                if "[pause" in curr_text.lower() or "[pause" in nxt_text.lower():
+
                     break
 
                 # Never merge quoted dialogue with unquoted narrative
+
                 curr_has_quotes = bool(re.search(r'[\"“].+?[\"”]', curr_text)) or curr_text.startswith(('"', '“'))
+
                 nxt_has_quotes = bool(re.search(r'[\"“].+?[\"”]', nxt_text)) or nxt_text.startswith(('"', '“'))
+
                 if curr_has_quotes != nxt_has_quotes:
+
                     break
 
                 # Check if either block is ultra-small
+
                 curr_is_small = len(curr_text) <= max_chars or len(curr_text.split()) <= max_words
+
                 nxt_is_small = len(nxt_text) <= max_chars or len(nxt_text.split()) <= max_words
 
                 if not (curr_is_small or nxt_is_small):
+
                     break
 
                 potential_len = len(curr_text) + 1 + len(nxt_text)
+
                 if potential_len > max_merged_chars:
+
                     break
 
                 curr_text = f"{curr_text} {nxt_text}"
+
                 curr["text"] = curr_text
+
                 curr["pause_after"] = nxt.get("pause_after", curr.get("pause_after", 0.6))
+
                 curr.pop("cachedAudioUrl", None)
+
                 curr.pop("cachedSig", None)
+
                 curr.pop("duration", None)
+
                 i += 1
 
             curr["id"] = f"b_{counter}"
+
             curr["text"] = curr_text
+
             counter += 1
+
             merged.append(curr)
+
             i += 1
 
         return merged
 
     def load_project(self, project_id: str = "default") -> Dict:
+
         path = self.get_project_path(project_id)
+
         if path.exists():
+
             with open(path, "r", encoding="utf-8") as f:
+
                 return json.load(f)
 
         # Create default project from sample text
+
         sample_file = INPUT_DIR / "THE ENDLESS ECLIPSE - Sample.txt"
+
         if not sample_file.exists():
+
             sample_file = INPUT_DIR / "THE ENDLESS ECLIPSE.txt"
 
         if sample_file.exists():
+
             with open(sample_file, "r", encoding="utf-8-sig") as f:
+
                 text = f.read()
+
         else:
+
             text = "At six fourteen in the morning, the sun failed to rise.\nAt six fifteen, the dead began calling home."
 
         blocks = self.split_text_into_blocks(text)
+
         project_data = {
+
             "id": project_id,
+
             "title": "The Endless Eclipse - Episode 1",
+
             "blocks": blocks,
+
             "master_filename": "endless_eclipse_master.wav"
+
         }
+
         self.save_project(project_data, project_id)
+
         return project_data
 
     def save_project(self, project_data: Dict, project_id: str = "default") -> None:
+
         path = self.get_project_path(project_id)
+
         with open(path, "w", encoding="utf-8") as f:
+
             json.dump(project_data, f, indent=2, ensure_ascii=False)
 
-    def list_projects(self) -> List[Dict]:
+    def list_projects(self, engine: Optional[str] = None) -> List[Dict]:
         projects = []
         for p in PROJECTS_DIR.glob("*.json"):
             if p.name == "config.json":
@@ -530,52 +921,179 @@ class ProjectManager:
                     chars = data.get("characters", [])
                     char_count = len(chars) if isinstance(chars, list) else 0
 
+                    proj_engine = data.get("engine")
+                    if not proj_engine or proj_engine == "none":
+                        has_fish = any(b.get("engine") == "fish_s2" for b in blocks)
+                        proj_engine = "fish_s2" if has_fish else "kokoro"
+
                     projects.append({
                         "id": data.get("id", p.stem),
                         "title": data.get("title", p.stem),
+                        "engine": proj_engine,
+                        "default_voice": data.get("default_voice", ""),
+
                         "block_count": len(blocks),
+
                         "rendered_count": rendered_count,
+
                         "total_duration": round(total_dur, 1),
+
                         "voices_used": voices_used[:5],
+
                         "voice_count": len(voices_used),
+
                         "character_count": char_count,
+
                         "preview_audio": preview_audio,
+
                         "master_exists": master_exists,
+
                         "master_filename": master_file if master_exists else None,
+
                         "updated_at": mtime
+
                     })
+
             except Exception:
+
                 pass
+
         projects.sort(key=lambda x: x["updated_at"], reverse=True)
+
         return projects
 
     def duplicate_project(self, project_id: str) -> Optional[Dict]:
+
+        source_path = self.get_project_path(project_id)
+
+        if not source_path.exists():
+
+            return None
+
+        with open(source_path, "r", encoding="utf-8") as f:
+
+            data = json.load(f)
+
+        import uuid
+
+        new_id = f"proj_{uuid.uuid4().hex[:8]}"
+
+        data["id"] = new_id
+
+        orig_title = data.get("title", "Project")
+
+        data["title"] = f"{orig_title} (Copy)"
+
+        self.save_project(data, new_id)
+        return data
+
+    def copy_project_to_engine(self, project_id: str, target_engine: str) -> Optional[Dict]:
+        """
+        Duplicates a project and converts it to run in the target studio engine
+        (Kokoro <-> Fish S2), with intelligent voice mapping and fresh audio state.
+        """
         source_path = self.get_project_path(project_id)
         if not source_path.exists():
             return None
+
         with open(source_path, "r", encoding="utf-8") as f:
             data = json.load(f)
+
         import uuid
+        import re
         new_id = f"proj_{uuid.uuid4().hex[:8]}"
-        data["id"] = new_id
         orig_title = data.get("title", "Project")
-        data["title"] = f"{orig_title} (Copy)"
+        target_engine = "fish_s2" if target_engine == "fish_s2" else "kokoro"
+        engine_label = "Fish S2" if target_engine == "fish_s2" else "Kokoro"
+
+        clean_base_title = re.sub(r'\s*\((?:Kokoro|Fish S2|Copy)\)$', '', orig_title, flags=re.IGNORECASE).strip()
+        data["id"] = new_id
+        data["title"] = f"{clean_base_title} ({engine_label})"
+        data["engine"] = target_engine
+
+        KOKORO_TO_FISH_MAP = {
+            "am_adam": "fish_narrator_dark",
+            "am_michael": "fish_protagonist_male",
+            "af_bella": "fish_protagonist_female",
+            "af_sarah": "fish_protagonist_female",
+            "bm_george": "fish_elder_investigator",
+            "bf_emma": "fish_protagonist_female",
+            "am_fenrir": "voice_stanley_narrator",
+            "am_onyx": "voice_stanley_narrator",
+            "blend_fenrir_onyx": "voice_stanley_narrator",
+            "blend_george_onyx": "fish_elder_investigator",
+            "custom_blend": "voice_stanley_narrator"
+        }
+
+        FISH_TO_KOKORO_MAP = {
+            "fish_narrator_dark": "am_adam",
+            "voice_stanley_narrator": "am_adam",
+            "fish_protagonist_male": "am_michael",
+            "fish_protagonist_female": "af_bella",
+            "fish_elder_investigator": "bm_george",
+            "fish_shadow_entity": "am_fenrir",
+            "voice_walter_white": "bm_george",
+            "voice_saul_goodman": "am_michael",
+            "voice_morgan_freeman": "bm_george",
+            "voice_david_attenborough": "bm_george",
+        }
+
+        old_def_voice = data.get("default_voice", "")
+        if target_engine == "fish_s2":
+            new_def_voice = KOKORO_TO_FISH_MAP.get(old_def_voice, "voice_stanley_narrator")
+        else:
+            new_def_voice = FISH_TO_KOKORO_MAP.get(old_def_voice, "blend_fenrir_onyx")
+        data["default_voice"] = new_def_voice
+
+        blocks = data.get("blocks", [])
+        import re
+        for b in blocks:
+            b["engine"] = target_engine
+            curr_v = b.get("voice_id", "")
+            if target_engine == "fish_s2":
+                b["voice_id"] = KOKORO_TO_FISH_MAP.get(curr_v, new_def_voice)
+            else:
+                b["voice_id"] = FISH_TO_KOKORO_MAP.get(curr_v, new_def_voice)
+                if b.get("text"):
+                    # Strip non-pause brackets from text so Kokoro doesn't speak emotion prompts aloud
+                    b["text"] = re.sub(r'\[(?!\s*pause)(.*?)\]', '', b["text"]).strip()
+                    b["text"] = re.sub(r'\s{2,}', ' ', b["text"])
+
+            b["cachedAudioUrl"] = None
+            b["cachedSig"] = None
+            b["duration"] = 0.0
+
+        data["master_filename"] = f"{new_id}_master.wav"
         self.save_project(data, new_id)
         return data
 
     def rename_project(self, project_id: str, new_title: str) -> bool:
+
         path = self.get_project_path(project_id)
+
         if not path.exists():
+
             return False
+
         with open(path, "r", encoding="utf-8") as f:
+
             data = json.load(f)
+
         data["title"] = new_title.strip() or "Untitled Project"
+
         self.save_project(data, project_id)
+
         return True
 
     def delete_project(self, project_id: str) -> bool:
+
         path = self.get_project_path(project_id)
+
         if path.exists():
+
             path.unlink()
+
             return True
+
         return False
+

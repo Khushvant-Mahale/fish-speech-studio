@@ -26,7 +26,22 @@ const state = {
   selectedCharacterColor: "#6366f1",
   editingCharacterId: null,
   charModalFxFilter: "none",
-  draggedBlockIndex: null
+  draggedBlockIndex: null,
+  fishLibrary: {
+    query: "",
+    tag: "all",
+    language: "en",
+    sortBy: "score",
+    page: 1,
+    pageSize: 24,
+    total: 0,
+    hasMore: false,
+    isLoading: false,
+    exploreData: null,
+    searchResults: [],
+    activePlayingId: null,
+    savedModelIds: new Set()
+  }
 };
 
 // ---------------- UTILITIES & HELPERS ---------------- //
@@ -502,6 +517,13 @@ async function openProject(projectId, updateUrl = true) {
         }
       });
     }
+
+    const isFish = (state.activeEngine || "fish_s2") === "fish_s2";
+    const emotionSection = document.getElementById("inspector-emotion-section");
+    if (emotionSection) emotionSection.style.display = isFish ? "block" : "none";
+    const zeroShotSection = document.getElementById("inspector-zero-shot-section");
+    if (zeroShotSection) zeroShotSection.style.display = isFish ? "block" : "none";
+
     switchToView("studio", updateUrl);
     renderStudio();
   } catch (err) {
@@ -530,7 +552,7 @@ function debouncedSave() {
   saveTimeout = setTimeout(saveCurrentProject, 600);
 }
 
-function createBlockSynthesizePayload(block) {
+function createBlockSynthesizePayload(block, forceRefresh = false) {
   const activeEng = block.engine || state.activeEngine || "fish_s2";
   return {
     text: block.text,
@@ -549,6 +571,7 @@ function createBlockSynthesizePayload(block) {
     clarity: Number(block.clarity || 0.0),
     reverb: Number(block.reverb || 0.0),
     radio_fx: Boolean(block.radio_fx),
+    force_refresh: Boolean(forceRefresh),
     fx_filter: block.fx_filter || (block.radio_fx ? "radio" : "none")
   };
 }
@@ -785,8 +808,25 @@ function renderDashboard() {
   grid.innerHTML = "";
 
   const projects = state.projects || [];
+  const activeEngine = state.activeEngine || "fish_s2";
+  const isFish = activeEngine === "fish_s2";
 
-  // 1. Calculate top metrics strip stats
+  // Update header branding badge & title to match active studio mode
+  const brandBadge = document.getElementById("dashboard-brand-badge");
+  const brandTitle = document.getElementById("dashboard-brand-title");
+  if (brandBadge) {
+    brandBadge.textContent = isFish ? "Fish Speech" : "Kokoro TTS";
+    brandBadge.style.background = isFish ? "linear-gradient(135deg, #10b981, #059669)" : "linear-gradient(135deg, #f59e0b, #d97706)";
+  }
+  if (brandTitle) {
+    brandTitle.textContent = isFish ? "S2 Pro Studio" : "Fast CPU Studio";
+  }
+
+  // Update header toggle buttons active state
+  document.getElementById("btn-dash-engine-fish")?.classList.toggle("active", isFish);
+  document.getElementById("btn-dash-engine-kokoro")?.classList.toggle("active", !isFish);
+
+  // 1. Calculate top metrics strip stats (all projects together)
   const totalProjectsCount = projects.length;
   let totalSentencesCount = 0;
   let totalRenderedAudioSec = 0;
@@ -1208,6 +1248,7 @@ function renderBlocks() {
           <button type="button" class="insert-block-btn" onclick="insertHeadingAfter(${idx})" title="Insert non-spoken Scene Heading below (🎬)" style="font-size: 13px;">🎬</button>
         </div>
         <button type="button" class="play-block-btn" title="Play sentence (or Space)">${isPlaying ? "🔊" : "▶"}</button>
+        <button type="button" class="rerender-block-btn" onclick="handleReRenderBlock(${idx})" title="Force re-render fresh take (bypasses cache)">🔄</button>
         <button type="button" class="delete-block-btn" title="Delete sentence">✕</button>
       </div>
     `;
@@ -3535,7 +3576,16 @@ async function handleBulkRender() {
         body: JSON.stringify(createBlockSynthesizePayload(block))
       });
 
-      const data = await res.json();
+      let data = null;
+      const cType = res.headers.get("content-type") || "";
+      if (cType.includes("application/json")) {
+        data = await res.json().catch(() => null);
+      }
+      if (!data) {
+        const rawText = await res.text().catch(() => "");
+        throw new Error(`Server returned HTTP ${res.status}${rawText ? `: ${rawText.slice(0, 120)}` : ""}`);
+      }
+
       if (data.audio_url) {
         block.cachedAudioUrl = data.audio_url;
         block.cachedSig = currentSig;
@@ -3874,9 +3924,15 @@ function prefetchNextBlock(idx) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(createBlockSynthesizePayload(nextBlock))
   })
-    .then(r => r.json())
+    .then(r => {
+      const cType = r.headers.get("content-type") || "";
+      if (cType.includes("application/json")) {
+        return r.json().catch(() => null);
+      }
+      return null;
+    })
     .then(data => {
-      if (data.audio_url) {
+      if (data && data.audio_url) {
         nextBlock.cachedAudioUrl = data.audio_url;
         nextBlock.cachedSig = sig;
         nextBlock.duration = data.duration;
@@ -4064,6 +4120,8 @@ async function playBlockAudio(idx, targetOffset = 0, isAutoContinuation = false)
   if (row) {
     row.classList.add("processing");
     row.classList.remove("ready", "playing");
+    const timeText = row.querySelector(".scrubber-time");
+    if (timeText) timeText.textContent = "⏳ Synthesizing on GPU...";
   }
 
   try {
@@ -4073,19 +4131,113 @@ async function playBlockAudio(idx, targetOffset = 0, isAutoContinuation = false)
       body: JSON.stringify(createBlockSynthesizePayload(block))
     });
 
-    const data = await res.json();
+    let data = null;
+    const cType = res.headers.get("content-type") || "";
+    if (cType.includes("application/json")) {
+      data = await res.json().catch(() => null);
+    }
+    if (!data) {
+      const rawText = await res.text().catch(() => "");
+      throw new Error(`Server returned HTTP ${res.status}${rawText ? `: ${rawText.slice(0, 120)}` : ""}`);
+    }
+
     if (data.audio_url) {
       block.cachedAudioUrl = data.audio_url;
       block.cachedSig = currentSig;
       block.duration = data.duration;
       debouncedSave();
       renderTimeline();
+      if (row) {
+        row.classList.remove("processing");
+        row.classList.add("ready");
+      }
       startPlayback(data.audio_url, data.duration);
+    } else {
+      throw new Error(data.error || "Synthesis failed");
     }
   } catch (err) {
-    if (row) row.classList.remove("processing");
+    if (row) {
+      row.classList.remove("processing");
+      const timeText = row.querySelector(".scrubber-time");
+      if (timeText) timeText.textContent = "Draft (click ▶ to retry)";
+    }
+    if (btnEl) btnEl.textContent = "▶";
     updatePlaybackUI(idx, false);
-    alert("Audio generation error: " + err);
+    if (state.isPlayingStory) {
+      stopStoryPlayback();
+    }
+    showToast(`⚠️ Could not synthesize Sentence #${idx + 1}: ${err.message || err}`, 6000);
+  }
+}
+
+
+// Force re-render a single block with fresh neural take (bypasses cache)
+async function handleReRenderBlock(idx) {
+  if (idx === null || idx === undefined) return;
+  const block = state.currentProject?.blocks?.[idx];
+  if (!block) return;
+
+  selectBlock(idx, "single");
+  delete block.cachedAudioUrl;
+  delete block.cachedSig;
+  delete block.duration;
+
+  const row = document.querySelector(`[data-index="${idx}"]`);
+  const rerenderBtn = row?.querySelector(".rerender-block-btn");
+  const playBtn = row?.querySelector(".play-block-btn");
+  const timeText = row?.querySelector(".scrubber-time");
+
+  if (row) {
+    row.classList.add("processing");
+    row.classList.remove("ready", "playing");
+  }
+  if (rerenderBtn) rerenderBtn.textContent = "⏳";
+  if (playBtn) playBtn.textContent = "⏳";
+  if (timeText) timeText.textContent = "⏳ Re-rendering fresh take...";
+
+  try {
+    showToast(`🔄 Generating fresh take for Sentence #${idx + 1}...`);
+    const res = await fetch("/api/synthesize_block", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(createBlockSynthesizePayload(block, true))
+    });
+
+    let data = null;
+    const cType = res.headers.get("content-type") || "";
+    if (cType.includes("application/json")) {
+      data = await res.json().catch(() => null);
+    }
+    if (!data) {
+      const rawText = await res.text().catch(() => "");
+      throw new Error(`Server returned HTTP ${res.status}${rawText ? `: ${rawText.slice(0, 120)}` : ""}`);
+    }
+
+    if (data.audio_url) {
+      block.cachedAudioUrl = data.audio_url;
+      block.cachedSig = getBlockSignature(block);
+      block.duration = data.duration;
+      debouncedSave();
+      renderTimeline();
+      if (row) {
+        row.classList.remove("processing");
+        row.classList.add("ready");
+      }
+      if (rerenderBtn) rerenderBtn.textContent = "🔄";
+      if (playBtn) playBtn.textContent = "▶";
+      if (timeText && data.duration) timeText.textContent = `● ${data.duration.toFixed(1)}s`;
+      showToast(`✨ Fresh take generated for Sentence #${idx + 1} (${data.duration.toFixed(1)}s)!`);
+      playBlockAudio(idx, 0, false, false);
+    } else {
+      throw new Error(data.error || "Synthesis failed");
+    }
+  } catch (err) {
+    console.error("Re-render error:", err);
+    if (row) row.classList.remove("processing");
+    if (rerenderBtn) rerenderBtn.textContent = "🔄";
+    if (playBtn) playBtn.textContent = "▶";
+    if (timeText) timeText.textContent = "Draft (click 🔄 to retry)";
+    showToast("❌ Re-render failed: " + (err.message || err));
   }
 }
 
@@ -4222,16 +4374,11 @@ async function toggleBatchRender() {
   const blocks = state.currentProject.blocks;
   const total = blocks.length;
 
-  // Determine concurrency from dropdown or mode
-  const concurrencySelect = document.getElementById("batch-concurrency-select");
-  let concurrency = concurrencySelect ? parseInt(concurrencySelect.value, 10) : 1;
+  // Concurrency: strictly 1-by-1 for Fish Speech (GPU); 5x parallel for Kokoro (CPU)
+  const activeEng = (state.activeEngine || (state.currentProject && state.currentProject.engine) || "fish_s2").toLowerCase();
+  const isKokoro = activeEng === "kokoro";
+  const concurrency = isKokoro ? 5 : 1;
   const isGPU = Boolean(state.config.active && state.config.remote_worker_url);
-  if (!concurrency || concurrency < 1) concurrency = isGPU ? 3 : 1;
-  // If running local CPU, safety clamp concurrency to 2 max to prevent system freeze
-  if (!isGPU && concurrency > 2) {
-    concurrency = 1;
-    if (concurrencySelect) concurrencySelect.value = "1";
-  }
 
   // Filter tasks that actually need rendering (skip already cached)
   const tasksToRender = [];
@@ -4282,9 +4429,9 @@ async function toggleBatchRender() {
 
   if (bannerTitle) bannerTitle.textContent = `Batch Synthesizing ${total} Sentences`;
   if (concurrencyTag) {
-    concurrencyTag.textContent = isGPU
-      ? `🚀 ${concurrency}x Parallel GPU`
-      : `⚡ ${concurrency}x Parallel CPU`;
+    concurrencyTag.textContent = isKokoro
+      ? "⚡ 5x Parallel (Kokoro CPU)"
+      : "🚀 1x Sequential (Fish S2 Pro GPU)";
   }
 
   // State trackers
@@ -4347,7 +4494,16 @@ async function toggleBatchRender() {
         body: JSON.stringify(createBlockSynthesizePayload(block))
       });
 
-      const data = await res.json();
+      let data = null;
+      const cType = res.headers.get("content-type") || "";
+      if (cType.includes("application/json")) {
+        data = await res.json().catch(() => null);
+      }
+      if (!data) {
+        const rawText = await res.text().catch(() => "");
+        throw new Error(`Server returned HTTP ${res.status}${rawText ? `: ${rawText.slice(0, 120)}` : ""}`);
+      }
+
       if (data.audio_url) {
         block.cachedAudioUrl = data.audio_url;
         block.cachedSig = currentSig;
@@ -4360,6 +4516,20 @@ async function toggleBatchRender() {
           if (timeText && data.duration) timeText.textContent = `● ${data.duration.toFixed(1)}s`;
         }
         if (playBtn) playBtn.textContent = "▶";
+        return true;
+      } else {
+        console.error(`Synthesis error for block ${idx}:`, data.error);
+        if (row) {
+          row.classList.remove("processing");
+          const timeText = row.querySelector(".scrubber-time");
+          if (timeText) timeText.textContent = "Error (click ▶ to retry)";
+        }
+        if (playBtn) playBtn.textContent = "▶";
+        if (data.needs_worker || (data.error && data.error.includes("worker"))) {
+          showToast(`⚠️ Cloud GPU Worker offline: ${data.error}`, 5000);
+          state.isBatchRunning = false;
+        }
+        return false;
       }
     } catch (err) {
       console.error(`Error rendering sentence ${idx}:`, err);
@@ -4379,8 +4549,8 @@ async function toggleBatchRender() {
       const blockIdx = tasksToRender[currentTaskIndex];
       if (blockIdx === undefined) break;
 
-      await renderBlockByIndex(blockIdx);
-      newlyRenderedCount++;
+      const ok = await renderBlockByIndex(blockIdx);
+      if (ok) newlyRenderedCount++;
       updateHUD();
       renderTimeline();
       updateStoryTimeDisplay();
@@ -4431,40 +4601,678 @@ async function toggleBatchRender() {
   }
 }
 
-// ---------------- VOICE DRAWER: SEARCH, FILTER & SORT ---------------- //
+// ---------------- VOICE LIBRARY SIDEBAR DRAWER & FISH AUDIO DISCOVERY ---------------- //
 
-function openVoiceDrawer(targetBlockIdx = null) {
+let _drawerCurrentMode = "fish"; // "fish", "browse", "create", "cast", "edit"
+let _fishSearchDebounce = null;
+
+function openVoiceDrawer(targetBlockIdx = null, preferredMode = "fish") {
   state.targetBlockForVoice = targetBlockIdx !== null ? targetBlockIdx : state.activeBlockIndex;
-  document.getElementById("voice-drawer").classList.add("active");
-  renderVoiceList();
+  const drawer = document.getElementById("voice-drawer");
+  const win = document.getElementById("voice-drawer-window");
+  if (drawer) {
+    drawer.classList.add("active");
+  }
+
+  // Auto-expand on desktop screens for full Fish Audio Discovery portal layout
+  const isExp = localStorage.getItem("fish_drawer_expanded") !== "false";
+  if (isExp && window.innerWidth >= 1024) {
+    if (drawer) drawer.classList.add("expanded");
+    if (win) win.classList.add("expanded");
+    updateDrawerSizeBtn(true);
+  } else {
+    if (drawer) drawer.classList.remove("expanded");
+    if (win) win.classList.remove("expanded");
+    updateDrawerSizeBtn(false);
+  }
+
+  switchDrawerMode(preferredMode);
 }
 
 function closeVoiceDrawer() {
-  document.getElementById("voice-drawer").classList.remove("active");
+  const drawer = document.getElementById("voice-drawer");
+  if (drawer) {
+    drawer.classList.remove("active");
+  }
+  if (state.sampleAudioPlayer && !state.sampleAudioPlayer.paused) {
+    state.sampleAudioPlayer.pause();
+    state.playingVoiceSampleId = null;
+  }
+  if (state.fishLibrary && state.fishLibrary.activePlayingId) {
+    const playBtn = document.getElementById(`fish-play-btn-${state.fishLibrary.activePlayingId}`);
+    if (playBtn) {
+      playBtn.classList.remove("playing");
+      playBtn.innerHTML = "▶ Sample";
+    }
+    state.fishLibrary.activePlayingId = null;
+  }
+}
+
+function toggleDrawerExpanded() {
+  const drawer = document.getElementById("voice-drawer");
+  const win = document.getElementById("voice-drawer-window");
+  if (!drawer) return;
+  const willExpand = !drawer.classList.contains("expanded");
+  drawer.classList.toggle("expanded", willExpand);
+  if (win) win.classList.toggle("expanded", willExpand);
+  localStorage.setItem("fish_drawer_expanded", willExpand ? "true" : "false");
+  updateDrawerSizeBtn(willExpand);
+}
+
+function updateDrawerSizeBtn(isExpanded) {
+  const icon = document.getElementById("drawer-size-icon");
+  const text = document.getElementById("drawer-size-text");
+  if (icon) icon.textContent = isExpanded ? "⤡" : "⤢";
+  if (text) text.textContent = isExpanded ? "Sidebar" : "Wide";
+}
+
+function handleVoiceDrawerBackdropClick(event) {
+  if (event && event.target && event.target.id === "voice-drawer") {
+    closeVoiceDrawer();
+  }
+}
+
+function switchDrawerMode(mode = "fish") {
+  _drawerCurrentMode = mode;
+  const viewFish = document.getElementById("drawer-view-fish");
+  const viewBrowse = document.getElementById("drawer-view-browse");
+  const viewCreate = document.getElementById("drawer-view-create");
+  const viewEdit = document.getElementById("drawer-view-edit");
+  const backBtn = document.getElementById("drawer-btn-back");
+  const titleEl = document.getElementById("drawer-main-title");
+  const countBadge = document.getElementById("drawer-voices-count");
+
+  // Update tabs active state
+  document.querySelectorAll(".drawer-tab-btn").forEach(b => b.classList.remove("active"));
+  const tabBtn = document.getElementById(`tab-nav-${mode}`);
+  if (tabBtn) tabBtn.classList.add("active");
+
+  // Deactivate all subviews first
+  [viewFish, viewBrowse, viewCreate, viewEdit].forEach(v => {
+    if (v) {
+      v.classList.remove("active");
+      v.style.removeProperty("display");
+      v.style.removeProperty("flex-direction");
+    }
+  });
+
+  if (mode === "fish") {
+    if (viewFish) viewFish.classList.add("active");
+    if (titleEl) titleEl.textContent = "🎙️ Voice Library";
+    if (countBadge) countBadge.textContent = "2M+ Voices";
+    if (backBtn) backBtn.style.display = "none";
+    loadFishLibraryExplore();
+  } else if (mode === "browse") {
+    if (viewBrowse) viewBrowse.classList.add("active");
+    if (titleEl) titleEl.textContent = "💾 My Saved Library";
+    if (countBadge) countBadge.textContent = `${(state.voices || []).length} Voices`;
+    if (backBtn) backBtn.style.display = "none";
+    setDrawerFilter("all");
+    renderVoiceList();
+  } else if (mode === "cast") {
+    if (viewBrowse) viewBrowse.classList.add("active");
+    if (titleEl) titleEl.textContent = "🎭 Project Cast";
+    if (countBadge) countBadge.textContent = `${(state.savedCharacters || []).length} Cast`;
+    if (backBtn) backBtn.style.display = "none";
+    setDrawerFilter("characters");
+    renderVoiceList();
+  } else if (mode === "create") {
+    if (viewCreate) viewCreate.classList.add("active");
+    if (titleEl) titleEl.textContent = "✨ Create / Clone Voice";
+    if (countBadge) countBadge.textContent = "Clone Studio";
+    if (backBtn) {
+      backBtn.style.display = "inline-flex";
+      backBtn.onclick = () => switchDrawerMode("fish");
+    }
+  } else if (mode === "edit") {
+    if (viewEdit) viewEdit.classList.add("active");
+    if (titleEl) titleEl.textContent = "✏️ Edit Voice";
+    if (backBtn) {
+      backBtn.style.display = "inline-flex";
+      backBtn.onclick = () => switchDrawerMode("browse");
+    }
+  }
+}
+
+// ---------------- FISH AUDIO 2M+ DISCOVERY PORTAL FUNCTIONS ---------------- //
+
+async function loadFishLibraryExplore() {
+  const container = document.getElementById("fish-discovery-content");
+  if (!container) return;
+
+  if (state.fishLibrary.exploreData && !state.fishLibrary.query && state.fishLibrary.tag === "all") {
+    renderFishExploreRails(state.fishLibrary.exploreData);
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="fish-loading-state">
+      <div class="spinner"></div>
+      <div style="margin-top: 14px; font-size: 13.5px; color: var(--text-muted); font-weight: 500;">
+        Connecting to Fish Audio Cloud (2M+ Models)...
+      </div>
+    </div>
+  `;
+
+  try {
+    const res = await fetch("/api/fish_library/explore");
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "Failed to load Fish Audio discovery voices");
+    }
+    state.fishLibrary.exploreData = data;
+    renderFishExploreRails(data);
+  } catch (err) {
+    console.error("Fish Audio Explore error:", err);
+    container.innerHTML = `
+      <div class="fish-empty-state">
+        <div style="font-size: 32px; margin-bottom: 8px;">🌐</div>
+        <div style="font-size: 15px; font-weight: 700; color: #f8fafc; margin-bottom: 4px;">Could not connect to Fish Audio Cloud</div>
+        <div style="font-size: 12px; color: var(--text-muted); max-width: 440px; line-height: 1.4; margin-bottom: 14px;">
+          ${escapeHtml(err.message)}
+        </div>
+        <button class="btn btn-secondary" onclick="loadFishLibraryExplore()">↻ Retry Connection</button>
+      </div>
+    `;
+  }
+}
+
+function renderFishExploreRails(data) {
+  const container = document.getElementById("fish-discovery-content");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const rails = [
+    { key: "trending", title: "🌟 Trending This Week", badge: "Live Community Trending", items: data.trending || [] },
+    { key: "recommended", title: "🔥 Most Popular Community Clones", badge: "Top Cloned Voices", items: data.recommended || [] },
+    { key: "narration", title: "📖 Storytellers & Audiobooks", badge: "Narration & Lore", items: data.narration || [] },
+    { key: "anime", title: "⚔️ Anime & Iconic Characters", badge: "Anime / Fiction", items: data.anime || [] },
+    { key: "cinematic", title: "🎬 Cinematic & Dramatic Baritones", badge: "Trailers & Cinema", items: data.cinematic || [] },
+    { key: "gaming", title: "🎮 Gaming & Fantasy NPCs", badge: "Games & RP", items: data.gaming || [] }
+  ];
+
+  rails.forEach(rail => {
+    if (!rail.items || rail.items.length === 0) return;
+    const sec = document.createElement("div");
+    sec.className = "fish-rail-section";
+
+    sec.innerHTML = `
+      <div class="fish-rail-header">
+        <div class="fish-rail-title-group">
+          <span class="fish-rail-title">${rail.title}</span>
+          <span class="fish-rail-badge">${rail.badge}</span>
+        </div>
+        <button type="button" class="action-pill-btn secondary" style="font-size: 11px; padding: 3px 10px;" onclick="quickFilterFishTag('${rail.key}')">
+          View All →
+        </button>
+      </div>
+      <div class="fish-voice-grid">
+        ${rail.items.map(m => renderFishVoiceCardHtml(m)).join("")}
+      </div>
+    `;
+    container.appendChild(sec);
+  });
+}
+
+function quickFilterFishTag(tagKey) {
+  const tagMap = {
+    trending: "all",
+    recommended: "all",
+    narration: "narration",
+    anime: "anime",
+    cinematic: "cinematic",
+    gaming: "gaming"
+  };
+  const targetTag = tagMap[tagKey] || tagKey;
+  selectFishTag(targetTag);
+}
+
+function handleFishSearchInput(val) {
+  const clearBtn = document.getElementById("fish-search-clear");
+  if (clearBtn) clearBtn.style.display = val ? "flex" : "none";
+  state.fishLibrary.query = (val || "").trim();
+
+  clearTimeout(_fishSearchDebounce);
+  _fishSearchDebounce = setTimeout(() => {
+    if (!state.fishLibrary.query && state.fishLibrary.tag === "all") {
+      loadFishLibraryExplore();
+    } else {
+      state.fishLibrary.page = 1;
+      searchFishLibrary(false);
+    }
+  }, 320);
+}
+
+function clearFishSearch() {
+  const input = document.getElementById("fish-search-input");
+  const clearBtn = document.getElementById("fish-search-clear");
+  if (input) input.value = "";
+  if (clearBtn) clearBtn.style.display = "none";
+  state.fishLibrary.query = "";
+  if (state.fishLibrary.tag === "all") {
+    loadFishLibraryExplore();
+  } else {
+    state.fishLibrary.page = 1;
+    searchFishLibrary(false);
+  }
+}
+
+function selectFishTag(tag) {
+  state.fishLibrary.tag = tag;
+  document.querySelectorAll("#fish-tags-chips .fish-tag-pill").forEach(p => {
+    p.classList.toggle("active", p.dataset.tag === tag);
+  });
+  if (tag === "all" && !state.fishLibrary.query) {
+    loadFishLibraryExplore();
+  } else {
+    state.fishLibrary.page = 1;
+    searchFishLibrary(false);
+  }
+}
+
+function handleFishFilterChange() {
+  const langSel = document.getElementById("fish-lang-select");
+  const sortSel = document.getElementById("fish-sort-select");
+  if (langSel) state.fishLibrary.language = langSel.value;
+  if (sortSel) state.fishLibrary.sortBy = sortSel.value;
+  state.fishLibrary.page = 1;
+  searchFishLibrary(false);
+}
+
+async function searchFishLibrary(isLoadMore = false) {
+  const container = document.getElementById("fish-discovery-content");
+  if (!container) return;
+
+  if (!isLoadMore) {
+    container.innerHTML = `
+      <div class="fish-loading-state">
+        <div class="spinner"></div>
+        <div style="margin-top: 14px; font-size: 13.5px; color: var(--text-muted); font-weight: 500;">
+          Searching 2M+ Fish Audio voice models...
+        </div>
+      </div>
+    `;
+  }
+
+  const q = state.fishLibrary.query || "";
+  const tag = state.fishLibrary.tag || "all";
+  const lang = state.fishLibrary.language || "all";
+  const sortBy = state.fishLibrary.sortBy || "score";
+  const page = state.fishLibrary.page || 1;
+
+  const url = `/api/fish_library/search?q=${encodeURIComponent(q)}&tag=${encodeURIComponent(tag)}&language=${encodeURIComponent(lang)}&sort_by=${encodeURIComponent(sortBy)}&page_size=24&page_number=${page}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "Search request failed");
+    }
+
+    const items = data.items || [];
+    state.fishLibrary.total = data.total || items.length;
+    state.fishLibrary.hasMore = data.has_more || false;
+
+    if (!isLoadMore) {
+      if (items.length === 0) {
+        container.innerHTML = `
+          <div class="fish-empty-state">
+            <div style="font-size: 36px; margin-bottom: 8px;">🔍</div>
+            <div style="font-size: 15px; font-weight: 700; color: #f8fafc; margin-bottom: 4px;">No matching voices found</div>
+            <div style="font-size: 12.5px; color: var(--text-muted); max-width: 440px; line-height: 1.4; margin-bottom: 14px;">
+              Try searching with another name or style (e.g. "adam", "narrator", "deep"), selecting "All Languages", or clearing filters.
+            </div>
+            <button class="btn btn-secondary" onclick="clearFishSearch()">Clear All Filters</button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <div style="font-size: 13.5px; font-weight: 600; color: var(--text-muted);">
+            Found <span style="color: #f8fafc; font-weight: 700;">${state.fishLibrary.total.toLocaleString()}</span> voices matching your criteria
+          </div>
+        </div>
+        <div class="fish-voice-grid" id="fish-search-grid">
+          ${items.map(m => renderFishVoiceCardHtml(m)).join("")}
+        </div>
+        <div class="fish-load-more-container" id="fish-load-more-wrap" style="display: ${state.fishLibrary.hasMore ? 'flex' : 'none'};">
+          <button class="fish-load-more-btn" onclick="loadMoreFishSearchResults()">Load More Voices (${items.length}+)</button>
+        </div>
+      `;
+    } else {
+      const grid = document.getElementById("fish-search-grid");
+      if (grid) {
+        const temp = document.createElement("div");
+        temp.innerHTML = items.map(m => renderFishVoiceCardHtml(m)).join("");
+        while (temp.firstChild) {
+          grid.appendChild(temp.firstChild);
+        }
+      }
+      const wrap = document.getElementById("fish-load-more-wrap");
+      if (wrap) wrap.style.display = state.fishLibrary.hasMore ? "flex" : "none";
+    }
+  } catch (err) {
+    console.error("Search error:", err);
+    if (!isLoadMore) {
+      container.innerHTML = `
+        <div class="fish-empty-state">
+          <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
+          <div style="font-size: 14px; font-weight: 700; color: #ef4444; margin-bottom: 4px;">Search Failed</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">${escapeHtml(err.message)}</div>
+          <button class="btn btn-secondary" onclick="searchFishLibrary(false)">Try Again</button>
+        </div>
+      `;
+    }
+  }
+}
+
+function loadMoreFishSearchResults() {
+  state.fishLibrary.page = (state.fishLibrary.page || 1) + 1;
+  searchFishLibrary(true);
+}
+
+function formatFishCount(n) {
+  if (!n) return "0";
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + " M";
+  if (n >= 1000) return (n / 1000).toFixed(1) + " K";
+  return String(n);
+}
+
+function getGradientForName(str) {
+  const gradients = [
+    "linear-gradient(135deg, #6366f1, #8b5cf6)",
+    "linear-gradient(135deg, #ec4899, #f43f5e)",
+    "linear-gradient(135deg, #10b981, #059669)",
+    "linear-gradient(135deg, #f59e0b, #d97706)",
+    "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+    "linear-gradient(135deg, #8b5cf6, #d946ef)",
+    "linear-gradient(135deg, #06b6d4, #0891b2)",
+    "linear-gradient(135deg, #14b8a6, #0d9488)"
+  ];
+  let hash = 0;
+  for (let i = 0; i < (str || "").length; i++) hash += str.charCodeAt(i);
+  return gradients[Math.abs(hash) % gradients.length];
+}
+
+function renderFishVoiceCardHtml(item) {
+  const isPlaying = state.fishLibrary.activePlayingId === item.id;
+  const isSaved = state.fishLibrary.savedModelIds.has(item.id) || (state.voices || []).some(v => v.id === `fish_${item.id}` || v.source_model_id === item.id);
+  const jsonPayload = JSON.stringify(item).replace(/"/g, "&quot;");
+  const avatarInitials = (item.title || "VO").slice(0, 2).toUpperCase();
+
+  return `
+    <div class="fish-voice-card" id="fish-card-${item.id}">
+      <div class="fish-card-top">
+        ${item.cover_url ? `
+          <img src="${item.cover_url}" class="fish-card-avatar" alt="${escapeHtml(item.title)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <div class="fish-card-avatar-fallback" style="display: none; background: ${getGradientForName(item.title)};">${escapeHtml(avatarInitials)}</div>
+        ` : `
+          <div class="fish-card-avatar-fallback" style="background: ${getGradientForName(item.title)};">${escapeHtml(avatarInitials)}</div>
+        `}
+        <div class="fish-card-info">
+          <div class="fish-card-title-row">
+            <span class="fish-card-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</span>
+            ${item.is_official ? '<span class="fish-official-badge" title="Official Fish Audio Model">✓</span>' : ''}
+            <span class="fish-card-author" title="${escapeHtml(item.author || item.author_name || '')}">· ${escapeHtml(item.author || item.author_name || 'Community')}</span>
+          </div>
+          <div class="fish-card-desc" title="${escapeHtml(item.description)}">${escapeHtml(item.description || 'Expressive AI voice clone on Fish Audio')}</div>
+          <div class="fish-card-tags">
+            <span class="fish-tag-pill-sm lang">${item.languages && item.languages[0] ? item.languages[0].toUpperCase() : 'EN'}</span>
+            <span class="fish-tag-pill-sm gender">${escapeHtml(item.gender || 'Custom')}</span>
+            ${(item.tags || []).slice(0, 2).map(t => `<span class="fish-tag-pill-sm">${escapeHtml(t)}</span>`).join('')}
+            ${(item.tags || []).length > 2 ? `<span class="fish-tag-pill-sm">+${(item.tags || []).length - 2}</span>` : ''}
+          </div>
+          <div class="fish-card-stats">
+            <span>▶ ${formatFishCount(item.task_count)}</span>
+            <span>❤️ ${formatFishCount(item.like_count)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="fish-card-actions">
+        <button type="button" class="fish-btn-sample ${isPlaying ? 'playing' : ''}" id="fish-play-btn-${item.id}" onclick="toggleFishAudioSample('${item.id}', '${item.sample_audio || ''}', this)">
+          ${isPlaying ? '⏸ Pause' : '▶ Sample'}
+        </button>
+        <button type="button" class="fish-btn-use" onclick="useFishVoiceModel(${jsonPayload}, this)" title="Instantly clone & assign to selected sentence block">
+          ⚡ Use Voice
+        </button>
+        <button type="button" class="fish-btn-save ${isSaved ? 'saved' : ''}" onclick="saveFishVoiceModel(${jsonPayload}, this)" title="${isSaved ? 'Saved in My Library' : 'Save to My Library'}">
+          ${isSaved ? '✓ Saved' : '💾'}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function toggleFishAudioSample(id, sampleUrl, btnEl) {
+  if (!sampleUrl) {
+    showToast("No playable audio sample available for this model", "warning");
+    return;
+  }
+
+  // If already playing this ID, pause it
+  if (state.fishLibrary.activePlayingId === id && state.sampleAudioPlayer && !state.sampleAudioPlayer.paused) {
+    state.sampleAudioPlayer.pause();
+    state.fishLibrary.activePlayingId = null;
+    if (btnEl) {
+      btnEl.classList.remove("playing");
+      btnEl.innerHTML = "▶ Sample";
+    }
+    return;
+  }
+
+  // Reset any other play button
+  if (state.fishLibrary.activePlayingId) {
+    const prevBtn = document.getElementById(`fish-play-btn-${state.fishLibrary.activePlayingId}`);
+    if (prevBtn) {
+      prevBtn.classList.remove("playing");
+      prevBtn.innerHTML = "▶ Sample";
+    }
+  }
+
+  state.fishLibrary.activePlayingId = id;
+  if (btnEl) {
+    btnEl.classList.add("playing");
+    btnEl.innerHTML = "⏸ Pause";
+  }
+
+  if (state.storyAudioPlayer && !state.storyAudioPlayer.paused) {
+    state.storyAudioPlayer.pause();
+  }
+
+  state.sampleAudioPlayer.src = sampleUrl;
+  state.sampleAudioPlayer.play().catch(e => {
+    console.error("Audio playback error:", e);
+    if (btnEl) {
+      btnEl.classList.remove("playing");
+      btnEl.innerHTML = "▶ Sample";
+    }
+    state.fishLibrary.activePlayingId = null;
+  });
+
+  state.sampleAudioPlayer.onended = () => {
+    if (btnEl) {
+      btnEl.classList.remove("playing");
+      btnEl.innerHTML = "▶ Sample";
+    }
+    state.fishLibrary.activePlayingId = null;
+  };
+}
+
+async function useFishVoiceModel(item, btnEl) {
+  if (!item || !item.id) return;
+  const originalText = btnEl ? btnEl.innerHTML : "";
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.innerHTML = `<span class="spinner-inline"></span> Cloning...`;
+  }
+
+  try {
+    const res = await fetch("/api/fish_library/install_voice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model_id: item.id,
+        title: item.title,
+        sample_audio: item.sample_audio,
+        sample_text: item.sample_text,
+        description: item.description,
+        gender: item.gender,
+        tags: item.tags
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "Failed to clone voice reference");
+    }
+
+    const newVoice = data.voice;
+    const vIdx = (state.voices || []).findIndex(v => v.id === newVoice.id);
+    if (vIdx >= 0) {
+      state.voices[vIdx] = newVoice;
+    } else {
+      state.voices.push(newVoice);
+    }
+    state.fishLibrary.savedModelIds.add(item.id);
+
+    const targetIdx = state.targetBlockForVoice !== null && state.targetBlockForVoice !== undefined 
+      ? state.targetBlockForVoice 
+      : state.activeBlockIndex;
+
+    if (state.currentProject && state.currentProject.blocks && state.currentProject.blocks[targetIdx]) {
+      state.currentProject.blocks[targetIdx].voice_id = newVoice.id;
+      saveCurrentProjectDebounced();
+      renderScriptBlocks();
+      updateInspectorForBlock(targetIdx);
+    }
+
+    showToast(`⚡ Voice "${newVoice.name}" cloned & assigned to Block #${targetIdx + 1}!`, "success");
+    if (btnEl) {
+      btnEl.innerHTML = `✓ Active`;
+      setTimeout(() => {
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.innerHTML = `⚡ Use Voice`;
+        }
+      }, 2000);
+    }
+  } catch (err) {
+    console.error("Error using fish voice:", err);
+    showToast(`Error cloning voice: ${err.message}`, "error");
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.innerHTML = originalText;
+    }
+  }
+}
+
+async function saveFishVoiceModel(item, btnEl) {
+  if (!item || !item.id) return;
+  if (btnEl) {
+    btnEl.disabled = true;
+    btnEl.innerHTML = `⏳`;
+  }
+
+  try {
+    const res = await fetch("/api/fish_library/install_voice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model_id: item.id,
+        title: item.title,
+        sample_audio: item.sample_audio,
+        sample_text: item.sample_text,
+        description: item.description,
+        gender: item.gender,
+        tags: item.tags
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "Failed to save voice");
+    }
+
+    const newVoice = data.voice;
+    const vIdx = (state.voices || []).findIndex(v => v.id === newVoice.id);
+    if (vIdx >= 0) {
+      state.voices[vIdx] = newVoice;
+    } else {
+      state.voices.push(newVoice);
+    }
+    state.fishLibrary.savedModelIds.add(item.id);
+
+    showToast(`💾 "${newVoice.name}" saved to your permanent Voice Library!`, "success");
+    if (btnEl) {
+      btnEl.classList.add("saved");
+      btnEl.innerHTML = `✓ Saved`;
+      btnEl.disabled = false;
+    }
+  } catch (err) {
+    console.error("Error saving fish voice:", err);
+    showToast(`Error saving voice: ${err.message}`, "error");
+    if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.innerHTML = `💾`;
+    }
+  }
+}
+
+function toggleDrawerCreateView() {
+  if (_drawerCurrentMode === "create") {
+    switchDrawerMode("browse");
+  } else {
+    switchDrawerMode("create");
+  }
+}
+
+function handleDrawerSearch(query) {
+  state.searchQuery = query || "";
+  renderVoiceList();
+}
+
+function handleDrawerSort(sortVal) {
+  state.activeSort = sortVal || "recommended";
+  renderVoiceList();
+}
+
+function setDrawerFilter(filterVal) {
+  state.activeFilter = filterVal || "all";
+  document.querySelectorAll("#drawer-filter-pills .filter-pill").forEach(p => {
+    p.classList.toggle("active", p.dataset.filter === filterVal);
+  });
+  renderVoiceList();
 }
 
 function renderVoiceList() {
   const container = document.getElementById("voice-list-body");
+  if (!container) return;
   container.innerHTML = "";
 
-  const query = state.searchQuery.toLowerCase().trim();
-  const filter = state.activeFilter;
-  const sort = state.activeSort;
+  const query = (state.searchQuery || "").toLowerCase().trim();
+  const filter = state.activeFilter || "all";
+  const sort = state.activeSort || "recommended";
+
+  // Update total count badge
+  const countBadge = document.getElementById("drawer-voices-count");
 
   // Characters tab in Voice Drawer
   if (filter === "characters") {
     const charList = (state.savedCharacters || []).filter(c => {
       if (!query) return true;
       const v = getVoiceById(c.voice_id);
-      return c.name.toLowerCase().includes(query) || v.name.toLowerCase().includes(query);
+      return c.name.toLowerCase().includes(query) || (v && v.name.toLowerCase().includes(query));
     });
+
+    if (countBadge) countBadge.textContent = `${charList.length} Cast`;
 
     if (charList.length === 0) {
       container.innerHTML = `
         <div style="text-align: center; color: var(--text-subtle); padding: 40px;">
           No saved characters match your search.<br>
           <span style="font-size: 12px; opacity: 0.8; margin-top: 8px; display: inline-block;">
-            Click "＋ Save Current" in the inspector to save your custom character voices!
+            Save character voices in the Cast panel to access them here!
           </span>
         </div>
       `;
@@ -4481,19 +5289,19 @@ function renderVoiceList() {
 
       card.innerHTML = `
         <div class="voice-card-left">
-          <div class="voice-avatar-badge" style="background-color: ${char.color || v.color}">
+          <div class="voice-avatar-badge" style="background-color: ${char.color || (v ? v.color : '#6366f1')}">
             ${escapeHtml(char.badge || char.name.slice(0, 2).toUpperCase())}
           </div>
           <div class="voice-info">
             <div class="voice-name">🎭 ${escapeHtml(char.name)}</div>
-            <div class="voice-sub">${escapeHtml(v.name)} • ${speedStr}${pitchStr}${filterStr}</div>
+            <div class="voice-sub">${escapeHtml(v ? v.name : 'Voice')} • ${speedStr}${pitchStr}${filterStr}</div>
             <div class="voice-tags-row">
               <span class="voice-tag" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc;">Character Preset</span>
               ${char.fx_filter && char.fx_filter !== 'none' ? `<span class="voice-tag" style="background: rgba(234, 88, 12, 0.2); color: #fb923c;">${char.fx_filter.toUpperCase()}</span>` : ''}
             </div>
           </div>
         </div>
-        <div style="display: flex; gap: 8px;">
+        <div class="voice-card-actions">
           <button class="btn btn-primary assign-voice-btn">Apply Character</button>
         </div>
       `;
@@ -4508,18 +5316,25 @@ function renderVoiceList() {
     return;
   }
 
-  // 1. Filter
-  let list = state.voices.filter(v => {
+  // 1. Filter Voices
+  let list = (state.voices || []).filter(v => {
     const matchQuery = !query || 
       v.name.toLowerCase().includes(query) ||
       (v.timbre && v.timbre.toLowerCase().includes(query)) ||
       (v.accent && v.accent.toLowerCase().includes(query)) ||
-      (v.genre && v.genre.some(g => g.toLowerCase().includes(query)));
+      (v.genre && v.genre.some(g => g.toLowerCase().includes(query))) ||
+      (v.reference_text && v.reference_text.toLowerCase().includes(query));
 
     if (!matchQuery) return false;
 
+    if (filter === "famous") {
+      return v.id && (v.id.startsWith("voice_") || !v.is_custom_ref);
+    }
+    if (filter === "library") {
+      return v.is_custom || v.is_custom_ref || (v.id && (v.id.startsWith("custom_") || v.id.startsWith("custom_lib_"))) || (v.genre && v.genre.includes("Library"));
+    }
     if (filter === "mystery") {
-      return (v.genre && (v.genre.includes("Mystery") || v.genre.includes("Horror") || v.genre.includes("Thriller")));
+      return (v.genre && (v.genre.includes("Mystery") || v.genre.includes("Horror") || v.genre.includes("Thriller") || v.genre.includes("Narrative") || v.genre.includes("Drama") || v.genre.includes("Cinematic")));
     }
     if (filter === "blends") return v.is_blend === true;
     if (filter === "female") return v.gender === "Female";
@@ -4534,13 +5349,16 @@ function renderVoiceList() {
 
   // 2. Sort
   list.sort((a, b) => {
+    if (sort === "newest") {
+      const aTime = a.created_at || (a.id && a.id.startsWith("custom_lib_") ? parseInt(a.id.split("_").pop()) || 0 : 0);
+      const bTime = b.created_at || (b.id && b.id.startsWith("custom_lib_") ? parseInt(b.id.split("_").pop()) || 0 : 0);
+      return bTime - aTime;
+    }
     if (sort === "name_asc") {
       return a.name.localeCompare(b.name);
     }
-    if (sort === "deep_first") {
-      const aDeep = a.timbre && (a.timbre.includes("Bass") || a.timbre.includes("Deep") || a.timbre.includes("Baritone"));
-      const bDeep = b.timbre && (b.timbre.includes("Bass") || b.timbre.includes("Deep") || b.timbre.includes("Baritone"));
-      return (bDeep ? 1 : 0) - (aDeep ? 1 : 0);
+    if (sort === "name_desc") {
+      return b.name.localeCompare(a.name);
     }
     if (sort === "female_first") {
       return (b.gender === "Female" ? 1 : 0) - (a.gender === "Female" ? 1 : 0);
@@ -4548,11 +5366,19 @@ function renderVoiceList() {
     if (sort === "male_first") {
       return (b.gender === "Male" ? 1 : 0) - (a.gender === "Male" ? 1 : 0);
     }
-    // Recommended mystery defaults
-    const aRec = a.is_blend || (a.genre && a.genre.includes("Mystery"));
-    const bRec = b.is_blend || (b.genre && b.genre.includes("Mystery"));
-    return (bRec ? 1 : 0) - (aRec ? 1 : 0);
+    if (sort === "deep_first") {
+      const aDeep = a.timbre && (a.timbre.includes("Bass") || a.timbre.includes("Deep") || a.timbre.includes("Baritone"));
+      const bDeep = b.timbre && (b.timbre.includes("Bass") || b.timbre.includes("Deep") || b.timbre.includes("Baritone"));
+      return (bDeep ? 1 : 0) - (aDeep ? 1 : 0);
+    }
+    // Recommended famous defaults first
+    const aFam = a.id && a.id.startsWith("voice_");
+    const bFam = b.id && b.id.startsWith("voice_");
+    if (aFam !== bFam) return (bFam ? 1 : 0) - (aFam ? 1 : 0);
+    return 0;
   });
+
+  if (countBadge) countBadge.textContent = `${list.length} Voices`;
 
   if (list.length === 0) {
     container.innerHTML = `<div style="text-align: center; color: var(--text-subtle); padding: 40px;">No voices match your search or filter.</div>`;
@@ -4562,28 +5388,34 @@ function renderVoiceList() {
   list.forEach(v => {
     const card = document.createElement("div");
     card.className = "voice-card";
-    const sampleUrl = v.sample_url || `/api/audio/sample_${v.id}.wav`;
+    const sampleUrl = v.sample_url || (v.reference_audio ? (v.reference_audio.startsWith("/") ? v.reference_audio : "/" + v.reference_audio) : `/api/audio/sample_${v.id}.wav`);
+    const isCustomVoice = v.is_custom || v.is_custom_ref || (v.id && (v.id.startsWith("custom_") || v.id.startsWith("custom_lib_")));
 
     card.innerHTML = `
       <div class="voice-card-left">
-        <div class="voice-avatar-badge" style="background-color: ${v.color}">
-          ${v.badge || v.id.slice(0, 2).toUpperCase()}
+        <div class="voice-avatar-badge" style="background-color: ${v.color || '#6366f1'}">
+          ${escapeHtml(v.badge || (v.name ? v.name.slice(0, 2).toUpperCase() : 'VO'))}
         </div>
         <div class="voice-info">
-          <div class="voice-name">${v.flag || ""} ${v.name}</div>
-          <div class="voice-sub">${v.timbre || `${v.gender} • ${v.accent}`}</div>
+          <div class="voice-name">
+            ${v.flag || ""} ${escapeHtml(v.name)}
+            ${isCustomVoice ? `<span class="badge-mini" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 10px; margin-left: 5px;">CUSTOM</span>` : ''}
+          </div>
+          <div class="voice-sub">${escapeHtml(v.timbre || `${v.gender || 'Neutral'} • ${v.accent || 'Natural'}`)}</div>
           <div class="voice-tags-row">
-            ${(v.genre || []).map(g => `<span class="voice-tag">${g}</span>`).join("")}
+            ${(v.genre || []).map(g => `<span class="voice-tag">${escapeHtml(g)}</span>`).join("")}
           </div>
         </div>
       </div>
-      <div style="display: flex; gap: 8px;">
+      <div class="voice-card-actions">
         <button class="btn btn-secondary preview-voice-btn" title="Instant sample playback">▶ Sample</button>
-        <button class="btn btn-primary assign-voice-btn">Use</button>
+        <button class="btn btn-primary assign-voice-btn" title="Use voice">Use</button>
+        <button class="icon-btn edit-voice-btn" title="Edit voice metadata">✏️</button>
+        ${isCustomVoice ? `<button class="icon-btn delete-btn delete-voice-btn" title="Delete voice from library">🗑️</button>` : ''}
       </div>
     `;
 
-    // INSTANT SAMPLE PLAYBACK (0ms latency from pre-rendered sample files)
+    // Instant Sample Playback
     const previewBtn = card.querySelector(".preview-voice-btn");
     previewBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -4591,9 +5423,28 @@ function renderVoiceList() {
     });
 
     // Use Voice
-    card.querySelector(".assign-voice-btn").addEventListener("click", () => {
+    card.querySelector(".assign-voice-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
       assignVoiceToTarget(v);
     });
+
+    // Edit Voice
+    const editBtn = card.querySelector(".edit-voice-btn");
+    if (editBtn) {
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openDrawerEditVoice(v.id);
+      });
+    }
+
+    // Delete Voice
+    const delBtn = card.querySelector(".delete-voice-btn");
+    if (delBtn) {
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handleDeleteVoiceFromLibrary(v.id, e);
+      });
+    }
 
     container.appendChild(card);
   });
@@ -4601,11 +5452,11 @@ function renderVoiceList() {
 
 function playPreRenderedSample(sampleUrl, btnEl) {
   // If story is currently playing, pause it so samples don't conflict
-  if (state.isPlayingStory || !state.storyAudioPlayer.paused) {
+  if (state.isPlayingStory || (state.storyAudioPlayer && !state.storyAudioPlayer.paused)) {
     pauseStoryPlayback();
   }
 
-  if (state.playingVoiceSampleId === sampleUrl && !state.sampleAudioPlayer.paused) {
+  if (state.playingVoiceSampleId === sampleUrl && state.sampleAudioPlayer && !state.sampleAudioPlayer.paused) {
     state.sampleAudioPlayer.pause();
     btnEl.textContent = "▶ Sample";
     state.playingVoiceSampleId = null;
@@ -4613,11 +5464,16 @@ function playPreRenderedSample(sampleUrl, btnEl) {
   }
 
   // Stop any other voice sample that might be playing
-  state.sampleAudioPlayer.pause();
+  if (state.sampleAudioPlayer) {
+    state.sampleAudioPlayer.pause();
+  }
   document.querySelectorAll(".preview-voice-btn").forEach(b => b.textContent = "▶ Sample");
 
   state.playingVoiceSampleId = sampleUrl;
   btnEl.textContent = "🔊 Playing";
+  if (!state.sampleAudioPlayer) {
+    state.sampleAudioPlayer = new Audio();
+  }
   state.sampleAudioPlayer.src = sampleUrl;
   state.sampleAudioPlayer.play().catch(err => {
     console.warn("Audio play issue, attempting fallback", err);
@@ -4630,7 +5486,12 @@ function playPreRenderedSample(sampleUrl, btnEl) {
 }
 
 function assignVoiceToTarget(voice) {
-  if (!state.currentProject || !state.currentProject.blocks) return;
+  if (!state.currentProject || !state.currentProject.blocks || !state.currentProject.blocks.length) {
+    showToast(`✅ Selected voice "${voice.name}" as active default!`);
+    state.defaultNarratorVoiceId = voice.id;
+    closeVoiceDrawer();
+    return;
+  }
 
   recordHistory(`Change Voice: ${voice.name}`);
 
@@ -4644,6 +5505,10 @@ function assignVoiceToTarget(voice) {
     block.voice_id = voice.id;
     delete block.cachedAudioUrl;
     delete block.cachedSig;
+    if (voice.reference_audio) {
+      block.reference_audio = voice.reference_audio;
+      block.reference_text = voice.reference_text || "";
+    }
     if (voice.blend_weights) {
       block.blend_weights = JSON.parse(JSON.stringify(voice.blend_weights));
     } else {
@@ -4659,6 +5524,169 @@ function assignVoiceToTarget(voice) {
   updateActiveCharacterStatusBanner();
   closeVoiceDrawer();
   showToast(`✓ Applied voice "${voice.name}" to ${targets.length} sentence(s)!`);
+}
+
+function openDrawerEditVoice(voiceId) {
+  const v = getVoiceById(voiceId);
+  if (!v) {
+    showToast("⚠️ Voice not found", "error");
+    return;
+  }
+  window._editingVoiceId = voiceId;
+  window._editSelectedRefPath = v.reference_audio || "";
+
+  const nameEl = document.getElementById("ev-name");
+  if (nameEl) nameEl.value = v.name || "";
+
+  const genderEl = document.getElementById("ev-gender");
+  if (genderEl) genderEl.value = v.gender || "Custom";
+
+  const accentEl = document.getElementById("ev-accent");
+  if (accentEl) accentEl.value = v.accent || "Custom";
+
+  const timbreEl = document.getElementById("ev-timbre");
+  if (timbreEl) timbreEl.value = v.timbre || "";
+
+  const emotionEl = document.getElementById("ev-emotion");
+  if (emotionEl) emotionEl.value = v.default_emotion_tag || "";
+
+  const transEl = document.getElementById("ev-transcript");
+  if (transEl) transEl.value = v.reference_text || "";
+
+  const audioLabel = document.getElementById("ev-ref-filename-label");
+  if (audioLabel) {
+    audioLabel.textContent = v.reference_audio ? v.reference_audio.split("/").pop() : "No reference audio";
+  }
+
+  const playBtn = document.getElementById("btn-play-ev-ref");
+  if (playBtn) {
+    playBtn.style.display = v.reference_audio ? "inline-flex" : "none";
+    playBtn.dataset.url = v.reference_audio || "";
+  }
+
+  switchDrawerMode("edit");
+}
+
+async function handleSaveEditedVoice() {
+  const voiceId = window._editingVoiceId;
+  if (!voiceId) return;
+
+  const name = document.getElementById("ev-name")?.value?.trim();
+  if (!name) {
+    showToast("⚠️ Voice Name is required", "warning");
+    return;
+  }
+
+  const gender = document.getElementById("ev-gender")?.value || "Custom";
+  const accent = document.getElementById("ev-accent")?.value || "Custom";
+  const timbre = document.getElementById("ev-timbre")?.value?.trim() || "";
+  const emotion = document.getElementById("ev-emotion")?.value?.trim() || "";
+  const transcript = document.getElementById("ev-transcript")?.value?.trim() || "";
+  const refPath = window._editSelectedRefPath || "";
+
+  showToast("⏳ Saving voice updates...");
+  try {
+    const res = await fetch("/api/voices/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: voiceId,
+        name,
+        gender,
+        accent,
+        timbre,
+        default_emotion_tag: emotion,
+        reference_text: transcript,
+        reference_audio: refPath
+      })
+    });
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || "Update failed");
+
+    await loadVoices();
+    switchDrawerMode("browse");
+    renderVoiceList();
+    showToast(`✅ Voice "${name}" updated successfully!`);
+  } catch (err) {
+    showToast(`❌ Update failed: ${err.message}`, "error");
+  }
+}
+
+async function handleDeleteVoiceFromLibrary(voiceId, event) {
+  if (event) event.stopPropagation();
+  const v = getVoiceById(voiceId);
+  const name = v ? v.name : voiceId;
+
+  if (!confirm(`Are you sure you want to delete voice "${name}" from your library?`)) {
+    return;
+  }
+
+  showToast(`⏳ Deleting voice "${name}"...`);
+  try {
+    const res = await fetch("/api/voices/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: voiceId })
+    });
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || "Delete failed");
+
+    await loadVoices();
+    renderVoiceList();
+    showToast(`🗑️ Voice "${name}" deleted from library.`);
+  } catch (err) {
+    showToast(`❌ Delete failed: ${err.message}`, "error");
+  }
+}
+
+async function handleEvRefFileUpload(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const fd = new FormData();
+  fd.append("audio", file);
+
+  showToast(`⏳ Uploading "${file.name}"...`);
+  try {
+    const res = await fetch("/api/voices/upload_reference", {
+      method: "POST",
+      body: fd
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Upload failed");
+
+    window._editSelectedRefPath = data.relative_path || data.url;
+    const label = document.getElementById("ev-ref-filename-label");
+    if (label) label.textContent = data.filename;
+
+    const playBtn = document.getElementById("btn-play-ev-ref");
+    if (playBtn) {
+      playBtn.style.display = "inline-flex";
+      playBtn.dataset.url = data.url;
+    }
+    showToast(`✅ Reference audio clip "${file.name}" attached!`);
+  } catch (err) {
+    showToast(`❌ Upload failed: ${err.message}`, "error");
+  }
+}
+
+function handlePlayEvRefAudio(event) {
+  if (event) event.stopPropagation();
+  const btn = document.getElementById("btn-play-ev-ref");
+  const url = btn?.dataset?.url || window._editSelectedRefPath;
+  if (!url) return;
+
+  if (!window._evRefAudio) window._evRefAudio = new Audio();
+  const a = window._evRefAudio;
+  if (a.src.includes(url) && !a.paused) {
+    a.pause();
+    if (btn) btn.textContent = "▶ Play Audio Clip";
+  } else {
+    a.src = url.startsWith("/") ? url : `/${url}`;
+    a.play().catch(() => {});
+    if (btn) btn.textContent = "⏸ Pause Audio Clip";
+    a.onended = () => { if (btn) btn.textContent = "▶ Play Audio Clip"; };
+  }
 }
 
 // ---------------- PROJECT CREATION & FILE IMPORT MODAL ---------------- //
@@ -4834,7 +5862,9 @@ async function handleCreateProjectSubmit() {
   const submitBtn = document.getElementById("btn-create-project-submit");
   const title = (document.getElementById("new-project-title-input")?.value || "").trim() || "Untitled Project";
   const text = (document.getElementById("new-project-text-input")?.value || "").trim();
-  const defaultVoice = document.getElementById("new-project-voice-select")?.value || "blend_fenrir_onyx";
+  const isFish = (state.activeEngine || "fish_s2") === "fish_s2";
+  const fallbackVoice = isFish ? "fish_narrator_dark" : "blend_fenrir_onyx";
+  const defaultVoice = document.getElementById("new-project-voice-select")?.value || fallbackVoice;
 
   isCreatingProject = true;
   if (submitBtn) {
@@ -4847,7 +5877,12 @@ async function handleCreateProjectSubmit() {
     const res = await fetch("/api/projects/new", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, text, default_voice: defaultVoice, defaults: defs })
+      body: JSON.stringify({ 
+        title, 
+        text, 
+        default_voice: defaultVoice, 
+        defaults: defs 
+      })
     });
 
     const newProj = await res.json();
@@ -4896,11 +5931,19 @@ async function handleDoImport() {
   }
   const defaultVoice = document.getElementById("import-voice-select")?.value || state.currentProject?.default_voice || "blend_fenrir_onyx";
   const defs = getProjectDefaultSettings();
+  const cleanPauses = document.getElementById("import-clean-pauses") ? document.getElementById("import-clean-pauses").checked : true;
+  const inlineEllipsis = document.getElementById("import-inline-pause-ellipsis") ? document.getElementById("import-inline-pause-ellipsis").checked : true;
   try {
     const res = await fetch("/api/split_text", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, default_voice: defaultVoice, defaults: defs })
+      body: JSON.stringify({
+        text,
+        default_voice: defaultVoice,
+        defaults: defs,
+        clean_pauses: cleanPauses,
+        inline_ellipsis: inlineEllipsis
+      })
     });
     const blocks = await res.json();
     if (!state.currentProject) {
@@ -4916,6 +5959,313 @@ async function handleDoImport() {
     showToast(`✓ Imported and split into ${blocks.length} sentence blocks!`);
   } catch (err) {
     alert("Import error: " + err);
+  }
+}
+
+
+// ================= KAGGLE 1-CLICK CLOUD GPU AUTOMATION ================= //
+let kagglePollInterval = null;
+
+function switchCloudTab(tabName) {
+  document.querySelectorAll(".cloud-tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".cloud-tab-content").forEach(c => c.classList.remove("active"));
+  const btn = document.getElementById(`tab-btn-${tabName}`);
+  const content = document.getElementById(`tab-content-${tabName}`);
+  if (btn) btn.classList.add("active");
+  if (content) content.classList.add("active");
+}
+
+function handleKaggleDragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const dz = document.getElementById("kaggle-dropzone");
+  if (dz) dz.classList.add("dragover");
+}
+
+function handleKaggleDragLeave(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const dz = document.getElementById("kaggle-dropzone");
+  if (dz) dz.classList.remove("dragover");
+}
+
+function handleKaggleDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const dz = document.getElementById("kaggle-dropzone");
+  if (dz) dz.classList.remove("dragover");
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+    processKaggleJsonFile(e.dataTransfer.files[0]);
+  }
+}
+
+function handleKaggleFileSelect(e) {
+  if (e.target.files && e.target.files.length) {
+    processKaggleJsonFile(e.target.files[0]);
+  }
+}
+
+function processKaggleJsonFile(file) {
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.username && data.key) {
+        const uInput = document.getElementById("kaggle-username-input");
+        const kInput = document.getElementById("kaggle-key-input");
+        if (uInput) uInput.value = data.username;
+        if (kInput) kInput.value = data.key;
+        showToast("📄 Loaded credentials from kaggle.json! Verifying with Kaggle...");
+        await handleVerifyKaggle();
+      } else {
+        alert("Invalid kaggle.json: Must contain 'username' and 'key' fields.");
+      }
+    } catch (err) {
+      alert("Error reading JSON file: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function handleVerifyKaggle() {
+  const uInput = document.getElementById("kaggle-username-input");
+  const kInput = document.getElementById("kaggle-key-input");
+  const statusEl = document.getElementById("kaggle-verify-status");
+  const btn = document.getElementById("btn-verify-kaggle");
+
+  const username = (uInput?.value || "").trim();
+  const key = (kInput?.value || "").trim();
+
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.innerHTML = `<span style="color: var(--text-muted);">⏳ Verifying credentials with Kaggle API...</span>`;
+
+  try {
+    const res = await fetch("/api/cloud/kaggle/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, key })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (statusEl) statusEl.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Verified: @${data.username} • GPU Quota: ${data.quota}</span>`;
+      showToast(`✨ Kaggle account @${data.username} verified! Ready to launch.`);
+    } else {
+      if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger); font-weight: 500;">❌ ${data.error}</span>`;
+    }
+  } catch (err) {
+    if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">Network error verifying with Kaggle: ${err.message}</span>`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function handleLaunchKaggle() {
+  const uInput = document.getElementById("kaggle-username-input");
+  const kInput = document.getElementById("kaggle-key-input");
+  const launchBtn = document.getElementById("btn-launch-kaggle");
+  const stopBtn = document.getElementById("btn-stop-kaggle");
+  const stepper = document.getElementById("kaggle-stepper-box");
+  const statusEl = document.getElementById("kaggle-verify-status");
+  const warnEl = document.getElementById("kaggle-key-warning");
+
+  const username = (uInput?.value || "").trim();
+  const key = (kInput?.value || "").trim();
+
+  if (key.startsWith("sk-fish-")) {
+    if (warnEl) {
+      warnEl.style.display = "block";
+      warnEl.innerHTML = "⚠️ That's a Fish Audio API key! Please use the 'Fish Audio Pro API' tab above. For Kaggle GPU, use your 32-character token from kaggle.json.";
+    }
+    return;
+  }
+
+  if (!username && !key) {
+    const res = await fetch("/api/config");
+    const cfg = await res.json();
+    if (!cfg.kaggle_username && !cfg.kaggle_has_key) {
+      alert("Please provide your Kaggle Username & API Key or drop your kaggle.json file first.");
+      return;
+    }
+  }
+
+  if (launchBtn) {
+    launchBtn.disabled = true;
+    launchBtn.textContent = "⏳ Launching GPU...";
+  }
+  if (stepper) stepper.style.display = "flex";
+  setKaggleStep(1, "active");
+  setKaggleStep(2, "idle");
+  setKaggleStep(3, "idle");
+
+  try {
+    const res = await fetch("/api/cloud/kaggle/launch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, key })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast("🚀 Kaggle GPU kernel pushed! Container is booting up...");
+      setKaggleStep(1, "completed");
+      setKaggleStep(2, "active");
+      if (stopBtn) stopBtn.style.display = "inline-block";
+      startKagglePolling();
+    } else {
+      if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">❌ ${data.error}</span>`;
+      if (launchBtn) {
+        launchBtn.disabled = false;
+        launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+      }
+      setKaggleStep(1, "error");
+    }
+  } catch (err) {
+    alert("Launch request failed: " + err.message);
+    if (launchBtn) {
+      launchBtn.disabled = false;
+      launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+    }
+  }
+}
+
+function setKaggleStep(stepNum, state) {
+  const item = document.getElementById(`k-step-${stepNum}`);
+  const dot = document.getElementById(`k-step-dot-${stepNum}`);
+  if (!item || !dot) return;
+  item.classList.remove("active", "completed");
+  if (state === "active") {
+    item.classList.add("active");
+    dot.textContent = "⏳";
+  } else if (state === "completed") {
+    item.classList.add("completed");
+    dot.textContent = "✓";
+  } else {
+    dot.textContent = stepNum.toString();
+  }
+}
+
+function startKagglePolling() {
+  clearInterval(kagglePollInterval);
+  kagglePollInterval = setInterval(checkKaggleStatus, 4000);
+  checkKaggleStatus();
+}
+
+async function checkKaggleStatus() {
+  try {
+    const res = await fetch("/api/cloud/kaggle/status");
+    const data = await res.json();
+    const terminal = document.getElementById("kaggle-log-terminal");
+    const launchBtn = document.getElementById("btn-launch-kaggle");
+    const stopBtn = document.getElementById("btn-stop-kaggle");
+
+    if (terminal && data.last_log) {
+      terminal.textContent = data.last_log;
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    if (data.status === "queued") {
+      setKaggleStep(1, "completed");
+      setKaggleStep(2, "active");
+      if (launchBtn) launchBtn.textContent = `⏳ Queued (${data.elapsed_seconds}s)...`;
+    } else if (data.status === "booting") {
+      setKaggleStep(1, "completed");
+      setKaggleStep(2, "active");
+      if (launchBtn) launchBtn.textContent = `⏳ Booting GPU & Weights (${data.elapsed_seconds}s)...`;
+    } else if (data.status === "ready" && data.tunnel_url) {
+      setKaggleStep(1, "completed");
+      setKaggleStep(2, "completed");
+      setKaggleStep(3, "completed");
+      clearInterval(kagglePollInterval);
+      if (launchBtn) {
+        launchBtn.textContent = "🟢 GPU Active & Connected!";
+        launchBtn.style.background = "#10b981";
+        launchBtn.disabled = true;
+      }
+      if (stopBtn) stopBtn.style.display = "inline-block";
+      showToast("🎉 Kaggle Tesla T4 GPU connected! Studio is ready for ultra-fast generation!");
+      
+      state.config.remote_worker_url = data.tunnel_url;
+      state.config.active = true;
+      updateEngineBadges();
+      const colabBanner = document.getElementById("colab-status-banner");
+      if (colabBanner) {
+        colabBanner.className = "colab-status-banner online";
+        const bt = document.getElementById("banner-title");
+        if (bt) bt.textContent = "Active Mode: Kaggle GPU (Tesla T4)";
+        const bd = document.getElementById("banner-desc");
+        if (bd) bd.textContent = `Connected securely to Kaggle worker via ${data.tunnel_url}`;
+      }
+    } else if (data.status === "stopped") {
+      clearInterval(kagglePollInterval);
+      if (launchBtn) {
+        launchBtn.disabled = false;
+        launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+        launchBtn.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
+      }
+      if (stopBtn) stopBtn.style.display = "none";
+      const stepper = document.getElementById("kaggle-stepper-box");
+      if (stepper) stepper.style.display = "none";
+    } else if (data.status === "error") {
+      clearInterval(kagglePollInterval);
+      if (launchBtn) {
+        launchBtn.disabled = false;
+        launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+        launchBtn.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
+      }
+      showToast("❌ Kaggle GPU container error: " + (data.error || "Execution failed"), 6000);
+    }
+  } catch (e) {
+    console.warn("Poll status notice:", e);
+  }
+}
+
+async function handleStopKaggle() {
+  if (!confirm("Stop the Kaggle GPU session now? This terminates the container and immediately stops charging your free weekly hours.")) return;
+  clearInterval(kagglePollInterval);
+  const stopBtn = document.getElementById("btn-stop-kaggle");
+  const launchBtn = document.getElementById("btn-launch-kaggle");
+  if (stopBtn) {
+    stopBtn.disabled = true;
+    stopBtn.textContent = "⏳ Stopping...";
+  }
+
+  try {
+    const res = await fetch("/api/cloud/kaggle/stop", { method: "POST" });
+    const data = await res.json();
+    showToast("⏹ Kaggle GPU session terminated. Quota conserved!");
+    if (stopBtn) {
+      stopBtn.style.display = "none";
+      stopBtn.disabled = false;
+      stopBtn.textContent = "⏹ Stop GPU Session";
+    }
+    if (launchBtn) {
+      launchBtn.disabled = false;
+      launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+      launchBtn.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
+    }
+    const stepper = document.getElementById("kaggle-stepper-box");
+    if (stepper) stepper.style.display = "none";
+
+    // Clean up local state & banner
+    if (state.config) {
+      state.config.remote_worker_url = "";
+      state.config.fish_remote_worker_url = "";
+      state.config.active = false;
+    }
+    updateEngineBadges();
+    const colabBanner = document.getElementById("colab-status-banner");
+    if (colabBanner) {
+      colabBanner.className = "colab-status-banner offline";
+      const bt = document.getElementById("banner-title");
+      if (bt) bt.textContent = "Current Mode: Local CPU Engine";
+      const bd = document.getElementById("banner-desc");
+      if (bd) bd.textContent = "Generating on laptop CPU. Click '🚀 Launch Cloud GPU' whenever you're ready to start again!";
+    }
+    const terminal = document.getElementById("kaggle-log-terminal");
+    if (terminal) terminal.textContent = "Session stopped. Ready to launch again.";
+  } catch (err) {
+    showToast("⚠️ Could not stop session: " + err.message, 5000);
+  } finally {
+    if (stopBtn) stopBtn.disabled = false;
   }
 }
 
@@ -4937,6 +6287,72 @@ function openColabModal() {
   if (keyInput) {
     keyInput.value = (state.config && state.config.fish_api_key) || "";
   }
+
+  // Auto-populate Kaggle credentials if present
+  fetch("/api/config").then(r => r.json()).then(cfg => {
+    if (cfg.kaggle_username) {
+      const ku = document.getElementById("kaggle-username-input");
+      if (ku && !ku.value) ku.value = cfg.kaggle_username;
+      const statusEl = document.getElementById("kaggle-verify-status");
+      if (statusEl && !statusEl.innerHTML) {
+        statusEl.innerHTML = `<span style="color: #10b981;">✓ Detected Kaggle account @${cfg.kaggle_username}</span>`;
+      }
+    }
+  }).catch(() => {});
+
+  // Check if Kaggle worker is currently running in background
+  fetch("/api/cloud/kaggle/status").then(r => r.json()).then(st => {
+    const stepper = document.getElementById("kaggle-stepper-box");
+    const stopBtn = document.getElementById("btn-stop-kaggle");
+    const launchBtn = document.getElementById("btn-launch-kaggle");
+    const colabBanner = document.getElementById("colab-status-banner");
+
+    if (st.status === "ready" && st.tunnel_url) {
+      if (stepper) stepper.style.display = "flex";
+      setKaggleStep(1, "completed");
+      setKaggleStep(2, "completed");
+      setKaggleStep(3, "completed");
+      if (stopBtn) stopBtn.style.display = "inline-block";
+      if (launchBtn) {
+        launchBtn.textContent = "🟢 GPU Active & Connected";
+        launchBtn.style.background = "#10b981";
+        launchBtn.disabled = true;
+      }
+      if (colabBanner) {
+        colabBanner.className = "colab-status-banner online";
+        const bt = document.getElementById("banner-title");
+        if (bt) bt.textContent = "Active Mode: Kaggle GPU (Tesla T4)";
+        const bd = document.getElementById("banner-desc");
+        if (bd) bd.textContent = `Connected securely to Kaggle worker via ${st.tunnel_url}`;
+      }
+    } else if (st.status === "queued" || st.status === "booting") {
+      if (stepper) stepper.style.display = "flex";
+      if (stopBtn) stopBtn.style.display = "inline-block";
+      if (launchBtn) {
+        launchBtn.disabled = true;
+        launchBtn.textContent = st.status === "queued" ? `⏳ Queued (${st.elapsed_seconds || 0}s)...` : `⏳ Booting GPU (${st.elapsed_seconds || 0}s)...`;
+      }
+      startKagglePolling();
+    } else {
+      // Stopped or idle
+      if (stepper) stepper.style.display = "none";
+      if (stopBtn) stopBtn.style.display = "none";
+      if (launchBtn) {
+        launchBtn.disabled = false;
+        launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+        launchBtn.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
+      }
+      if (!state.config?.remote_worker_url) {
+        if (colabBanner) {
+          colabBanner.className = "colab-status-banner offline";
+          const bt = document.getElementById("banner-title");
+          if (bt) bt.textContent = "Current Mode: Local CPU Engine";
+          const bd = document.getElementById("banner-desc");
+          if (bd) bd.textContent = "Generating on laptop CPU (~14s per sentence). Connect Cloud GPU for 100x speed!";
+        }
+      }
+    }
+  }).catch(() => {});
 }
 
 function closeColabModal() {
@@ -5149,10 +6565,32 @@ async function switchGlobalActiveEngine(engineChoice) {
     console.error("Failed to save active engine config", err);
   }
 
+  // Update studio duplicate button
+  const studioCopyBtn = document.getElementById("btn-studio-copy-engine");
+  if (studioCopyBtn) {
+    const icon = document.getElementById("studio-copy-engine-icon");
+    const txt = document.getElementById("studio-copy-engine-text");
+    if (icon) icon.textContent = isFish ? "⚡" : "🐟";
+    if (txt) txt.textContent = isFish ? "Copy to Kokoro" : "Copy to Fish S2";
+    studioCopyBtn.title = isFish ? "Duplicate and convert this story to Kokoro Fast CPU Studio" : "Duplicate and upgrade this story to Fish Audio S2 Pro Studio";
+  }
+
   // Reload voices for active engine
   await loadVoices();
-  renderStudio();
-  showToast(`Switched active engine to: ${isFish ? 'Fish Audio S2 Pro' : 'Kokoro ONNX'}`);
+
+  // If on dashboard, re-render dashboard immediately
+  const dashView = document.getElementById("view-dashboard");
+  if (dashView && dashView.style.display !== "none") {
+    renderDashboard();
+  }
+
+  // If in studio view, re-render studio
+  const studioView = document.getElementById("view-studio");
+  if (studioView && studioView.style.display !== "none") {
+    renderStudio();
+  }
+
+  showToast(`Switched active studio to: ${isFish ? 'Fish Audio S2 Pro' : 'Kokoro Fast CPU'}`);
 }
 
 function handleQuickEmotionClick(tag) {
@@ -5427,7 +6865,15 @@ async function exportSelectedAudio() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(createBlockSynthesizePayload(block))
         });
-        const data = await res.json();
+        let data = null;
+        const cType = res.headers.get("content-type") || "";
+        if (cType.includes("application/json")) {
+          data = await res.json().catch(() => null);
+        }
+        if (!data) {
+          const rawText = await res.text().catch(() => "");
+          throw new Error(`Server returned HTTP ${res.status}${rawText ? `: ${rawText.slice(0, 120)}` : ""}`);
+        }
         if (data.audio_url) {
           block.cachedAudioUrl = data.audio_url;
           block.duration = data.duration;
@@ -5700,6 +7146,46 @@ function setupEventListeners() {
   document.getElementById("btn-back-to-dashboard")?.addEventListener("click", () => {
     switchToView("dashboard");
   });
+
+  // Kaggle API Key auto-validation against Fish Audio key cross-paste
+  const kaggleKeyInput = document.getElementById("kaggle-key-input");
+  const kaggleKeyWarn = document.getElementById("kaggle-key-warning");
+  if (kaggleKeyInput) {
+    kaggleKeyInput.addEventListener("input", () => {
+      const val = (kaggleKeyInput.value || "").trim();
+      if (val.startsWith("sk-fish-") || val.length > 42) {
+        if (kaggleKeyWarn) {
+          kaggleKeyWarn.style.display = "block";
+          kaggleKeyWarn.innerHTML = "⚠️ <strong>Notice:</strong> This looks like a Fish Audio API key (starts with <code>sk-fish-</code>). We have automatically moved it under the <strong>🔑 Fish Audio Pro API</strong> tab! For Kaggle GPU, please paste your 32-character token from <code>kaggle.json</code>.";
+        }
+        const fishInput = document.getElementById("fish-api-key-input");
+        if (fishInput) fishInput.value = val;
+        fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fish_api_key: val })
+        }).catch(() => {});
+      } else {
+        if (kaggleKeyWarn) kaggleKeyWarn.style.display = "none";
+      }
+    });
+  }
+
+  // Quota Protection: Send beacon on browser/tab close to automatically terminate Kaggle worker
+  window.addEventListener("beforeunload", () => {
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon("/api/cloud/kaggle/beacon_close");
+      }
+    } catch (e) {}
+  });
+
+  // Regular 25s heartbeat while Studio tab is alive
+  setInterval(() => {
+    if (!document.hidden) {
+      fetch("/api/cloud/kaggle/heartbeat", { method: "POST" }).catch(() => {});
+    }
+  }, 25000);
 
   // Dashboard Hero Dropzone drag & drop
   const dashDropzone = document.getElementById("dashboard-dropzone");
@@ -6248,14 +7734,56 @@ function setupEventListeners() {
   }
 }
 
+function isPauseTag(tagStr) {
+  const content = tagStr.replace(/[\[\]\s]/g, "").toLowerCase();
+  return content.startsWith("pause");
+}
+
 function splitTextIntoSentences(text) {
   if (!text) return [];
   const raw = text.replace(/\r\n/g, "\n").trim();
-  const sentences = raw
-    .split(/(?<=[.!?]["'”’]?)\s+(?=[A-Z0-9"“'‘])|\n{2,}|\n+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0);
-  return sentences.length > 0 ? sentences : [raw];
+  if (!raw) return [];
+
+  const rawLines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+  const results = [];
+
+  rawLines.forEach(line => {
+    let marked = line.replace(/\[[^\]]+\]/g, (tag, offset) => {
+      if (isPauseTag(tag)) return tag;
+      if (offset === 0) return tag;
+      return `\u0000${tag}`;
+    });
+
+    const tagChunks = marked.split("\u0000").map(c => c.trim()).filter(Boolean);
+
+    tagChunks.forEach(chunk => {
+      let cleanChunk = chunk.replace(/^(\[[^\]]+\])([A-Za-z0-9])/g, "$1 $2").trim();
+      if (!cleanChunk) return;
+
+      // Extract trailing [pause] or [pause: 0.8s]
+      let cardPauseAfter = 0.5;
+      const trailingMatch = cleanChunk.match(/\[pause(?:\s*[:=]?\s*([\d.]+)\s*s?)?\]\s*$/i);
+      if (trailingMatch) {
+        if (trailingMatch[1]) {
+          cardPauseAfter = parseFloat(trailingMatch[1]);
+        }
+        cleanChunk = cleanChunk.replace(/\[pause(?:\s*[:=]?\s*[\d.]+\s*s?)?\]\s*$/i, "").trim();
+      }
+
+      // Strip leading [pause]
+      cleanChunk = cleanChunk.replace(/^\s*\[pause(?:\s*[:=]?\s*[\d.]+\s*s?)?\]\s*/i, "").trim();
+
+      if (cleanChunk) {
+        results.push({
+          text: cleanChunk,
+          pause_after: cardPauseAfter,
+          hadPauseAfter: Boolean(trailingMatch)
+        });
+      }
+    });
+  });
+
+  return results;
 }
 
 function splitBlock(idx) {
@@ -6263,9 +7791,9 @@ function splitBlock(idx) {
   const block = state.currentProject.blocks[idx];
   if (!block || !block.text) return;
 
-  const sentences = splitTextIntoSentences(block.text);
-  if (sentences.length <= 1) {
-    showToast("ℹ️ This block is already a single sentence.");
+  const items = splitTextIntoSentences(block.text);
+  if (items.length <= 1) {
+    showToast("ℹ️ This block has no additional emotion tags to split.");
     return;
   }
 
@@ -6283,14 +7811,16 @@ function splitBlock(idx) {
   const baseFilter = block.fx_filter || (block.radio_fx ? "radio" : defs.fx_filter);
   const baseBlend = block.blend_weights ? JSON.parse(JSON.stringify(block.blend_weights)) : (defs.blend_weights ? JSON.parse(JSON.stringify(defs.blend_weights)) : undefined);
 
-  const newBlocks = sentences.map((sent, sIdx) => {
+  const newBlocks = items.map((item, sIdx) => {
+    const itemText = (typeof item === "string") ? item : item.text;
+    const itemPause = (typeof item === "object" && item.pause_after !== undefined) ? item.pause_after : basePause;
     const newB = {
-      id: `${block.id || 'b'}_s${sIdx + 1}_${Date.now()}`,
-      text: sent,
+      id: `${block.id || "b"}_s${sIdx + 1}_${Date.now()}`,
+      text: itemText,
       voice_id: baseVoice,
       speed: baseSpeed,
       gain: baseGain,
-      pause_after: basePause,
+      pause_after: itemPause,
       pitch_shift: basePitch,
       warmth: baseWarmth,
       clarity: baseClarity,
@@ -6308,7 +7838,7 @@ function splitBlock(idx) {
   state.activeBlockIndex = idx;
   renderStudio();
   debouncedSave();
-  showToast(`✂️ Split paragraph into ${sentences.length} sentences for faster inference!`);
+  showToast(`✂️ Split into ${newBlocks.length} sentence blocks!`);
 }
 
 function handleAutoSplitAll() {
@@ -6323,28 +7853,30 @@ function handleAutoSplitAll() {
       newBlocksList.push(block);
       return;
     }
-    const sentences = splitTextIntoSentences(block.text || "");
-    if (sentences.length > 1) {
-      totalSplits += (sentences.length - 1);
-      const baseVoice = block.voice_id || defs.voice_id;
-      const baseSpeed = block.speed !== undefined ? block.speed : defs.speed;
-      const baseGain = block.gain !== undefined ? block.gain : defs.gain;
-      const basePause = block.pause_after !== undefined ? block.pause_after : defs.pause_after;
-      const basePitch = block.pitch_shift !== undefined ? block.pitch_shift : defs.pitch_shift;
-      const baseWarmth = block.warmth !== undefined ? block.warmth : defs.warmth;
-      const baseClarity = block.clarity !== undefined ? block.clarity : defs.clarity;
-      const baseReverb = block.reverb !== undefined ? block.reverb : defs.reverb;
-      const baseFilter = block.fx_filter || (block.radio_fx ? "radio" : defs.fx_filter);
-      const baseBlend = block.blend_weights ? JSON.parse(JSON.stringify(block.blend_weights)) : (defs.blend_weights ? JSON.parse(JSON.stringify(defs.blend_weights)) : undefined);
+    const items = splitTextIntoSentences(block.text || "");
+    const baseVoice = block.voice_id || defs.voice_id;
+    const baseSpeed = block.speed !== undefined ? block.speed : defs.speed;
+    const baseGain = block.gain !== undefined ? block.gain : defs.gain;
+    const basePause = block.pause_after !== undefined ? block.pause_after : defs.pause_after;
+    const basePitch = block.pitch_shift !== undefined ? block.pitch_shift : defs.pitch_shift;
+    const baseWarmth = block.warmth !== undefined ? block.warmth : defs.warmth;
+    const baseClarity = block.clarity !== undefined ? block.clarity : defs.clarity;
+    const baseReverb = block.reverb !== undefined ? block.reverb : defs.reverb;
+    const baseFilter = block.fx_filter || (block.radio_fx ? "radio" : defs.fx_filter);
+    const baseBlend = block.blend_weights ? JSON.parse(JSON.stringify(block.blend_weights)) : (defs.blend_weights ? JSON.parse(JSON.stringify(defs.blend_weights)) : undefined);
 
-      sentences.forEach((sent, sIdx) => {
+    if (items.length > 1) {
+      totalSplits += (items.length - 1);
+      items.forEach((item, sIdx) => {
+        const itemText = (typeof item === "string") ? item : item.text;
+        const itemPause = (typeof item === "object" && item.pause_after !== undefined) ? item.pause_after : basePause;
         const nb = {
-          id: `${block.id || 'b'}_s${sIdx + 1}_${Date.now()}`,
-          text: sent,
+          id: `${block.id || "b"}_s${sIdx + 1}_${Date.now()}`,
+          text: itemText,
           voice_id: baseVoice,
           speed: baseSpeed,
           gain: baseGain,
-          pause_after: basePause,
+          pause_after: itemPause,
           pitch_shift: basePitch,
           warmth: baseWarmth,
           clarity: baseClarity,
@@ -6360,19 +7892,70 @@ function handleAutoSplitAll() {
     }
   });
 
-  if (totalSplits === 0) {
-    showToast("ℹ️ All blocks are already individual sentences!");
+  if (totalSplits > 0) {
+    recordHistory(`Auto-Split (${totalSplits} new blocks)`);
+    state.currentProject.blocks = newBlocksList;
+    state.selectedBlockIndices = new Set([0]);
+    state.activeBlockIndex = 0;
+    state.lastClickedIndex = 0;
+    renderStudio();
+    debouncedSave();
+    showToast(`✂️ Auto-split into ${newBlocksList.length} blocks!`);
+  } else {
+    showToast("ℹ️ All blocks are already individual emotion beats.");
+  }
+}
+
+function handleCleanPauses() {
+  if (!state.currentProject || !state.currentProject.blocks || state.currentProject.blocks.length === 0) {
+    showToast("⚠️ Open a project with story blocks first.");
     return;
   }
+  recordHistory("Clean [pause] Tags");
+  let cleanedCount = 0;
+  state.currentProject.blocks.forEach((block) => {
+    if (!block.text) return;
+    const originalText = block.text;
+    let t = block.text;
 
-  recordHistory("Auto-Split Sentences");
+    // 1. Check for trailing [pause] or [pause: Xs]
+    const trailingMatch = t.match(/\[pause(?:\s*[:=]?\s*([\d.]+)\s*s?)?\]\s*$/i);
+    if (trailingMatch) {
+      if (trailingMatch[1]) {
+        block.pause_after = parseFloat(trailingMatch[1]);
+      } else if (block.pause_after === undefined || block.pause_after === null) {
+        block.pause_after = 0.5;
+      }
+      t = t.replace(/\[pause(?:\s*[:=]?\s*[\d.]+\s*s?)?\]\s*$/i, "").trim();
+    }
 
-  state.currentProject.blocks = newBlocksList;
-  state.selectedBlockIndices = new Set([0]);
-  state.activeBlockIndex = 0;
+    // 2. Strip leading [pause]
+    t = t.replace(/^\s*\[pause(?:\s*[:=]?\s*[\d.]+\s*s?)?\]\s*/i, "").trim();
+
+    // 3. Convert any mid-sentence [pause] to natural breath ellipsis "..."
+    if (/\[pause(?:\s*[:=]?\s*[\d.]+\s*s?)?\]/i.test(t)) {
+      t = t.replace(/\s*\[pause(?:\s*[:=]?\s*([\d.]+)\s*s?)?\]\s*/gi, "... ");
+    }
+
+    t = t.replace(/\s{2,}/g, " ").trim();
+
+    if (t !== originalText) {
+      cleanedCount++;
+      block.text = t;
+      block.cachedAudioUrl = null;
+      block.audio_hash = null;
+      block.rawAudioUrl = null;
+      block.duration = 0;
+    }
+  });
+
   renderStudio();
   debouncedSave();
-  showToast(`✂️ Auto-split complete! Created ${state.currentProject.blocks.length} single-sentence blocks for ultra-fast rendering.`);
+  if (cleanedCount > 0) {
+    showToast(`🧹 Cleaned [pause] tags from ${cleanedCount} card(s)! Trailing gaps converted to Card Spacing.`);
+  } else {
+    showToast("ℹ️ All cards are already clean — no redundant [pause] tags found.");
+  }
 }
 
 function deleteBlock(idx) {
@@ -6757,6 +8340,8 @@ window.getProjectDefaultSettings = getProjectDefaultSettings;
 window.handleToggleRadioFx = handleToggleRadioFx;
 window.handleSelectAudioFilter = handleSelectAudioFilter;
 window.splitBlock = splitBlock;
+window.handleCleanPauses = handleCleanPauses;
+window.handleReRenderBlock = handleReRenderBlock;
 window.insertBlockAfter = insertBlockAfter;
 window.handleAutoSplitAll = handleAutoSplitAll;
 window.handleAutoDirectStory = handleAutoDirectStory;
@@ -6919,3 +8504,35 @@ window.handleClearTunnelInput = handleClearTunnelInput;
 window.handleClearApiKeyInput = handleClearApiKeyInput;
 
 
+
+
+window.switchCloudTab = switchCloudTab;
+window.handleKaggleDragOver = handleKaggleDragOver;
+window.handleKaggleDragLeave = handleKaggleDragLeave;
+window.handleKaggleDrop = handleKaggleDrop;
+window.handleKaggleFileSelect = handleKaggleFileSelect;
+window.handleVerifyKaggle = handleVerifyKaggle;
+window.handleLaunchKaggle = handleLaunchKaggle;
+window.handleStopKaggle = handleStopKaggle;
+
+
+// Fish Audio Discovery exports
+window.toggleDrawerExpanded = toggleDrawerExpanded;
+window.handleFishSearchInput = handleFishSearchInput;
+window.clearFishSearch = clearFishSearch;
+window.selectFishTag = selectFishTag;
+window.handleFishFilterChange = handleFishFilterChange;
+window.loadFishLibraryExplore = loadFishLibraryExplore;
+window.searchFishLibrary = searchFishLibrary;
+window.loadMoreFishSearchResults = loadMoreFishSearchResults;
+window.quickFilterFishTag = quickFilterFishTag;
+window.toggleFishAudioSample = toggleFishAudioSample;
+window.useFishVoiceModel = useFishVoiceModel;
+window.saveFishVoiceModel = saveFishVoiceModel;
+window.switchDrawerMode = switchDrawerMode;
+window.handleVoiceDrawerBackdropClick = handleVoiceDrawerBackdropClick;
+window.openDrawerEditVoice = openDrawerEditVoice;
+window.handleSaveEditedVoice = handleSaveEditedVoice;
+window.handleDeleteVoiceFromLibrary = handleDeleteVoiceFromLibrary;
+window.handleEvRefFileUpload = handleEvRefFileUpload;
+window.handlePlayEvRefAudio = handlePlayEvRefAudio;
