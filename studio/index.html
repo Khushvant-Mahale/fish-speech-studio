@@ -6,7 +6,7 @@
   <title>Fish Audio S2 Pro Studio — Cinematic Voice Drama</title>
   <link rel="icon" type="image/svg+xml" href="/studio/favicon.svg">
   <link rel="alternate icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/studio/css/studio.css?v=553">
+  <link rel="stylesheet" href="/studio/css/studio.css?v=554">
 </head>
 <body>
 
@@ -18,15 +18,7 @@
         <span class="brand-title" id="dashboard-brand-title">S2 Pro Studio</span>
       </div>
       <div style="display: flex; align-items: center; gap: 12px;">
-        <div class="engine-mode-toggle-group">
-          <button type="button" class="engine-toggle-btn active" id="btn-dash-engine-fish" onclick="switchGlobalActiveEngine('fish_s2')" title="Fish Audio S2 Pro: Zero-shot voice cloning and natural language emotion tags">
-            🐟 S2 Pro
-          </button>
-          <button type="button" class="engine-toggle-btn" id="btn-dash-engine-kokoro" onclick="switchGlobalActiveEngine('kokoro')" title="Kokoro v0.19: Fast local CPU draft inference">
-            ⚡ Kokoro
-          </button>
-        </div>
-        <button class="engine-badge-btn" id="btn-dashboard-engine-status" onclick="openColabModal()" title="Configure Cloud GPU (Google Colab / Kaggle)">
+        <button class="engine-badge-btn" id="btn-dashboard-engine-status" onclick="openColabModal()" title="Configure Cloud GPU (Google Colab / Kaggle) or Fish API">
           <span class="engine-dot"></span>
           <span class="engine-label" id="dashboard-engine-label">🐟 Fish Audio S2 Pro</span>
           <span class="engine-config-tag">⚙️</span>
@@ -146,15 +138,7 @@
       </div>
 
       <div class="nav-center">
-        <div class="engine-mode-toggle-group">
-          <button type="button" class="engine-toggle-btn active" id="btn-studio-engine-fish" onclick="switchGlobalActiveEngine('fish_s2')" title="Fish Audio S2 Pro: Zero-shot voice cloning and natural language emotion tags">
-            🐟 Fish Audio S2 Pro
-          </button>
-          <button type="button" class="engine-toggle-btn" id="btn-studio-engine-kokoro" onclick="switchGlobalActiveEngine('kokoro')" title="Kokoro v0.19: Fast local CPU draft inference">
-            ⚡ Kokoro CPU
-          </button>
-        </div>
-        <button class="engine-badge-btn" id="btn-engine-status" onclick="openColabModal()" title="Configure Cloud GPU (Google Colab / Kaggle)">
+        <button class="engine-badge-btn" id="btn-engine-status" onclick="openColabModal()" title="Configure Cloud GPU (Google Colab / Kaggle) or Fish API">
           <span class="engine-dot"></span>
           <span class="engine-label" id="studio-engine-label">🐟 Fish S2 Pro Engine</span>
           <span class="engine-config-tag">⚙️</span>
@@ -543,7 +527,7 @@
               <span class="control-val" id="val-active-filter" style="color: var(--primary); font-weight: 700; font-size: 12px;">Clean Studio</span>
             </div>
             <div style="font-size: 11.5px; color: var(--text-muted); line-height: 1.4; margin-bottom: 10px;">
-              Transform acoustic space and vocal frequency response without switching the Kokoro actor model.
+              Transform acoustic space and vocal frequency response for cinematic multi-voice delivery.
             </div>
             <div class="fx-filter-grid">
               <button type="button" class="fx-filter-btn active" id="btn-fx-none" onclick="handleSelectAudioFilter('none')" title="Natural studio clean voice without filters">
@@ -575,10 +559,10 @@
           <div class="inspector-section">
             <span class="section-label">TTS Model</span>
             <div style="font-size: 12px; color: var(--text-muted); background: var(--bg-card); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; align-items: center; gap: 8px;">
-              <span>⚡</span>
+              <span>🐟</span>
               <div>
-                <div style="font-weight: 600; color: var(--text-main);">Kokoro v0.19 ONNX</div>
-                <div style="font-size: 10.5px; color: var(--text-muted);">Local 82M Multi-Voice Neural TTS</div>
+                <div style="font-weight: 600; color: var(--text-main);">Fish Audio S2 Pro</div>
+                <div style="font-size: 10.5px; color: var(--text-muted);">Zero-Shot S2 Pro Neural TTS Engine</div>
               </div>
             </div>
           </div>
@@ -1314,11 +1298,8 @@
           <!-- Quick Colab Copy Code -->
           <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="font-size: 12.5px; font-weight: 600; color: var(--text-main);">1-Click Colab Scripts:</span>
-              <div style="display: flex; gap: 6px;">
-                <button class="btn btn-primary" id="btn-copy-colab-fish" onclick="handleCopyColabScript('fish_s2')" style="padding: 3px 8px; font-size: 11px; background: #10b981;">📋 Copy S2 Pro Worker</button>
-                <button class="btn btn-secondary" id="btn-copy-colab-code" onclick="handleCopyColabScript('kokoro')" style="padding: 3px 8px; font-size: 11px;">📋 Kokoro Worker</button>
-              </div>
+              <span style="font-size: 12.5px; font-weight: 600; color: var(--text-main);">1-Click Colab Script:</span>
+              <button class="btn btn-primary" id="btn-copy-colab-fish" onclick="handleCopyColabScript('fish_s2')" style="padding: 3px 8px; font-size: 11px; background: #10b981;">📋 Copy S2 Pro Worker</button>
             </div>
             <ol style="font-size: 12px; color: var(--text-muted); margin: 0; padding-left: 18px; line-height: 1.5;">
               <li>Open a free <a href="https://colab.research.google.com" target="_blank" style="color: var(--primary); text-decoration: underline;">Google Colab notebook</a> with T4 GPU enabled.</li>
@@ -1361,7 +1342,7 @@
         <div>
           <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Voice Actor</label>
           <select id="char-modal-voice-select" class="search-input" style="padding: 8px 10px; font-size: 13px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: var(--radius-sm); width: 100%;">
-            <!-- Dynamically populated with all Kokoro voices -->
+            <!-- Dynamically populated with Fish Audio voices -->
           </select>
         </div>
 
@@ -1609,6 +1590,6 @@
   </div>
 
   <div id="studio-toast" class="studio-toast"></div>
-  <script src="/studio/js/app.js?v=553"></script>
+  <script src="/studio/js/app.js?v=554"></script>
 </body>
 </html>

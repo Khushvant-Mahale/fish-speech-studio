@@ -1,5 +1,5 @@
 """
-Kokoro Audio DSP Engine
+Fish Speech Audio DSP Engine
 =======================
 High-performance audio processing for Story Studio voice editing:
 - Pitch Shift (Semitones, without altering speech duration)

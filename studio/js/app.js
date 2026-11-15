@@ -399,25 +399,13 @@ async function loadConfig() {
 }
 
 function updateEngineUI(remoteUrl, active) {
-  const isFish = (state.activeEngine || "fish_s2") === "fish_s2";
   const hasApi = Boolean(state.config.fish_api_key);
   const isOnline = Boolean(active && remoteUrl);
 
   let badgeText = "🐟 Fish Audio S2 Pro";
-  if (isFish) {
-    if (isOnline) badgeText = "🚀 S2 Pro GPU Active";
-    else if (hasApi) badgeText = "🔑 Fish Cloud API";
-    else badgeText = "🐟 Fish Audio S2 Pro";
-  } else {
-    badgeText = isOnline ? "🚀 Kokoro GPU Active" : "⚡ Kokoro ONNX CPU";
-  }
-
-  // Update engine toggle buttons
-  ["fish", "kokoro"].forEach(eng => {
-    const match = (eng === "fish" && isFish) || (eng === "kokoro" && !isFish);
-    document.getElementById(`btn-dash-engine-${eng}`)?.classList.toggle("active", match);
-    document.getElementById(`btn-studio-engine-${eng}`)?.classList.toggle("active", match);
-  });
+  if (isOnline) badgeText = "🚀 S2 Pro GPU Active";
+  else if (hasApi) badgeText = "🔑 Fish Cloud API";
+  else badgeText = "🐟 Fish Audio S2 Pro";
 
   // Update top bar buttons on both views
   const btns = [
@@ -428,7 +416,7 @@ function updateEngineUI(remoteUrl, active) {
     if (!btn) return;
     const label = btn.querySelector(".engine-label");
     if (label) label.textContent = badgeText;
-    if (isOnline || (isFish && hasApi)) {
+    if (isOnline || hasApi) {
       btn.classList.add("gpu-active");
       btn.title = isOnline ? `Cloud GPU Active: ${remoteUrl}` : "Fish Audio Cloud API Connected";
     } else {
@@ -441,9 +429,9 @@ function updateEngineUI(remoteUrl, active) {
   const statEngineName = document.getElementById("stat-engine-name");
   const statEngineSpeed = document.getElementById("stat-engine-speed");
   const statEngineIcon = document.getElementById("stat-engine-icon");
-  if (statEngineName) statEngineName.textContent = isFish ? (isOnline ? "S2 Pro GPU" : (hasApi ? "Fish API" : "Fish S2 Pro")) : (isOnline ? "Kokoro GPU" : "Kokoro CPU");
+  if (statEngineName) statEngineName.textContent = isOnline ? "S2 Pro GPU" : (hasApi ? "Fish API" : "Fish S2 Pro");
   if (statEngineSpeed) statEngineSpeed.textContent = (isOnline || hasApi) ? "~0.3s per sentence (Fast)" : "Requires Worker / API";
-  if (statEngineIcon) statEngineIcon.textContent = isFish ? "🐟" : "⚡";
+  if (statEngineIcon) statEngineIcon.textContent = "🐟";
 
   // Auto-configure parallel concurrency selector
   const concurrencySelect = document.getElementById("batch-concurrency-select");
@@ -808,23 +796,18 @@ function renderDashboard() {
   grid.innerHTML = "";
 
   const projects = state.projects || [];
-  const activeEngine = state.activeEngine || "fish_s2";
-  const isFish = activeEngine === "fish_s2";
+  state.activeEngine = "fish_s2";
 
-  // Update header branding badge & title to match active studio mode
+  // Update header branding badge & title to match Fish Speech S2 Pro Studio
   const brandBadge = document.getElementById("dashboard-brand-badge");
   const brandTitle = document.getElementById("dashboard-brand-title");
   if (brandBadge) {
-    brandBadge.textContent = isFish ? "Fish Speech" : "Kokoro TTS";
-    brandBadge.style.background = isFish ? "linear-gradient(135deg, #10b981, #059669)" : "linear-gradient(135deg, #f59e0b, #d97706)";
+    brandBadge.textContent = "Fish Speech";
+    brandBadge.style.background = "linear-gradient(135deg, #10b981, #059669)";
   }
   if (brandTitle) {
-    brandTitle.textContent = isFish ? "S2 Pro Studio" : "Fast CPU Studio";
+    brandTitle.textContent = "S2 Pro Studio";
   }
-
-  // Update header toggle buttons active state
-  document.getElementById("btn-dash-engine-fish")?.classList.toggle("active", isFish);
-  document.getElementById("btn-dash-engine-kokoro")?.classList.toggle("active", !isFish);
 
   // 1. Calculate top metrics strip stats (all projects together)
   const totalProjectsCount = projects.length;
@@ -4374,11 +4357,9 @@ async function toggleBatchRender() {
   const blocks = state.currentProject.blocks;
   const total = blocks.length;
 
-  // Concurrency: strictly 1-by-1 for Fish Speech (GPU); 5x parallel for Kokoro (CPU)
-  const activeEng = (state.activeEngine || (state.currentProject && state.currentProject.engine) || "fish_s2").toLowerCase();
-  const isKokoro = activeEng === "kokoro";
-  const concurrency = isKokoro ? 5 : 1;
+  // Concurrency: strictly 1-by-1 for Fish Speech S2 Pro GPU
   const isGPU = Boolean(state.config.active && state.config.remote_worker_url);
+  const concurrency = 1;
 
   // Filter tasks that actually need rendering (skip already cached)
   const tasksToRender = [];
@@ -4429,9 +4410,7 @@ async function toggleBatchRender() {
 
   if (bannerTitle) bannerTitle.textContent = `Batch Synthesizing ${total} Sentences`;
   if (concurrencyTag) {
-    concurrencyTag.textContent = isKokoro
-      ? "⚡ 5x Parallel (Kokoro CPU)"
-      : "🚀 1x Sequential (Fish S2 Pro GPU)";
+    concurrencyTag.textContent = "🚀 Sequential (Fish S2 Pro GPU)";
   }
 
   // State trackers
@@ -6515,11 +6494,10 @@ async function handleClearColab() {
 
 async function handleCopyColabScript(engineChoice = "fish_s2") {
   try {
-    const res = await fetch(`/api/colab_script?engine=${engineChoice}`);
+    const res = await fetch(`/api/colab_script?engine=fish_s2`);
     const scriptText = await res.text();
     await navigator.clipboard.writeText(scriptText);
-    const label = engineChoice === "kokoro" ? "Kokoro Worker" : "Fish Audio S2 Pro Worker";
-    showToast(`📋 Copied 1-Click ${label} Script!`);
+    showToast(`📋 Copied 1-Click Fish Audio S2 Pro Worker Script!`);
   } catch (err) {
     alert("Copy failed: " + err);
   }
@@ -6527,70 +6505,17 @@ async function handleCopyColabScript(engineChoice = "fish_s2") {
 
 // ---------------- FISH AUDIO S2 PRO ENGINE & CONTROLS ---------------- //
 
-async function switchGlobalActiveEngine(engineChoice) {
-  state.activeEngine = engineChoice;
-
-  // Update header buttons
-  ["fish", "kokoro"].forEach(eng => {
-    const isThis = (eng === "fish" && engineChoice === "fish_s2") || (eng === "kokoro" && engineChoice === "kokoro");
-    document.getElementById(`btn-dash-engine-${eng}`)?.classList.toggle("active", isThis);
-    document.getElementById(`btn-studio-engine-${eng}`)?.classList.toggle("active", isThis);
-  });
-
-  const isFish = engineChoice === "fish_s2";
-  const labelText = isFish ? "🐟 Fish Audio S2 Pro" : "⚡ Kokoro ONNX CPU";
+async function switchGlobalActiveEngine(engineChoice = "fish_s2") {
+  state.activeEngine = "fish_s2";
   const dashLabel = document.getElementById("dashboard-engine-label");
-  if (dashLabel) dashLabel.textContent = labelText;
+  if (dashLabel) dashLabel.textContent = "🐟 Fish Audio S2 Pro";
   const studioLabel = document.getElementById("studio-engine-label");
-  if (studioLabel) studioLabel.textContent = labelText;
+  if (studioLabel) studioLabel.textContent = "🐟 Fish Audio S2 Pro";
 
-  // Toggle emotion section visibility
   const emotionSection = document.getElementById("inspector-emotion-section");
-  if (emotionSection) {
-    emotionSection.style.display = isFish ? "block" : "none";
-  }
+  if (emotionSection) emotionSection.style.display = "block";
   const zeroShotSection = document.getElementById("inspector-zero-shot-section");
-  if (zeroShotSection) {
-    zeroShotSection.style.display = isFish ? "block" : "none";
-  }
-
-  // Save config
-  try {
-    await fetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active_engine: engineChoice })
-    });
-  } catch (err) {
-    console.error("Failed to save active engine config", err);
-  }
-
-  // Update studio duplicate button
-  const studioCopyBtn = document.getElementById("btn-studio-copy-engine");
-  if (studioCopyBtn) {
-    const icon = document.getElementById("studio-copy-engine-icon");
-    const txt = document.getElementById("studio-copy-engine-text");
-    if (icon) icon.textContent = isFish ? "⚡" : "🐟";
-    if (txt) txt.textContent = isFish ? "Copy to Kokoro" : "Copy to Fish S2";
-    studioCopyBtn.title = isFish ? "Duplicate and convert this story to Kokoro Fast CPU Studio" : "Duplicate and upgrade this story to Fish Audio S2 Pro Studio";
-  }
-
-  // Reload voices for active engine
-  await loadVoices();
-
-  // If on dashboard, re-render dashboard immediately
-  const dashView = document.getElementById("view-dashboard");
-  if (dashView && dashView.style.display !== "none") {
-    renderDashboard();
-  }
-
-  // If in studio view, re-render studio
-  const studioView = document.getElementById("view-studio");
-  if (studioView && studioView.style.display !== "none") {
-    renderStudio();
-  }
-
-  showToast(`Switched active studio to: ${isFish ? 'Fish Audio S2 Pro' : 'Kokoro Fast CPU'}`);
+  if (zeroShotSection) zeroShotSection.style.display = "block";
 }
 
 function handleQuickEmotionClick(tag) {
