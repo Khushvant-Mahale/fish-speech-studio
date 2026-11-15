@@ -1512,7 +1512,7 @@ async def handle_get_config(request):
     referer = request.headers.get("Referer", "").lower()
     is_kokoro = ("/kokoro" in referer) or (request.query.get("engine") == "kokoro")
 
-    remote_url = cfg.get("remote_worker_url", "") if is_kokoro else (cfg.get("fish_remote_worker_url") or cfg.get("remote_worker_url", ""))
+    remote_url = (cfg.get("kokoro_remote_worker_url") or cfg.get("remote_worker_url", "")) if is_kokoro else (cfg.get("fish_remote_worker_url") or cfg.get("remote_worker_url", ""))
     k_user = cfg.get("kaggle_username", "")
     k_has_key = bool(cfg.get("kaggle_key", ""))
     if not k_user:
@@ -1526,6 +1526,7 @@ async def handle_get_config(request):
                 pass
     return web.json_response({
         "remote_worker_url": remote_url or "",
+        "kokoro_remote_worker_url": cfg.get("kokoro_remote_worker_url", ""),
         "fish_remote_worker_url": cfg.get("fish_remote_worker_url", ""),
         "fish_api_key": cfg.get("fish_api_key", ""),
         "kaggle_username": k_user,
@@ -1573,6 +1574,8 @@ async def handle_kaggle_launch(request):
     try:
         data = await request.json()
         cfg = load_config()
+        referer = request.headers.get("Referer", "").lower()
+        engine = data.get("engine") or ("kokoro" if "/kokoro" in referer else "fish_s2")
         username = (data.get("username") or cfg.get("kaggle_username", "")).strip()
         key = (data.get("key") or cfg.get("kaggle_key", "")).strip()
         if not username or not key:
@@ -1596,7 +1599,7 @@ async def handle_kaggle_launch(request):
                 "error": "This looks like a Fish Audio API key (starts with 'sk-fish-'). Please use the 'Fish Audio Pro API' tab. For Kaggle GPU, use your 32-character token from kaggle.json."
             }, status=400)
 
-        res = await asyncio.to_thread(kaggle_mgr.launch_worker, username, key)
+        res = await asyncio.to_thread(kaggle_mgr.launch_worker, username, key, engine)
         return web.json_response(res)
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=500)
@@ -1608,12 +1611,21 @@ async def handle_kaggle_status(request):
     if status.get("status") == "ready" and status.get("tunnel_url"):
         cfg = load_config()
         t_url = status["tunnel_url"]
-        if cfg.get("remote_worker_url") != t_url:
-            cfg["remote_worker_url"] = t_url
-            cfg["fish_remote_worker_url"] = t_url
-            save_config(cfg)
-            if fish_engine:
-                fish_engine.remote_url = t_url
+        active_engine = status.get("engine", "fish_s2")
+        if active_engine == "kokoro":
+            if cfg.get("kokoro_remote_worker_url") != t_url:
+                cfg["kokoro_remote_worker_url"] = t_url
+                cfg["remote_worker_url"] = t_url
+                save_config(cfg)
+                if kokoro_engine:
+                    kokoro_engine.remote_url = t_url
+        else:
+            if cfg.get("fish_remote_worker_url") != t_url:
+                cfg["fish_remote_worker_url"] = t_url
+                cfg["remote_worker_url"] = t_url
+                save_config(cfg)
+                if fish_engine:
+                    fish_engine.remote_url = t_url
     return web.json_response(status)
 
 
@@ -1676,13 +1688,28 @@ async def handle_kaggle_stop(request):
         cfg = load_config()
         username = cfg.get("kaggle_username", "")
         key = cfg.get("kaggle_key", "")
-        res = await asyncio.to_thread(kaggle_mgr.stop_worker, username, key)
-        # Clear remote worker URLs so studio cleanly reverts to local draft mode
-        cfg["remote_worker_url"] = ""
-        cfg["fish_remote_worker_url"] = ""
-        save_config(cfg)
-        if fish_engine:
-            fish_engine.remote_url = None
+        referer = request.headers.get("Referer", "").lower()
+        engine = ""
+        try:
+            data = await request.json()
+            engine = data.get("engine", "")
+        except Exception:
+            pass
+        if not engine:
+            engine = "kokoro" if "/kokoro" in referer else ""
+        target_eng = engine or kaggle_mgr._active_session.get("engine", "fish_s2")
+        res = await asyncio.to_thread(kaggle_mgr.stop_worker, username, key, target_eng)
+        if target_eng == "kokoro":
+            cfg["kokoro_remote_worker_url"] = ""
+            if kokoro_engine:
+                kokoro_engine.remote_url = None
+            save_config(cfg)
+        else:
+            cfg["remote_worker_url"] = ""
+            cfg["fish_remote_worker_url"] = ""
+            if fish_engine:
+                fish_engine.remote_url = None
+            save_config(cfg)
         return web.json_response({**res, "remote_worker_url": ""})
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=500)

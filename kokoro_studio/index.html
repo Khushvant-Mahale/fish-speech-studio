@@ -752,20 +752,20 @@
     </div>
   </div>
 
-  <!-- ================= CLOUD GPU / COLAB MODAL ================= -->
+  <!-- ================= CLOUD GPU / COLAB / KAGGLE MODAL ================= -->
   <div class="drawer-backdrop" id="colab-modal">
-    <div class="drawer-window" style="width: 640px; max-width: 95vw;">
-      <div class="drawer-header">
+    <div class="drawer-window" style="width: 660px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.85);">
+      <div class="drawer-header" style="flex-shrink: 0; border-bottom: 1px solid var(--border-color); background: var(--bg-surface); z-index: 10;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <span style="font-size: 20px;">🚀</span>
           <div>
             <div class="drawer-title">Cloud GPU Acceleration</div>
-            <div style="font-size: 12px; color: var(--text-muted);">Offload synthesis to Google Colab or Kaggle (T4 GPU ~0.2s generation)</div>
+            <div style="font-size: 12px; color: var(--text-muted);">Offload synthesis to Kaggle or Google Colab (Tesla T4 GPU ~0.2s generation)</div>
           </div>
         </div>
         <button class="icon-btn" id="colab-close-btn" onclick="closeColabModal()" style="font-size: 18px;">✕</button>
       </div>
-      <div style="padding: 22px; display: flex; flex-direction: column; gap: 16px;">
+      <div id="colab-modal-scroll-body" style="padding: 22px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; min-height: 0;">
         
         <!-- Active Status Banner -->
         <div id="colab-status-banner" class="colab-status-banner offline">
@@ -773,36 +773,102 @@
             <span class="status-indicator-dot" id="banner-dot"></span>
             <div>
               <div style="font-weight: 600; font-size: 14px;" id="banner-title">Current Mode: Local CPU Engine</div>
-              <div style="font-size: 12px; color: var(--text-muted);" id="banner-desc">Generating on laptop CPU (~14s per new sentence). Connect Colab for 100x speed!</div>
+              <div style="font-size: 12px; color: var(--text-muted);" id="banner-desc">Generating on laptop CPU (~14s per new sentence). Connect Cloud GPU for 100x speed!</div>
             </div>
           </div>
         </div>
 
-        <!-- Worker URL Input -->
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Cloudflare Tunnel / Worker URL</label>
+        <!-- Cloud Mode Tabs Navigation -->
+        <div class="cloud-tabs-nav">
+          <button class="cloud-tab-btn active" id="tab-btn-kaggle" onclick="switchCloudTab('kaggle')">🚀 1-Click Kaggle GPU (Free)</button>
+          <button class="cloud-tab-btn" id="tab-btn-custom" onclick="switchCloudTab('custom')">🛠️ Colab / Custom Worker</button>
+        </div>
+
+        <!-- ================= TAB 1: KAGGLE 1-CLICK GPU ================= -->
+        <div class="cloud-tab-content active" id="tab-content-kaggle">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 12.5px; color: var(--text-muted);">30 hours / week of free dedicated cloud GPU (Tesla T4). No manual coding or URL copying required.</span>
+            <a href="https://www.kaggle.com/settings" target="_blank" style="font-size: 11.5px; color: #818cf8; text-decoration: underline; white-space: nowrap;">Get Token on Kaggle ↗</a>
+          </div>
+
+          <!-- Drag and Drop Dropzone -->
+          <div class="kaggle-dropzone" id="kaggle-dropzone" onclick="document.getElementById('kaggle-file-input').click()" ondragover="handleKaggleDragOver(event)" ondragleave="handleKaggleDragLeave(event)" ondrop="handleKaggleDrop(event)">
+            <input type="file" id="kaggle-file-input" accept=".json" style="display: none;" onchange="handleKaggleFileSelect(event)">
+            <div style="font-size: 24px; margin-bottom: 4px;">📄</div>
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-main);">Drop your kaggle.json file here</div>
+            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Downloaded from Kaggle.com -> Settings -> API -> "Create New Token"</div>
+          </div>
+
+          <!-- Or Manual Credentials Form -->
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="kaggle-username-input" class="search-input" placeholder="Kaggle Username" style="flex: 1; font-size: 12.5px;">
+            <input type="password" id="kaggle-key-input" class="search-input" placeholder="Kaggle API Key (32-character token)" style="flex: 2; font-size: 12.5px;">
+            <button class="btn btn-secondary" id="btn-verify-kaggle" onclick="handleVerifyKaggle()" style="white-space: nowrap;">⚡ Verify Token</button>
+          </div>
+          <div id="kaggle-verify-status" style="font-size: 12px; min-height: 18px;"></div>
+          <div id="kaggle-key-warning" style="display: none; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #fbbf24; margin-top: 2px;"></div>
+
+          <!-- Live Progress Stepper (hidden while idle) -->
+          <div id="kaggle-stepper-box" class="kaggle-stepper" style="display: none;">
+            <div class="kaggle-step-item" id="k-step-1">
+              <span class="kaggle-step-dot" id="k-step-dot-1">1</span>
+              <span>Pushing Kokoro neural GPU worker kernel to Kaggle account</span>
+            </div>
+            <div class="kaggle-step-item" id="k-step-2">
+              <span class="kaggle-step-dot" id="k-step-dot-2">2</span>
+              <span>Allocating Tesla T4 GPU container & mounting Kokoro engine (~45-60s)</span>
+            </div>
+            <div class="kaggle-step-item" id="k-step-3">
+              <span class="kaggle-step-dot" id="k-step-dot-3">3</span>
+              <span>Secure encrypted Cloudflare tunnel connected & ready!</span>
+            </div>
+            
+            <!-- Collapsible Live Log Viewer -->
+            <details style="margin-top: 6px;">
+              <summary style="font-size: 11.5px; color: var(--text-muted); cursor: pointer;">Show live container boot logs</summary>
+              <div class="kaggle-terminal" id="kaggle-log-terminal" style="margin-top: 6px;">Waiting for container output...</div>
+            </details>
+          </div>
+
+          <!-- Auto-Shutdown Quota Protection Notice -->
+          <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #10b981;">
+            <span>🛡️</span>
+            <span><strong>Smart Quota Protection Active:</strong> Auto-terminates container after 15 min of idle or when Studio is closed to preserve your free weekly GPU hours.</span>
+          </div>
+
+          <!-- Launch & Stop Action Area -->
+          <div style="display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 6px; padding-bottom: 6px;">
+            <button class="btn btn-secondary" id="btn-stop-kaggle" onclick="handleStopKaggle()" style="display: none; color: #ef4444; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1); font-weight: 600;">⏹ Stop GPU Session</button>
+            <button class="btn btn-primary" id="btn-launch-kaggle" onclick="handleLaunchKaggle()" style="background: linear-gradient(135deg, #6366f1, #4f46e5); padding: 9px 20px; font-weight: 600; font-size: 13px;">🚀 Launch Cloud GPU (Tesla T4)</button>
+          </div>
+        </div>
+
+        <!-- ================= TAB 2: COLAB / CUSTOM WORKER ================= -->
+        <div class="cloud-tab-content" id="tab-content-custom">
+          <div style="font-size: 12.5px; color: var(--text-muted);">Connect an existing Google Colab notebook, RunPod container, or local GPU server via tunnel.</div>
           <div style="display: flex; gap: 8px;">
             <input type="text" id="colab-url-input" class="search-input" placeholder="https://random-words.trycloudflare.com" style="flex: 1;">
             <button class="btn btn-secondary" id="btn-test-colab" onclick="handleTestColab()" style="white-space: nowrap;">⚡ Test Connection</button>
+            <button class="btn btn-ghost" id="btn-clear-tunnel-url" onclick="handleClearTunnelInput()" title="Clear Tunnel URL" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
           </div>
           <div id="colab-test-result" style="font-size: 12px; min-height: 18px;"></div>
-        </div>
 
-        <!-- Quick Colab Instructions & Copy Code -->
-        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column; gap: 10px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">1-Click Colab / Kaggle Setup:</span>
-            <button class="btn btn-secondary" id="btn-copy-colab-code" onclick="handleCopyColabScript()" style="padding: 4px 10px; font-size: 12px;">📋 Copy Colab Script</button>
+          <!-- Quick Colab Instructions & Copy Code -->
+          <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">1-Click Colab / Kaggle Setup:</span>
+              <button class="btn btn-secondary" id="btn-copy-colab-code" onclick="handleCopyColabScript()" style="padding: 4px 10px; font-size: 12px;">📋 Copy Colab Script</button>
+            </div>
+            <ol style="font-size: 12.5px; color: var(--text-muted); margin: 0; padding-left: 20px; line-height: 1.6;">
+              <li>Open a free <a href="https://colab.research.google.com" target="_blank" style="color: var(--primary); text-decoration: underline;">Google Colab notebook</a>.</li>
+              <li>In the top menu: <strong>Runtime → Change runtime type</strong> and select <strong>T4 GPU</strong>.</li>
+              <li>Paste the 1-cell script, press <strong>Run</strong>, then copy the <code>https://*.trycloudflare.com</code> URL it gives you!</li>
+            </ol>
           </div>
-          <ol style="font-size: 12.5px; color: var(--text-muted); margin: 0; padding-left: 20px; line-height: 1.6;">
-            <li>Open a free <a href="https://colab.research.google.com" target="_blank" style="color: var(--primary); text-decoration: underline;">Google Colab notebook</a>.</li>
-            <li>In the top menu: <strong>Runtime → Change runtime type</strong> and select <strong>T4 GPU</strong>.</li>
-            <li>Paste the 1-cell script, press <strong>Run</strong>, then copy the <code>https://*.trycloudflare.com</code> URL it gives you!</li>
-          </ol>
         </div>
 
         <!-- Action Buttons -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.07);">
           <button class="btn btn-secondary" id="btn-clear-colab" onclick="handleClearColab()" style="color: var(--danger);">Disconnect (Use Local CPU)</button>
           <div style="display: flex; gap: 8px;">
             <button class="btn btn-secondary" onclick="closeColabModal()">Close</button>

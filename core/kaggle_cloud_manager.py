@@ -32,6 +32,7 @@ class KaggleCloudManager:
         self.worker_script_path = base_dir / "colab_fish_worker.py"
         self._active_session: Dict[str, Any] = {
             "status": "idle",  # idle, launching, queued, booting, ready, error, stopped
+            "engine": "fish_s2",
             "username": "",
             "kernel_ref": "",
             "tunnel_url": "",
@@ -103,10 +104,11 @@ class KaggleCloudManager:
                 }
             return {"ok": False, "error": f"Kaggle API error: {err_msg}"}
 
-    def launch_worker(self, username: str, key: str) -> Dict[str, Any]:
+    def launch_worker(self, username: str, key: str, engine: str = "fish_s2") -> Dict[str, Any]:
         """
         Builds and pushes a private GPU worker kernel to the user's Kaggle account.
         Enables Tesla T4 GPU and Internet connectivity.
+        Supports both Kokoro engine and Fish Speech engine.
         """
         username = username.strip()
         key = key.strip()
@@ -114,17 +116,21 @@ class KaggleCloudManager:
         if not api:
             return {"ok": False, "error": "Could not authenticate with Kaggle API. Check your token."}
 
-        if not self.worker_script_path.exists():
-            return {"ok": False, "error": f"Worker script not found at {self.worker_script_path}"}
+        is_kokoro = (engine == "kokoro")
+        kernel_slug = "kokoro-tts-worker" if is_kokoro else "fish-speech-s2-worker"
+        kernel_title = "Kokoro Story Studio Worker" if is_kokoro else "Fish Speech S2 Worker"
+        worker_file = (self.base_dir / "colab_worker.py") if is_kokoro else (self.base_dir / "colab_fish_worker.py")
 
-        kernel_slug = self.KERNEL_SLUG
+        if not worker_file.exists():
+            return {"ok": False, "error": f"Worker script not found at {worker_file}"}
+
         kernel_ref = f"{username}/{kernel_slug}"
 
-        temp_dir = Path(tempfile.mkdtemp(prefix="kaggle_fish_"))
+        temp_dir = Path(tempfile.mkdtemp(prefix=f"kaggle_{engine}_"))
         try:
             metadata = {
                 "id": kernel_ref,
-                "title": "Fish Speech S2 Worker",
+                "title": kernel_title,
                 "code_file": "worker.py",
                 "language": "python",
                 "kernel_type": "script",
@@ -137,19 +143,20 @@ class KaggleCloudManager:
             meta_file.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
             worker_dst = temp_dir / "worker.py"
-            shutil.copyfile(self.worker_script_path, worker_dst)
+            shutil.copyfile(worker_file, worker_dst)
 
-            print(f"[KaggleManager] Pushing GPU kernel {kernel_ref} to Kaggle...")
+            print(f"[KaggleManager] Pushing GPU kernel {kernel_ref} ({engine}) to Kaggle...")
             resp = api.kernels_push(str(temp_dir))
             print(f"[KaggleManager] Push response: {resp}")
 
             self._active_session = {
                 "status": "queued",
+                "engine": engine,
                 "username": username,
                 "kernel_ref": kernel_ref,
                 "tunnel_url": "",
                 "started_at": time.time(),
-                "last_log": "Kernel pushed to Kaggle. Waiting for GPU container allocation...",
+                "last_log": f"{kernel_title} pushed to Kaggle. Waiting for GPU container allocation...",
                 "error": ""
             }
 
@@ -158,8 +165,9 @@ class KaggleCloudManager:
             return {
                 "ok": True,
                 "kernel_ref": kernel_ref,
+                "engine": engine,
                 "status": "queued",
-                "message": "Kernel successfully launched on Kaggle! Booting container..."
+                "message": f"{kernel_title} successfully launched on Kaggle! Booting container..."
             }
         except Exception as e:
             err_str = str(e)
@@ -245,6 +253,7 @@ class KaggleCloudManager:
 
         return {
             "status": self._active_session["status"],
+            "engine": self._active_session.get("engine", "fish_s2"),
             "kernel_ref": self._active_session["kernel_ref"],
             "tunnel_url": self._active_session["tunnel_url"],
             "elapsed_seconds": elapsed,
@@ -252,11 +261,13 @@ class KaggleCloudManager:
             "error": self._active_session["error"]
         }
 
-    def stop_worker(self, username: str, key: str) -> Dict[str, Any]:
+    def stop_worker(self, username: str, key: str, engine: str = "") -> Dict[str, Any]:
         """Cancels and stops the running Kaggle GPU kernel to conserve quota."""
         self._stop_polling.set()
         api = self._get_api(username, key)
-        kernel_ref = self._active_session.get("kernel_ref") or f"{username}/{self.KERNEL_SLUG}"
+        eng = engine or self._active_session.get("engine", "fish_s2")
+        slug = "kokoro-tts-worker" if eng == "kokoro" else "fish-speech-s2-worker"
+        kernel_ref = self._active_session.get("kernel_ref") or f"{username}/{slug}"
 
         if api:
             try:

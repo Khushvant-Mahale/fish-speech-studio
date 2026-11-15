@@ -5255,7 +5255,332 @@ async function handleDoImport() {
   }
 }
 
-// ---------------- CLOUD GPU / COLAB MODAL ---------------- //
+// ---------------- CLOUD GPU / COLAB / KAGGLE MODAL ---------------- //
+
+let kagglePollInterval = null;
+
+function switchCloudTab(tabName) {
+  const tabs = ["kaggle", "custom"];
+  tabs.forEach(t => {
+    const btn = document.getElementById(`tab-btn-${t}`);
+    const content = document.getElementById(`tab-content-${t}`);
+    if (btn) btn.classList.toggle("active", t === tabName);
+    if (content) content.classList.toggle("active", t === tabName);
+  });
+}
+
+function handleKaggleDragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const dz = document.getElementById("kaggle-dropzone");
+  if (dz) dz.classList.add("dragover");
+}
+
+function handleKaggleDragLeave(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const dz = document.getElementById("kaggle-dropzone");
+  if (dz) dz.classList.remove("dragover");
+}
+
+function handleKaggleDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const dz = document.getElementById("kaggle-dropzone");
+  if (dz) dz.classList.remove("dragover");
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+    processKaggleJsonFile(e.dataTransfer.files[0]);
+  }
+}
+
+function handleKaggleFileSelect(e) {
+  if (e.target.files && e.target.files.length) {
+    processKaggleJsonFile(e.target.files[0]);
+  }
+}
+
+function processKaggleJsonFile(file) {
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.username && data.key) {
+        const uInput = document.getElementById("kaggle-username-input");
+        const kInput = document.getElementById("kaggle-key-input");
+        if (uInput) uInput.value = data.username;
+        if (kInput) kInput.value = data.key;
+        showToast("📄 Loaded credentials from kaggle.json! Verifying with Kaggle...");
+        await handleVerifyKaggle();
+      } else {
+        alert("Invalid kaggle.json: Must contain 'username' and 'key' fields.");
+      }
+    } catch (err) {
+      alert("Error reading JSON file: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+async function handleVerifyKaggle() {
+  const uInput = document.getElementById("kaggle-username-input");
+  const kInput = document.getElementById("kaggle-key-input");
+  const statusEl = document.getElementById("kaggle-verify-status");
+  const btn = document.getElementById("btn-verify-kaggle");
+
+  const username = (uInput?.value || "").trim();
+  const key = (kInput?.value || "").trim();
+
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.innerHTML = `<span style="color: var(--text-muted);">⏳ Verifying credentials with Kaggle API...</span>`;
+
+  try {
+    const res = await fetch("/api/cloud/kaggle/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, key })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (statusEl) statusEl.innerHTML = `<span style="color: #10b981; font-weight: 600;">✓ Verified: @${data.username} • GPU Quota: ${data.quota}</span>`;
+      showToast(`✨ Kaggle account @${data.username} verified! Ready to launch.`);
+    } else {
+      if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger); font-weight: 500;">❌ ${data.error}</span>`;
+    }
+  } catch (err) {
+    if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">Network error verifying with Kaggle: ${err.message}</span>`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function handleLaunchKaggle() {
+  const uInput = document.getElementById("kaggle-username-input");
+  const kInput = document.getElementById("kaggle-key-input");
+  const launchBtn = document.getElementById("btn-launch-kaggle");
+  const stopBtn = document.getElementById("btn-stop-kaggle");
+  const stepper = document.getElementById("kaggle-stepper-box");
+  const statusEl = document.getElementById("kaggle-verify-status");
+  const warnEl = document.getElementById("kaggle-key-warning");
+
+  const username = (uInput?.value || "").trim();
+  const key = (kInput?.value || "").trim();
+
+  if (key.startsWith("sk-fish-")) {
+    if (warnEl) {
+      warnEl.style.display = "block";
+      warnEl.innerHTML = "⚠️ That looks like a Fish Audio API key. For Kaggle GPU, use your 32-character token from kaggle.json.";
+    }
+    return;
+  }
+
+  if (!username && !key) {
+    const res = await fetch("/api/config");
+    const cfg = await res.json();
+    if (!cfg.kaggle_username && !cfg.kaggle_has_key) {
+      alert("Please provide your Kaggle Username & API Key or drop your kaggle.json file first.");
+      return;
+    }
+  }
+
+  if (launchBtn) {
+    launchBtn.disabled = true;
+    launchBtn.textContent = "⏳ Launching Kokoro GPU...";
+  }
+  if (stepper) stepper.style.display = "flex";
+  setKaggleStep(1, "active");
+  setKaggleStep(2, "idle");
+  setKaggleStep(3, "idle");
+
+  try {
+    const res = await fetch("/api/cloud/kaggle/launch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, key, engine: "kokoro" })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast("🚀 Kokoro GPU kernel pushed! Container is booting up...");
+      setKaggleStep(1, "completed");
+      setKaggleStep(2, "active");
+      if (stopBtn) stopBtn.style.display = "inline-block";
+      startKagglePolling();
+    } else {
+      if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">❌ ${data.error}</span>`;
+      if (launchBtn) {
+        launchBtn.disabled = false;
+        launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+      }
+      setKaggleStep(1, "error");
+    }
+  } catch (err) {
+    alert("Launch request failed: " + err.message);
+    if (launchBtn) {
+      launchBtn.disabled = false;
+      launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+    }
+  }
+}
+
+function setKaggleStep(stepNum, state) {
+  const item = document.getElementById(`k-step-${stepNum}`);
+  const dot = document.getElementById(`k-step-dot-${stepNum}`);
+  if (!item || !dot) return;
+  item.classList.remove("active", "completed");
+  if (state === "active") {
+    item.classList.add("active");
+    dot.textContent = "⏳";
+  } else if (state === "completed") {
+    item.classList.add("completed");
+    dot.textContent = "✓";
+  } else {
+    dot.textContent = stepNum.toString();
+  }
+}
+
+function startKagglePolling() {
+  clearInterval(kagglePollInterval);
+  kagglePollInterval = setInterval(checkKaggleStatus, 4000);
+  checkKaggleStatus();
+}
+
+async function checkKaggleStatus() {
+  try {
+    const res = await fetch("/api/cloud/kaggle/status");
+    const data = await res.json();
+    const terminal = document.getElementById("kaggle-log-terminal");
+    const launchBtn = document.getElementById("btn-launch-kaggle");
+    const stopBtn = document.getElementById("btn-stop-kaggle");
+
+    if (terminal && data.last_log) {
+      terminal.textContent = data.last_log;
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    if (data.status === "queued") {
+      setKaggleStep(1, "completed");
+      setKaggleStep(2, "active");
+      if (launchBtn) launchBtn.textContent = `⏳ Queued (${data.elapsed_seconds}s)...`;
+    } else if (data.status === "booting") {
+      setKaggleStep(1, "completed");
+      setKaggleStep(2, "active");
+      if (launchBtn) launchBtn.textContent = `⏳ Booting Kokoro GPU (${data.elapsed_seconds}s)...`;
+    } else if (data.status === "ready" && data.tunnel_url) {
+      setKaggleStep(1, "completed");
+      setKaggleStep(2, "completed");
+      setKaggleStep(3, "completed");
+      clearInterval(kagglePollInterval);
+      if (launchBtn) {
+        launchBtn.textContent = "🟢 GPU Active & Connected!";
+        launchBtn.style.background = "#10b981";
+        launchBtn.disabled = true;
+      }
+      if (stopBtn) stopBtn.style.display = "inline-block";
+      showToast("🎉 Kokoro Tesla T4 GPU connected! Studio is ready for ultra-fast generation!");
+      
+      state.config.remote_worker_url = data.tunnel_url;
+      state.config.active = true;
+      updateEngineUI(data.tunnel_url, true);
+      const colabBanner = document.getElementById("colab-status-banner");
+      if (colabBanner) {
+        colabBanner.className = "colab-status-banner online";
+        const bt = document.getElementById("banner-title");
+        if (bt) bt.textContent = "Active Mode: Kaggle GPU (Tesla T4)";
+        const bd = document.getElementById("banner-desc");
+        if (bd) bd.textContent = `Connected securely to Kokoro GPU worker via ${data.tunnel_url}`;
+      }
+    } else if (data.status === "stopped") {
+      clearInterval(kagglePollInterval);
+      if (launchBtn) {
+        launchBtn.disabled = false;
+        launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+        launchBtn.style.background = "linear-gradient(135deg, #6366f1, #4f46e5)";
+      }
+      if (stopBtn) stopBtn.style.display = "none";
+      const stepper = document.getElementById("kaggle-stepper-box");
+      if (stepper) stepper.style.display = "none";
+    } else if (data.status === "error") {
+      clearInterval(kagglePollInterval);
+      if (launchBtn) {
+        launchBtn.disabled = false;
+        launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+        launchBtn.style.background = "linear-gradient(135deg, #6366f1, #4f46e5)";
+      }
+      showToast("❌ Kaggle GPU container error: " + (data.error || "Execution failed"), 6000);
+    }
+  } catch (e) {
+    console.warn("Poll status notice:", e);
+  }
+}
+
+async function handleStopKaggle() {
+  const confirmed = await showMessageCard({
+    icon: "⏹",
+    title: "Stop Kaggle GPU Session?",
+    subtitle: "Conserve your weekly quota",
+    body: "<p style='margin:0; color:#cbd5e1;'>This terminates the cloud container and immediately stops charging your free weekly GPU hours. You can relaunch anytime.</p>",
+    primaryText: "Stop GPU Session",
+    secondaryText: "Cancel",
+    showSecondary: true,
+    danger: true
+  });
+  if (!confirmed) return;
+
+  clearInterval(kagglePollInterval);
+  const stopBtn = document.getElementById("btn-stop-kaggle");
+  const launchBtn = document.getElementById("btn-launch-kaggle");
+  if (stopBtn) {
+    stopBtn.disabled = true;
+    stopBtn.textContent = "⏳ Stopping...";
+  }
+
+  try {
+    const res = await fetch("/api/cloud/kaggle/stop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ engine: "kokoro" })
+    });
+    const data = await res.json();
+    showToast("⏹ Kaggle GPU session terminated. Quota conserved!");
+    if (stopBtn) {
+      stopBtn.style.display = "none";
+      stopBtn.disabled = false;
+      stopBtn.textContent = "⏹ Stop GPU Session";
+    }
+    if (launchBtn) {
+      launchBtn.disabled = false;
+      launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+      launchBtn.style.background = "linear-gradient(135deg, #6366f1, #4f46e5)";
+    }
+    const stepper = document.getElementById("kaggle-stepper-box");
+    if (stepper) stepper.style.display = "none";
+
+    // Clean up local state & banner
+    if (state.config) {
+      state.config.remote_worker_url = "";
+      state.config.active = false;
+    }
+    updateEngineUI("", false);
+    const colabBanner = document.getElementById("colab-status-banner");
+    if (colabBanner) {
+      colabBanner.className = "colab-status-banner offline";
+      const bt = document.getElementById("banner-title");
+      if (bt) bt.textContent = "Current Mode: Local CPU Engine";
+      const bd = document.getElementById("banner-desc");
+      if (bd) bd.textContent = "Generating on laptop CPU. Click '🚀 Launch Cloud GPU' whenever you're ready to start again!";
+    }
+    const terminal = document.getElementById("kaggle-log-terminal");
+    if (terminal) terminal.textContent = "Session stopped. Ready to launch again.";
+  } catch (err) {
+    showToast("⚠️ Could not stop session: " + err.message, 5000);
+  } finally {
+    if (stopBtn) stopBtn.disabled = false;
+  }
+}
+
+function handleClearTunnelInput() {
+  const urlInput = document.getElementById("colab-url-input");
+  if (urlInput) urlInput.value = "";
+}
 
 function openColabModal() {
   const modal = document.getElementById("colab-modal");
@@ -5263,10 +5588,75 @@ function openColabModal() {
   modal.classList.add("active");
   const testRes = document.getElementById("colab-test-result");
   if (testRes) testRes.innerHTML = "";
-  if (state.config && state.config.remote_worker_url) {
-    const urlInput = document.getElementById("colab-url-input");
-    if (urlInput) urlInput.value = state.config.remote_worker_url;
+  const urlInput = document.getElementById("colab-url-input");
+  if (urlInput) {
+    urlInput.value = (state.config && state.config.remote_worker_url) || "";
   }
+
+  // Auto-populate Kaggle credentials if present
+  fetch("/api/config?engine=kokoro").then(r => r.json()).then(cfg => {
+    if (cfg.kaggle_username) {
+      const ku = document.getElementById("kaggle-username-input");
+      if (ku && !ku.value) ku.value = cfg.kaggle_username;
+      const statusEl = document.getElementById("kaggle-verify-status");
+      if (statusEl && !statusEl.innerHTML) {
+        statusEl.innerHTML = `<span style="color: #10b981;">✓ Detected Kaggle account @${cfg.kaggle_username}</span>`;
+      }
+    }
+  }).catch(() => {});
+
+  // Check if Kaggle worker is currently running in background
+  fetch("/api/cloud/kaggle/status").then(r => r.json()).then(st => {
+    const stepper = document.getElementById("kaggle-stepper-box");
+    const stopBtn = document.getElementById("btn-stop-kaggle");
+    const launchBtn = document.getElementById("btn-launch-kaggle");
+    const colabBanner = document.getElementById("colab-status-banner");
+
+    if (st.status === "ready" && st.tunnel_url && st.engine === "kokoro") {
+      if (stepper) stepper.style.display = "flex";
+      setKaggleStep(1, "completed");
+      setKaggleStep(2, "completed");
+      setKaggleStep(3, "completed");
+      if (stopBtn) stopBtn.style.display = "inline-block";
+      if (launchBtn) {
+        launchBtn.textContent = "🟢 GPU Active & Connected";
+        launchBtn.style.background = "#10b981";
+        launchBtn.disabled = true;
+      }
+      if (colabBanner) {
+        colabBanner.className = "colab-status-banner online";
+        const bt = document.getElementById("banner-title");
+        if (bt) bt.textContent = "Active Mode: Kaggle GPU (Tesla T4)";
+        const bd = document.getElementById("banner-desc");
+        if (bd) bd.textContent = `Connected securely to Kokoro GPU worker via ${st.tunnel_url}`;
+      }
+    } else if ((st.status === "queued" || st.status === "booting") && st.engine === "kokoro") {
+      if (stepper) stepper.style.display = "flex";
+      if (stopBtn) stopBtn.style.display = "inline-block";
+      if (launchBtn) {
+        launchBtn.disabled = true;
+        launchBtn.textContent = st.status === "queued" ? `⏳ Queued (${st.elapsed_seconds || 0}s)...` : `⏳ Booting Kokoro GPU (${st.elapsed_seconds || 0}s)...`;
+      }
+      startKagglePolling();
+    } else {
+      if (stepper) stepper.style.display = "none";
+      if (stopBtn) stopBtn.style.display = "none";
+      if (launchBtn) {
+        launchBtn.disabled = false;
+        launchBtn.textContent = "🚀 Launch Cloud GPU (Tesla T4)";
+        launchBtn.style.background = "linear-gradient(135deg, #6366f1, #4f46e5)";
+      }
+      if (!state.config?.remote_worker_url) {
+        if (colabBanner) {
+          colabBanner.className = "colab-status-banner offline";
+          const bt = document.getElementById("banner-title");
+          if (bt) bt.textContent = "Current Mode: Local CPU Engine";
+          const bd = document.getElementById("banner-desc");
+          if (bd) bd.textContent = "Generating on laptop CPU (~14s per sentence). Connect Cloud GPU for 100x speed!";
+        }
+      }
+    }
+  }).catch(() => {});
 }
 
 function closeColabModal() {
@@ -6984,5 +7374,14 @@ window.markAllBlocksOfCharacter = markAllBlocksOfCharacter;
 window.handleCopyProjectToOtherEngine = handleCopyProjectToOtherEngine;
 window.handleCopyCurrentProjectToOther = handleCopyCurrentProjectToOther;
 window.showMessageCard = showMessageCard;
+window.switchCloudTab = switchCloudTab;
+window.handleKaggleDragOver = handleKaggleDragOver;
+window.handleKaggleDragLeave = handleKaggleDragLeave;
+window.handleKaggleDrop = handleKaggleDrop;
+window.handleKaggleFileSelect = handleKaggleFileSelect;
+window.handleVerifyKaggle = handleVerifyKaggle;
+window.handleLaunchKaggle = handleLaunchKaggle;
+window.handleStopKaggle = handleStopKaggle;
+window.handleClearTunnelInput = handleClearTunnelInput;
 
 
