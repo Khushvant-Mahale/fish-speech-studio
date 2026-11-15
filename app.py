@@ -16,6 +16,7 @@ import numpy as np
 import soundfile as sf
 
 from core.fish_engine import FishEngine
+from core.kokoro_engine import KokoroEngine
 from core.kaggle_cloud_manager import KaggleCloudManager
 from core.dns_fallback import setup_resilient_dns
 
@@ -25,6 +26,7 @@ from core.project_manager import ProjectManager
 
 BASE_DIR = Path(__file__).resolve().parent
 STUDIO_DIR = BASE_DIR / "studio"
+KOKORO_STUDIO_DIR = BASE_DIR / "kokoro_studio"
 CACHE_DIR = BASE_DIR / "cache"
 OUTPUT_DIR = BASE_DIR / "output"
 SAMPLES_DIR = OUTPUT_DIR / "samples"
@@ -38,6 +40,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 VOICES_DIR.mkdir(parents=True, exist_ok=True)
 
 fish_engine: FishEngine = None
+kokoro_engine: KokoroEngine = None
 project_mgr = ProjectManager()
 kaggle_mgr = KaggleCloudManager(BASE_DIR)
 
@@ -66,13 +69,25 @@ def save_config(cfg: dict):
 
 
 async def init_engine():
-    global fish_engine
+    global fish_engine, kokoro_engine
     cfg = load_config()
 
     # Initialize Fish Audio S2 Pro Engine
     fish_remote = (cfg.get("fish_remote_worker_url") or cfg.get("remote_worker_url", "")).strip()
     fish_key = cfg.get("fish_api_key", "").strip()
-    fish_engine = FishEngine(remote_url=fish_remote, api_key=fish_key)
+    try:
+        fish_engine = FishEngine(remote_url=fish_remote, api_key=fish_key)
+        print(f"[Fish Speech Studio] Fish Audio S2 Pro engine ready (Worker: {fish_remote or 'None'}, API Key: {'Set' if fish_key else 'None'})")
+    except Exception as e:
+        print(f"[Fish Speech Studio] Warning: FishEngine init error: {e}")
+
+    # Initialize Kokoro Engine
+    kokoro_remote = (cfg.get("kokoro_remote_worker_url") or cfg.get("remote_worker_url", "")).strip()
+    try:
+        kokoro_engine = KokoroEngine(remote_url=kokoro_remote)
+        print(f"[Kokoro Studio] Kokoro engine ready (Worker: {kokoro_remote or 'Local ONNX'})")
+    except Exception as e:
+        print(f"[Kokoro Studio] Warning: KokoroEngine init error: {e}")
 
     # Restore active Kaggle session state if configured
     if cfg.get("kaggle_username"):
@@ -82,13 +97,12 @@ async def init_engine():
             kaggle_mgr._active_session["status"] = "ready"
             kaggle_mgr._active_session["tunnel_url"] = fish_remote
             kaggle_mgr._active_session["last_log"] = "Kaggle Tesla T4 GPU Worker is online and connected!" 
-    print(f"[Fish Speech Studio] Fish Audio S2 Pro engine ready (Worker: {fish_remote or 'None'}, API Key: {'Set' if fish_key else 'None'})")
 
 
 @web.middleware
 async def no_cache_middleware(request, handler):
     resp = await handler(request)
-    if request.path.startswith("/studio") or request.path == "/" or request.path.startswith("/projects"):
+    if request.path.startswith(("/studio", "/kokoro", "/projects")) or request.path == "/":
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         resp.headers["Pragma"] = "no-cache"
         resp.headers["Expires"] = "0"
@@ -103,7 +117,34 @@ async def handle_index(request):
     return resp
 
 
+async def handle_kokoro_index(request):
+    resp = web.FileResponse(KOKORO_STUDIO_DIR / "index.html")
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
+
+
+async def handle_kokoro_favicon(request):
+    fav_file = KOKORO_STUDIO_DIR / "favicon.svg"
+    if fav_file.exists():
+        return web.FileResponse(fav_file, headers={"Content-Type": "image/svg+xml", "Cache-Control": "max-age=86400"})
+    return web.Response(status=404)
+
+
 async def handle_get_voices(request):
+    engine_param = (request.query.get("engine") or "").lower()
+    referer = request.headers.get("Referer", "").lower()
+    is_kokoro = (engine_param == "kokoro") or (not engine_param and "/kokoro" in referer)
+
+    if is_kokoro:
+        k_voices = []
+        if VOICES_FILE.exists():
+            try:
+                with open(VOICES_FILE, "r", encoding="utf-8") as f:
+                    k_voices = json.load(f)
+            except Exception:
+                pass
+        return web.json_response(k_voices)
+
     voices = []
     if FISH_VOICES_FILE.exists():
         try:
@@ -698,8 +739,61 @@ async def handle_synthesize_block(request):
         radio_fx = bool(data.get("radio_fx", False))
         fx_filter = str(data.get("fx_filter") or ("radio" if radio_fx else "none")).strip().lower()
 
-        # Fish specific parameters
+        # Engine routing: check if Kokoro is requested or Kokoro voice is used
         voice_id = data.get("voice_id")
+        blend_weights = data.get("blend_weights")
+        referer = request.headers.get("Referer", "").lower()
+        is_kokoro = (block_engine == "kokoro") or ("/kokoro" in referer) or (blend_weights is not None)
+        if not is_kokoro and voice_id:
+            if str(voice_id).startswith(("am_", "af_", "bm_", "bf_", "blend_")):
+                is_kokoro = True
+
+        if is_kokoro:
+            task_key = f"kokoro::{text}::{voice_id or ''}::{str(blend_weights)}::{speed}::{gain}::{pitch_shift}::{warmth}::{clarity}::{reverb}::{radio_fx}::{fx_filter}"
+            if not force_refresh and task_key in in_flight_synthesis_futures:
+                print(f"[Kokoro Studio] [WAIT] Task already rendering on model for: '{text[:50]}...'. Attaching to active job.", flush=True)
+                try:
+                    res = await in_flight_synthesis_futures[task_key]
+                    return web.json_response(res)
+                except Exception as e:
+                    return web.json_response({"error": str(e)}, status=500)
+
+            loop = asyncio.get_running_loop()
+            fut = loop.create_future()
+            in_flight_synthesis_futures[task_key] = fut
+
+            try:
+                async with gpu_synthesis_lock:
+                    res = await asyncio.to_thread(
+                        kokoro_engine.synthesize_block,
+                        text=text,
+                        voice_id=voice_id or "blend_fenrir_onyx",
+                        blend_weights=blend_weights,
+                        speed=speed,
+                        gain=gain,
+                        pitch_shift=pitch_shift,
+                        warmth=warmth,
+                        clarity=clarity,
+                        reverb=reverb,
+                        radio_fx=radio_fx,
+                        fx_filter=fx_filter,
+                        force_refresh=force_refresh
+                    )
+                    if not fut.done():
+                        fut.set_result(res)
+                    return web.json_response(res)
+            except asyncio.CancelledError:
+                if not fut.done():
+                    fut.cancel()
+                raise
+            except Exception as e:
+                if not fut.done():
+                    fut.set_exception(e)
+                return web.json_response({"error": str(e)}, status=500)
+            finally:
+                in_flight_synthesis_futures.pop(task_key, None)
+
+        # Fish specific parameters
         emotion_tag = data.get("emotion_tag")
         reference_audio = data.get("reference_audio")
         reference_text = data.get("reference_text")
@@ -774,26 +868,47 @@ async def handle_blend_preview(request):
     cfg = load_config()
     active_engine_name = cfg.get("active_engine", "fish_s2")
     engine_type = (data.get("engine") or active_engine_name).lower()
+    voice_id = data.get("voice_id", "")
+    referer = request.headers.get("Referer", "").lower()
+
+    is_kokoro = (engine_type == "kokoro") or ("/kokoro" in referer) or ("blend_weights" in data) or str(voice_id).startswith(("am_", "af_", "bm_", "bf_", "blend_"))
 
     try:
         async with gpu_synthesis_lock:
-            res = await asyncio.to_thread(
-                fish_engine.synthesize_block,
-                text=text,
-                voice_id=data.get("voice_id"),
-                reference_audio=data.get("reference_audio"),
-                reference_text=data.get("reference_text"),
-                emotion_tag=data.get("emotion_tag"),
-                speed=float(data.get("speed", 1.0)),
-                gain=1.0,
-                temperature=float(data.get("temperature", 0.7)),
-                top_p=float(data.get("top_p", 0.85)),
-                pitch_shift=float(data.get("pitch_shift", 0.0)),
-                warmth=float(data.get("warmth", 0.0)),
-                clarity=float(data.get("clarity", 0.0)),
-                reverb=float(data.get("reverb", 0.0)),
-                fx_filter=str(data.get("fx_filter", "none"))
-            )
+            if is_kokoro:
+                blend_weights = data.get("blend_weights", {"am_fenrir": 0.5, "am_onyx": 0.5})
+                res = await asyncio.to_thread(
+                    kokoro_engine.synthesize_block,
+                    text=text,
+                    voice_id=voice_id or "custom_blend",
+                    blend_weights=blend_weights,
+                    speed=float(data.get("speed", 0.90)),
+                    gain=1.0,
+                    pitch_shift=float(data.get("pitch_shift", 0.0)),
+                    warmth=float(data.get("warmth", 0.0)),
+                    clarity=float(data.get("clarity", 0.0)),
+                    reverb=float(data.get("reverb", 0.0)),
+                    radio_fx=bool(data.get("radio_fx", False)),
+                    fx_filter=str(data.get("fx_filter") or "none").strip().lower()
+                )
+            else:
+                res = await asyncio.to_thread(
+                    fish_engine.synthesize_block,
+                    text=text,
+                    voice_id=data.get("voice_id"),
+                    reference_audio=data.get("reference_audio"),
+                    reference_text=data.get("reference_text"),
+                    emotion_tag=data.get("emotion_tag"),
+                    speed=float(data.get("speed", 1.0)),
+                    gain=1.0,
+                    temperature=float(data.get("temperature", 0.7)),
+                    top_p=float(data.get("top_p", 0.85)),
+                    pitch_shift=float(data.get("pitch_shift", 0.0)),
+                    warmth=float(data.get("warmth", 0.0)),
+                    clarity=float(data.get("clarity", 0.0)),
+                    reverb=float(data.get("reverb", 0.0)),
+                    fx_filter=str(data.get("fx_filter", "none"))
+                )
         return web.json_response(res)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
@@ -811,6 +926,10 @@ def sync_synthesize_block_for_export(b: dict, active_engine_name: str) -> Option
         clean_url = cached_url.split("?")[0].split("#")[0]
         cached_filename = Path(clean_url).name
         cached_path = CACHE_DIR / cached_filename
+        if not cached_path.exists():
+            edge_cache = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/cache") / cached_filename
+            if edge_cache.exists():
+                cached_path = edge_cache
         if cached_path.exists():
             try:
                 samples, sr = sf.read(str(cached_path))
@@ -848,22 +967,41 @@ def sync_synthesize_block_for_export(b: dict, active_engine_name: str) -> Option
                 pass
 
     # Live synthesize if not cached
-    res = fish_engine.synthesize_block(
-        text=text,
-        voice_id=b.get("voice_id"),
-        reference_audio=b.get("reference_audio"),
-        reference_text=b.get("reference_text"),
-        emotion_tag=b.get("emotion_tag"),
-        speed=float(b.get("speed", 1.0)),
-        gain=float(b.get("gain", 1.0)),
-        temperature=float(b.get("temperature", 0.7)),
-        top_p=float(b.get("top_p", 0.85)),
-        pitch_shift=float(b.get("pitch_shift", 0.0)),
-        warmth=float(b.get("warmth", 0.0)),
-        clarity=float(b.get("clarity", 0.0)),
-        reverb=float(b.get("reverb", 0.0)),
-        fx_filter=str(b.get("fx_filter", "none"))
-    )
+    b_engine = (b.get("engine") or active_engine_name).lower()
+    voice_id = str(b.get("voice_id", ""))
+    is_kokoro = (b_engine == "kokoro") or voice_id.startswith(("am_", "af_", "bm_", "bf_", "blend_"))
+
+    if is_kokoro:
+        res = kokoro_engine.synthesize_block(
+            text=text,
+            voice_id=voice_id or "blend_fenrir_onyx",
+            blend_weights=b.get("blend_weights"),
+            speed=float(b.get("speed", 0.90)),
+            gain=float(b.get("gain", 1.0)),
+            pitch_shift=float(b.get("pitch_shift", 0.0)),
+            warmth=float(b.get("warmth", 0.0)),
+            clarity=float(b.get("clarity", 0.0)),
+            reverb=float(b.get("reverb", 0.0)),
+            radio_fx=bool(b.get("radio_fx", False)),
+            fx_filter=str(b.get("fx_filter") or "none").strip().lower()
+        )
+    else:
+        res = fish_engine.synthesize_block(
+            text=text,
+            voice_id=b.get("voice_id"),
+            reference_audio=b.get("reference_audio"),
+            reference_text=b.get("reference_text"),
+            emotion_tag=b.get("emotion_tag"),
+            speed=float(b.get("speed", 1.0)),
+            gain=float(b.get("gain", 1.0)),
+            temperature=float(b.get("temperature", 0.7)),
+            top_p=float(b.get("top_p", 0.85)),
+            pitch_shift=float(b.get("pitch_shift", 0.0)),
+            warmth=float(b.get("warmth", 0.0)),
+            clarity=float(b.get("clarity", 0.0)),
+            reverb=float(b.get("reverb", 0.0)),
+            fx_filter=str(b.get("fx_filter", "none"))
+        )
 
     if "hash" in res:
         cache_path = CACHE_DIR / f"{res['hash']}.wav"
@@ -1171,8 +1309,12 @@ async def handle_create_project(request):
     raw_text = data.get("text", "").strip()
     defaults = data.get("defaults") or data.get("default_settings") or {}
     
-    default_engine = "fish_s2"
-    default_voice = data.get("default_voice") or defaults.get("voice_id", "voice_stanley_narrator")
+    default_engine = (data.get("engine") or "").lower()
+    if not default_engine:
+        referer = request.headers.get("Referer", "").lower()
+        default_engine = "kokoro" if "/kokoro" in referer else "fish_s2"
+
+    default_voice = data.get("default_voice") or defaults.get("voice_id", "voice_stanley_narrator" if default_engine == "fish_s2" else "blend_fenrir_onyx")
 
     dedup_key = f"{title}_{hashlib_str(raw_text or str(data.get('blocks', [])))}"
     now = time.time()
@@ -1194,7 +1336,7 @@ async def handle_create_project(request):
             "text": "Start typing your first story sentence here...",
             "voice_id": default_voice,
             "engine": default_engine,
-            "emotion_tag": "[slow, deep dramatic horror narration, ominous pause]",
+            "emotion_tag": "[slow, deep dramatic horror narration, ominous pause]" if default_engine == "fish_s2" else "",
             "speed": 1.0 if default_engine == "fish_s2" else 0.90,
             "gain": 1.0,
             "pause_after": 0.6,
@@ -1301,11 +1443,15 @@ async def handle_merge_short(request):
 
 async def handle_get_audio(request):
     filename = request.match_info["filename"]
+    edge_cache = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/cache")
+    edge_output = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/output")
     candidates = [
         CACHE_DIR / filename,
         OUTPUT_DIR / filename,
         SAMPLES_DIR / filename,
-        VOICES_DIR / filename
+        VOICES_DIR / filename,
+        edge_cache / filename,
+        edge_output / filename
     ]
     if filename.startswith("dsp_"):
         stem = Path(filename).stem[4:]
@@ -1314,7 +1460,10 @@ async def handle_get_audio(request):
         candidates.extend([
             CACHE_DIR / f"{base}.wav",
             CACHE_DIR / f"raw_{base}.wav",
-            CACHE_DIR / f"{base.removeprefix('raw_')}.wav"
+            CACHE_DIR / f"{base.removeprefix('raw_')}.wav",
+            edge_cache / f"{base}.wav",
+            edge_cache / f"raw_{base}.wav",
+            edge_cache / f"{base.removeprefix('raw_')}.wav"
         ])
 
     for p in candidates:
@@ -1340,7 +1489,10 @@ async def handle_get_audio(request):
 
 async def handle_get_config(request):
     cfg = load_config()
-    remote_url = cfg.get("fish_remote_worker_url") or cfg.get("remote_worker_url", "")
+    referer = request.headers.get("Referer", "").lower()
+    is_kokoro = ("/kokoro" in referer) or (request.query.get("engine") == "kokoro")
+
+    remote_url = cfg.get("remote_worker_url", "") if is_kokoro else (cfg.get("fish_remote_worker_url") or cfg.get("remote_worker_url", ""))
     k_user = cfg.get("kaggle_username", "")
     k_has_key = bool(cfg.get("kaggle_key", ""))
     if not k_user:
@@ -1358,8 +1510,8 @@ async def handle_get_config(request):
         "fish_api_key": cfg.get("fish_api_key", ""),
         "kaggle_username": k_user,
         "kaggle_has_key": k_has_key,
-        "active_engine": cfg.get("active_engine", "fish_s2"),
-        "active": bool(remote_url or cfg.get("fish_api_key"))
+        "active_engine": "kokoro" if is_kokoro else cfg.get("active_engine", "fish_s2"),
+        "active": bool(remote_url or (not is_kokoro and cfg.get("fish_api_key")))
     })
 
 
@@ -1521,10 +1673,17 @@ async def handle_save_config(request):
 
     if "remote_worker_url" in data:
         url = data.get("remote_worker_url", "").strip()
-        cfg["remote_worker_url"] = url
-        cfg["fish_remote_worker_url"] = url
-        if fish_engine:
-            fish_engine.remote_url = url if url else None
+        referer = request.headers.get("Referer", "").lower()
+        if "/kokoro" in referer or data.get("engine") == "kokoro":
+            cfg["remote_worker_url"] = url
+            cfg["kokoro_remote_worker_url"] = url
+            if kokoro_engine:
+                kokoro_engine.remote_url = url if url else None
+        else:
+            cfg["remote_worker_url"] = url
+            cfg["fish_remote_worker_url"] = url
+            if fish_engine:
+                fish_engine.remote_url = url if url else None
 
     if "fish_api_key" in data:
         key = data.get("fish_api_key", "").strip()
@@ -1637,12 +1796,16 @@ async def handle_test_fish_key(request):
 
 
 async def handle_get_colab_script(request):
-    colab_file = BASE_DIR / "colab_fish_worker.py"
+    referer = request.headers.get("Referer", "").lower()
+    is_kokoro = ("/kokoro" in referer) or (request.query.get("engine") == "kokoro")
+    colab_file = (BASE_DIR / "colab_worker.py") if is_kokoro else (BASE_DIR / "colab_fish_worker.py")
+    if not colab_file.exists():
+        colab_file = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/colab_worker.py")
     if colab_file.exists():
         with open(colab_file, "r", encoding="utf-8") as f:
             content = f.read()
         return web.Response(text=content, content_type="text/plain")
-    return web.Response(text="# Fish Audio Colab worker script not found", status=404)
+    return web.Response(text="# Colab worker script not found", status=404)
 
 
 async def handle_get_sample_story(request):
@@ -1728,6 +1891,14 @@ def create_app():
     # Static assets
     app.router.add_static("/studio", STUDIO_DIR)
     app.router.add_static("/voices", BASE_DIR / "voices")
+
+    # Kokoro Studio Routes (completely isolated UI and engine)
+    app.router.add_get("/kokoro", handle_kokoro_index)
+    app.router.add_get("/kokoro/", handle_kokoro_index)
+    app.router.add_get("/kokoro/studio", handle_kokoro_index)
+    app.router.add_get("/kokoro/studio/", handle_kokoro_index)
+    app.router.add_get("/kokoro/favicon.svg", handle_kokoro_favicon)
+    app.router.add_static("/kokoro_studio", KOKORO_STUDIO_DIR)
 
     return app
 

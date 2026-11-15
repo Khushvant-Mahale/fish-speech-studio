@@ -921,13 +921,23 @@ class ProjectManager:
                     chars = data.get("characters", [])
                     char_count = len(chars) if isinstance(chars, list) else 0
 
-                    proj_engine = "fish_s2"
+                    proj_engine = data.get("engine")
+                    if not proj_engine:
+                        dv = str(data.get("default_voice", ""))
+                        fb = str(blocks[0].get("voice_id", "")) if blocks else ""
+                        if dv.startswith(("am_", "af_", "bm_", "bf_", "blend_")) or fb.startswith(("am_", "af_", "bm_", "bf_", "blend_")):
+                            proj_engine = "kokoro"
+                        else:
+                            proj_engine = "fish_s2"
+
+                    if engine and proj_engine != engine:
+                        continue
 
                     projects.append({
                         "id": data.get("id", p.stem),
                         "title": data.get("title", p.stem),
                         "engine": proj_engine,
-                        "default_voice": data.get("default_voice", "voice_stanley_narrator"),
+                        "default_voice": data.get("default_voice", "voice_stanley_narrator" if proj_engine == "fish_s2" else "am_adam"),
 
                         "block_count": len(blocks),
 

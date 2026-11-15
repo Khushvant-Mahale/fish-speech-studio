@@ -377,7 +377,7 @@ function populateVoiceSelects() {
 
 async function loadProjectsList() {
   try {
-    const res = await fetch("/api/projects");
+    const res = await fetch("/api/projects?engine=fish_s2");
     state.projects = await res.json();
     renderDashboard();
   } catch (err) {
@@ -2969,7 +2969,7 @@ async function handleOpenImportCastModal() {
   }
 
   try {
-    const res = await fetch("/api/projects");
+    const res = await fetch("/api/projects?engine=fish_s2");
     if (res.ok) {
       state.projects = await res.json();
     }
