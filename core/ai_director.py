@@ -33,6 +33,158 @@ class AIDirector:
         return "\n".join(lines)
 
     @staticmethod
+    def extract_quote_segments(text: str) -> List[tuple]:
+        """
+        Extracts quoted dialogue segments and narrative segments from text.
+        Returns a list of tuples: (is_dialogue: bool, segment_text: str)
+        Supports curly double quotes “...”, straight double quotes "...",
+        guillemets «...», and curly single quotes ‘...’ (protecting internal apostrophes).
+        """
+        pattern = re.compile(
+            r'('
+            r'“[^”\r\n]*”'
+            r'|"[^"\r\n]*"'
+            r'|«[^»\r\n]*»'
+            r'|‘(?:[^’\r\n]|(?<=\w)’(?=\w))*’'
+            r')'
+        )
+        segments = []
+        last_end = 0
+        for m in pattern.finditer(text):
+            start, end = m.span()
+            if start > last_end:
+                narr = text[last_end:start].strip()
+                if narr:
+                    segments.append((False, narr))
+            q = m.group(0).strip()
+            if q:
+                segments.append((True, q))
+            last_end = end
+        if last_end < len(text):
+            narr = text[last_end:].strip()
+            if narr:
+                segments.append((False, narr))
+        return segments
+
+    @classmethod
+    def sanitize_and_split_dialogue(
+        cls,
+        blocks: List[Dict[str, Any]],
+        narrator_char: Dict[str, Any],
+        char_map: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Guarantees that characters ONLY speak words enclosed within quotation marks.
+        Any narrative lead-ins, dialogue attribution tags (e.g., 'Ray asked,', 'she whispered.'),
+        or action beats outside quotation marks are strictly separated into Narrator speech blocks.
+        """
+        quote_detect = re.compile(r'[\"“«‘]')
+        clean_blocks = []
+
+        narr_name = narrator_char.get("name", "Narrator")
+        narr_id = narrator_char.get("id", "char_narrator")
+        narr_vid = narrator_char.get("assigned_voice_id") or narrator_char.get("voice_id", "")
+
+        for b in blocks:
+            spk = b.get("speaker", narr_name)
+            is_narr = (spk.lower() == "narrator") or ("narrator" in spk.lower())
+            text = (b.get("text") or "").strip()
+            if not text:
+                continue
+
+            if is_narr:
+                clean_blocks.append(b)
+                continue
+
+            # Speaking character block!
+            if not quote_detect.search(text):
+                # Check if this is an unquoted dialogue tag mistakenly assigned to character
+                tag_match = re.match(r'^(?:he|she|they|[A-Z][a-z]+)\s+(?:said|asked|replied|yelled|whispered|laughed|chuckled|added|thought|smiled|answered)[\.,]?$', text, re.IGNORECASE)
+                if tag_match:
+                    clean_blocks.append({
+                        **b,
+                        "speaker": narr_name,
+                        "character_id": narr_id,
+                        "voice_id": narr_vid,
+                        "emotion_tag": None
+                    })
+                else:
+                    clean_blocks.append(b)
+                continue
+
+            # Character block contains quotation marks! Separate dialogue from narration
+            segments = cls.extract_quote_segments(text)
+            engine = b.get("engine", "fish_s2")
+            char_emotion = b.get("emotion_tag")
+
+            for is_quote, seg_text in segments:
+                seg_text = seg_text.strip()
+                if not seg_text:
+                    continue
+
+                if is_quote:
+                    # Character dialogue
+                    clean_blocks.append({
+                        "id": f"{b.get('id', 'b')}_q_{len(clean_blocks)}",
+                        "speaker": b.get("speaker"),
+                        "character_id": b.get("character_id"),
+                        "voice_id": b.get("voice_id"),
+                        "text": seg_text,
+                        "emotion_tag": char_emotion,
+                        "pause_after": b.get("pause_after", 0.4),
+                        "engine": engine
+                    })
+                else:
+                    # Narrative tag / action beat
+                    # If this segment is solely an emotion tag like [whisper] or [angry], transfer tag
+                    etag_match = re.match(r'^\[([a-zA-Z_]+)\]$', seg_text)
+                    if etag_match:
+                        char_emotion = f"[{etag_match.group(1)}]"
+                        continue
+
+                    # Strip any inline tags from narration text
+                    clean_narr = re.sub(r'\[/?[a-zA-Z_]+\]', '', seg_text).strip()
+                    if clean_narr:
+                        clean_blocks.append({
+                            "id": f"{b.get('id', 'b')}_n_{len(clean_blocks)}",
+                            "speaker": narr_name,
+                            "character_id": narr_id,
+                            "voice_id": narr_vid,
+                            "text": clean_narr,
+                            "emotion_tag": None,
+                            "pause_after": 0.5,
+                            "engine": engine
+                        })
+
+        # Narrative flow optimization: merge adjacent narrator blocks if prior block is an incomplete clause
+        merged = []
+        for b in clean_blocks:
+            if not merged:
+                merged.append(b)
+                continue
+            prev = merged[-1]
+            is_prev_narr = (prev.get("speaker", "").lower() == "narrator") or ("narrator" in prev.get("speaker", "").lower())
+            is_curr_narr = (b.get("speaker", "").lower() == "narrator") or ("narrator" in b.get("speaker", "").lower())
+
+            if is_prev_narr and is_curr_narr:
+                prev_txt = prev.get("text", "").strip()
+                curr_txt = b.get("text", "").strip()
+                # Do not merge chapter headings
+                is_heading = prev.get("type") == "heading" or b.get("type") == "heading" or (prev_txt.startswith("—") and prev_txt.endswith("—")) or prev_txt.startswith("#") or curr_txt.startswith("#")
+                if not is_heading:
+                    # Merge if prev ends with comma, semicolon, colon, or unpunctuated dangling word
+                    if prev_txt and (prev_txt[-1] in (',', ';', ':') or re.search(r'[A-Za-z0-9]$', prev_txt)):
+                        prev["text"] = prev_txt + " " + curr_txt
+                        continue
+            merged.append(b)
+
+        # Renumber block IDs sequentially
+        for idx, b in enumerate(merged, 1):
+            b["id"] = f"b_{idx}"
+
+        return merged
+
+    @staticmethod
     def _call_gemini_api(api_key: str, model: str, prompt: str, system_prompt: str = "") -> str:
         """Calls Google Gemini API via lightweight standard REST with automatic active model fallback."""
         requested_model = model or "gemini-3.5-flash-lite"
@@ -348,11 +500,11 @@ class AIDirector:
         block_counter = 1
 
         phase2_system = (
-            "You are a professional Audiobook Dialogue Director.\n"
+            "You are a master Audiobook & Audio Drama Dialogue Director.\n"
             "You receive numbered story blocks. Your job is to:\n"
-            "1. Separate character dialogue from narrative tags if split_dialogue is enabled.\n"
-            "2. Attribute each spoken line to the correct character speaker from the Cast List.\n"
-            "3. Assign the character's voice_id.\n"
+            "1. STRICT DIALOGUE RULE: ONLY text inside quotation marks (\"...\" or “...”) may be attributed to a speaking character!\n"
+            "2. ALL dialogue tags, narrative descriptions, and action beats OUTSIDE quotation marks (e.g. 'Ray asked,', 'he whispered.', 'Ray chuckled.', 'No one answered, so Ray asked again,', 'The students laughed again, and finally one brave soul yelled out,') MUST be placed in a separate block with speaker: 'Narrator' and the Narrator's voice_id.\n"
+            "3. NEVER include narrative tags or text outside quotes in a character block.\n"
             "4. Add natural Fish Speech emotion tags for expressive lines: [whisper], [screaming], [panicked], [sinister], [gasping], [cheerful], [angry], [pompous], [sobbing], [confused]. If neutral, emotion_tag is null.\n"
             "5. PRESERVE EVERY WORD of the original author's text. Do not invent or summarize story content.\n"
             "Output JSON with a 'blocks' array: [{speaker, voice_id, text, emotion_tag}]."
@@ -386,12 +538,13 @@ class AIDirector:
             phase2_prompt = (
                 f"CASTING DIRECTORY:\n{char_cast_summary}\n\n"
                 f"NARRATOR VOICE ID: {narrator_voice_id}\n\n"
+                f"CRITICAL RULE: Characters ONLY speak words inside quotation marks (\"...\" or “...”). Words outside quotes belong to Narrator.\n\n"
                 f"STORY BLOCKS TO DIRECT:\n" + "\n\n".join(chunk_input) + "\n\n"
                 "Return JSON in this exact structure:\n"
                 "{\n"
                 '  "blocks": [\n'
-                '    {"speaker": "Narrator", "voice_id": "' + narrator_voice_id + '", "text": "block text", "emotion_tag": null},\n'
-                '    {"speaker": "Uncle Vernon", "voice_id": "...", "text": "[angry] Don\'t you dare!", "emotion_tag": "[angry]"}\n'
+                '    {"speaker": "Narrator", "voice_id": "' + narrator_voice_id + '", "text": "Ray chuckled.", "emotion_tag": null},\n'
+                '    {"speaker": "Ray Kroc", "voice_id": "...", "text": "“That’s what I thought you would say.”", "emotion_tag": "[cheerful]"}\n'
                 "  ]\n"
                 "}"
             )
@@ -453,6 +606,11 @@ class AIDirector:
                         "pause_after": b.get("pause_after", 0.6)
                     })
                     block_counter += 1
+
+        # Guarantee strict separation of character quotes from narrator attribution tags
+        narr_char = char_map.get("narrator", discovered_characters[0])
+        if split_dialogue and directed_blocks:
+            directed_blocks = self.sanitize_and_split_dialogue(directed_blocks, narr_char, char_map)
 
         if progress_callback:
             try:
