@@ -217,7 +217,8 @@ class AIDirector:
         split_dialogue: bool = True,
         cast_voices: bool = True,
         add_emotions: bool = True,
-        default_narrator_voice: str = ""
+        default_narrator_voice: str = "",
+        progress_callback: Optional[Any] = None
     ) -> Dict[str, Any]:
         """
         Takes raw story blocks and casts characters with voices, splits dialogue from narration,
@@ -225,6 +226,22 @@ class AIDirector:
         """
         if not blocks:
             return {"ok": False, "error": "No blocks provided to direct."}
+
+        chunk_size = 25
+        total_chunks = max(1, (len(blocks) + chunk_size - 1) // chunk_size)
+
+        if progress_callback:
+            try:
+                progress_callback({
+                    "step": "casting",
+                    "percent": 12,
+                    "message": "AI Director: Discovering characters & casting library voices...",
+                    "total_blocks": len(blocks),
+                    "total_chunks": total_chunks,
+                    "current_chunk": 0
+                })
+            except Exception:
+                pass
 
         voice_library_str = self.format_voice_library_prompt(voices)
         narrator_voice_id = default_narrator_voice or (voices[0]["id"] if voices else "voice_stanley_narrator")
@@ -312,8 +329,21 @@ class AIDirector:
 
         char_map = {c["name"].lower(): c for c in discovered_characters}
 
+        if progress_callback:
+            try:
+                progress_callback({
+                    "step": "cast_ready",
+                    "percent": 28,
+                    "message": f"Cast established ({len(discovered_characters)} characters). Splitting dialogue & attributing speakers...",
+                    "characters": discovered_characters,
+                    "total_blocks": len(blocks),
+                    "total_chunks": total_chunks,
+                    "current_chunk": 0
+                })
+            except Exception:
+                pass
+
         # Phase 2: Directed Block Generation in safe chunks (25 blocks per chunk to avoid JSON truncation)
-        chunk_size = 25
         directed_blocks: List[Dict[str, Any]] = []
         block_counter = 1
 
@@ -331,6 +361,22 @@ class AIDirector:
         char_cast_summary = "\n".join([f'- {c["name"]}: Voice ID "{c.get("assigned_voice_id")}" ({c.get("persona")})' for c in discovered_characters])
 
         for start_idx in range(0, len(blocks), chunk_size):
+            chunk_num = (start_idx // chunk_size) + 1
+            if progress_callback:
+                try:
+                    pct = 28 + int(68 * (chunk_num - 1) / total_chunks)
+                    progress_callback({
+                        "step": "directing",
+                        "percent": pct,
+                        "message": f"Directing dialogue & acting tags (Chunk {chunk_num} of {total_chunks})...",
+                        "characters": discovered_characters,
+                        "total_blocks": len(blocks),
+                        "total_chunks": total_chunks,
+                        "current_chunk": chunk_num
+                    })
+                except Exception:
+                    pass
+
             chunk = blocks[start_idx:start_idx + chunk_size]
             chunk_input = []
             for idx, b in enumerate(chunk):
@@ -407,6 +453,20 @@ class AIDirector:
                         "pause_after": b.get("pause_after", 0.6)
                     })
                     block_counter += 1
+
+        if progress_callback:
+            try:
+                progress_callback({
+                    "step": "done",
+                    "percent": 100,
+                    "message": f"Directing complete! Cast {len(discovered_characters)} characters across {len(directed_blocks)} speech blocks.",
+                    "characters": discovered_characters,
+                    "total_blocks": len(directed_blocks),
+                    "total_chunks": total_chunks,
+                    "current_chunk": total_chunks
+                })
+            except Exception:
+                pass
 
         return {
             "ok": True,

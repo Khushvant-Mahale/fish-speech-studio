@@ -4248,11 +4248,24 @@ async function handleRunAIDirector() {
   btn.disabled = true;
   btn.innerHTML = `<span>⏳ AI Director analyzing manuscript & casting roles...</span>`;
 
+  const jobId = "job_modal_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
+  const progressTracker = startLiveProgressTracker(jobId, {
+    containerId: "modal-ai-progress-container",
+    barId: "modal-ai-progress-bar",
+    percentId: "modal-ai-progress-percent",
+    stepId: "modal-ai-progress-step",
+    msgId: "modal-ai-progress-msg",
+    charsId: "modal-ai-progress-characters",
+    initialStep: "🎭 Phase 1: Casting Story Characters...",
+    initialMsg: "Analyzing story text & matching Kokoro voices..."
+  });
+
   try {
     const res = await fetch("/api/ai_director/direct", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        job_id: jobId,
         blocks: state.currentProject.blocks,
         provider: activeAIProvider,
         api_key: apiKey,
@@ -4269,6 +4282,11 @@ async function handleRunAIDirector() {
     const data = await res.json();
     if (!res.ok || !data.ok) {
       throw new Error(data.error || "Failed to direct story with AI.");
+    }
+
+    if (progressTracker) {
+      progressTracker.finish("✨ Directing Complete! Showing Cast...");
+      setTimeout(() => progressTracker.hide(), 1200);
     }
 
     window._aiDirectedBlocks = data.blocks;
@@ -6147,6 +6165,132 @@ function handleEpubChapterChange() {
   }
 }
 
+function startLiveProgressTracker(jobId, options) {
+  const {
+    containerId,
+    barId,
+    percentId,
+    stepId,
+    msgId,
+    charsId,
+    initialStep = "AI Director Working...",
+    initialMsg = "Discovering characters & casting library voices...",
+    onComplete
+  } = options;
+
+  const container = document.getElementById(containerId);
+  const bar = document.getElementById(barId);
+  const percentEl = document.getElementById(percentId);
+  const stepEl = document.getElementById(stepId);
+  const msgEl = document.getElementById(msgId);
+  const charsEl = document.getElementById(charsId);
+
+  if (container) container.style.display = "block";
+  if (bar) bar.style.width = "10%";
+  if (percentEl) percentEl.textContent = "10%";
+  if (stepEl) stepEl.textContent = initialStep;
+  if (msgEl) msgEl.textContent = initialMsg;
+  if (charsEl) {
+    charsEl.innerHTML = "";
+    charsEl.style.display = "none";
+  }
+
+  let currentDisplayPct = 10;
+  let targetPct = 15;
+  let isDone = false;
+  let knownCharIds = new Set();
+
+  const animInterval = setInterval(() => {
+    if (isDone) {
+      currentDisplayPct = 100;
+      if (bar) bar.style.width = "100%";
+      if (percentEl) percentEl.textContent = "100%";
+      clearInterval(animInterval);
+      return;
+    }
+    if (currentDisplayPct < targetPct) {
+      currentDisplayPct += Math.min(2.5, targetPct - currentDisplayPct);
+    } else if (currentDisplayPct < 94) {
+      currentDisplayPct += 0.25;
+    }
+    const rounded = Math.round(currentDisplayPct);
+    if (bar) bar.style.width = `${rounded}%`;
+    if (percentEl) percentEl.textContent = `${rounded}%`;
+  }, 100);
+
+  const pollInterval = setInterval(async () => {
+    if (isDone) {
+      clearInterval(pollInterval);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/job_progress?job_id=${encodeURIComponent(jobId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.ok || !data.job) return;
+
+      const job = data.job;
+      if (typeof job.percent === "number" && job.percent > targetPct) {
+        targetPct = job.percent;
+      }
+      if (job.step && stepEl) {
+        if (job.step === "casting") stepEl.textContent = "🎭 Phase 1: Casting Story Characters...";
+        else if (job.step === "cast_ready") stepEl.textContent = "✨ Phase 1 Complete: Cast Established";
+        else if (job.step === "directing") stepEl.textContent = "✍️ Phase 2: Directing Script & Dialogue...";
+        else if (job.step === "done") stepEl.textContent = "✨ Directing Complete! Opening Studio...";
+      }
+      if (job.message && msgEl) {
+        msgEl.textContent = job.message;
+      }
+
+      if (Array.isArray(job.characters) && job.characters.length > 0 && charsEl) {
+        charsEl.style.display = "flex";
+        job.characters.forEach(c => {
+          const cid = c.id || c.name;
+          if (!knownCharIds.has(cid)) {
+            knownCharIds.add(cid);
+            const badge = document.createElement("span");
+            badge.style.cssText = `background: ${c.color || '#6366f1'}22; color: ${c.color || '#c4b5fd'}; border: 1px solid ${c.color || '#6366f1'}55; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;`;
+            badge.innerHTML = `🎭 ${escapeHtml(c.name || 'Character')} <span style="opacity: 0.7; font-size: 9.5px; font-family: monospace;">(${escapeHtml(c.assigned_voice_id || c.voice_id || '')})</span>`;
+            charsEl.appendChild(badge);
+          }
+        });
+      }
+
+      if (job.status === "done" || job.percent >= 100) {
+        isDone = true;
+        clearInterval(pollInterval);
+        clearInterval(animInterval);
+        if (bar) bar.style.width = "100%";
+        if (percentEl) percentEl.textContent = "100%";
+        if (stepEl) stepEl.textContent = "✨ Directing Complete! Loading Workspace...";
+        if (typeof onComplete === "function") {
+          onComplete(job);
+        }
+      }
+    } catch (e) {
+      console.warn("Progress poll error:", e);
+    }
+  }, 400);
+
+  return {
+    finish(msg) {
+      isDone = true;
+      clearInterval(pollInterval);
+      clearInterval(animInterval);
+      if (bar) bar.style.width = "100%";
+      if (percentEl) percentEl.textContent = "100%";
+      if (stepEl) stepEl.textContent = msg || "✨ Complete! Loading Project...";
+    },
+    hide() {
+      isDone = true;
+      clearInterval(pollInterval);
+      clearInterval(animInterval);
+      if (container) container.style.display = "none";
+    }
+  };
+}
+
 function toggleEpubCastMode(mode) {
   const lblMulti = document.getElementById("lbl-epub-mode-multi");
   const lblSingle = document.getElementById("lbl-epub-mode-single");
@@ -6241,12 +6385,28 @@ async function confirmEpubChapterImport() {
       : `<span>⏳ Extracting Chapter Blocks...</span>`;
   }
 
+  const jobId = "job_epub_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
+  let progressTracker = null;
+  if (isMulti) {
+    progressTracker = startLiveProgressTracker(jobId, {
+      containerId: "epub-progress-container",
+      barId: "epub-progress-bar",
+      percentId: "epub-progress-percent",
+      stepId: "epub-progress-step",
+      msgId: "epub-progress-msg",
+      charsId: "epub-progress-characters",
+      initialStep: "🎭 Phase 1: Casting Story Characters...",
+      initialMsg: "Analyzing manuscript & matching Kokoro voices..."
+    });
+  }
+
   try {
     showToast(isMulti ? "🎭 AI Director: Discovering characters, casting voices & splitting dialogue..." : "📚 Extracting chapter text & sentences...");
     const res = await fetch("/api/epub/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        job_id: jobId,
         epub_path: currentEpubData.epub_path,
         book_index: bIdx,
         chapter_index: chIdx,
@@ -6262,14 +6422,22 @@ async function confirmEpubChapterImport() {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || "Failed to import chapter");
 
-    closeEpubModal();
+    if (progressTracker) {
+      progressTracker.finish("✨ Audiobook Chapter Ready! Opening Studio...");
+    }
+
     showToast(`✓ Created Audiobook Chapter: "${data.title}" with ${data.blocks_count} sentences!`);
     loadProjectsList();
 
-    if (data.url) {
-      window.open(data.url, "_blank");
-    }
+    setTimeout(() => {
+      closeEpubModal();
+      if (progressTracker) progressTracker.hide();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    }, 600);
   } catch (err) {
+    if (progressTracker) progressTracker.hide();
     showToast("❌ Import failed: " + err.message, 5000);
   } finally {
     if (confirmBtn) {
@@ -6298,6 +6466,21 @@ async function handleCreateProjectSubmit() {
       : `<span>⏳ Creating Project...</span>`;
   }
 
+  const jobId = "job_proj_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
+  let progressTracker = null;
+  if (isMulti && text) {
+    progressTracker = startLiveProgressTracker(jobId, {
+      containerId: "new-proj-progress-container",
+      barId: "new-proj-progress-bar",
+      percentId: "new-proj-progress-percent",
+      stepId: "new-proj-progress-step",
+      msgId: "new-proj-progress-msg",
+      charsId: "new-proj-progress-characters",
+      initialStep: "🎭 Phase 1: Casting Characters...",
+      initialMsg: "Analyzing text & casting Kokoro voices..."
+    });
+  }
+
   const defs = getProjectDefaultSettings();
   try {
     if (isMulti && text) {
@@ -6307,6 +6490,7 @@ async function handleCreateProjectSubmit() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ 
+        job_id: jobId,
         title, 
         text, 
         default_voice: defaultVoice, 
@@ -6316,11 +6500,18 @@ async function handleCreateProjectSubmit() {
     });
 
     const newProj = await res.json();
-    closeNewProjectModal();
-    const targetUrl = `/kokoro/studio?project=${encodeURIComponent(newProj.id)}`;
-    window.location.href = targetUrl;
-    loadProjectsList();
+    if (progressTracker) {
+      progressTracker.finish("✨ Story Directed! Opening Workspace...");
+    }
+
+    setTimeout(() => {
+      closeNewProjectModal();
+      if (progressTracker) progressTracker.hide();
+      window.location.href = `/kokoro/studio?project=${encodeURIComponent(newProj.id)}`;
+      loadProjectsList();
+    }, 500);
   } catch (err) {
+    if (progressTracker) progressTracker.hide();
     alert("Could not create project: " + err);
   } finally {
     isCreatingProject = false;

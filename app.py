@@ -1303,12 +1303,23 @@ async def handle_get_projects(request):
 
 
 _recent_created_projects = {}
+ACTIVE_JOBS: Dict[str, Dict[str, Any]] = {}
+
+async def handle_job_progress(request):
+    job_id = request.query.get("job_id", "").strip()
+    if not job_id:
+        return web.json_response({"ok": False, "error": "Missing job_id"}, status=400)
+    job = ACTIVE_JOBS.get(job_id)
+    if not job:
+        return web.json_response({"ok": True, "job": {"status": "pending", "percent": 5, "message": "Initializing AI Director..."}})
+    return web.json_response({"ok": True, "job": job})
 
 async def handle_create_project(request):
     data = await request.json()
     title = data.get("title", "Untitled Project").strip() or "Untitled Project"
     raw_text = data.get("text", "").strip()
     defaults = data.get("defaults") or data.get("default_settings") or {}
+    job_id = data.get("job_id", "").strip()
     
     default_engine = (data.get("engine") or "").lower()
     if not default_engine:
@@ -1349,6 +1360,25 @@ async def handle_create_project(request):
     ai_direct = bool(data.get("ai_direct", False))
     characters = data.get("characters", [])
 
+    if job_id:
+        ACTIVE_JOBS[job_id] = {
+            "status": "processing",
+            "percent": 8,
+            "step": "init",
+            "message": "Initializing project blocks...",
+            "characters": [],
+            "total_blocks": len(blocks),
+            "current_chunk": 0,
+            "total_chunks": 1
+        }
+
+    def _on_create_progress(p_data):
+        if job_id:
+            ACTIVE_JOBS[job_id] = {
+                "status": "done" if p_data.get("percent", 0) >= 100 else "processing",
+                **p_data
+            }
+
     if ai_direct and len(blocks) > 0:
         try:
             if default_engine == "kokoro":
@@ -1383,7 +1413,8 @@ async def handle_create_project(request):
                     split_dialogue=data.get("split_dialogue", True),
                     cast_voices=True,
                     add_emotions=data.get("add_emotions", True),
-                    default_narrator_voice=default_voice
+                    default_narrator_voice=default_voice,
+                    progress_callback=_on_create_progress
                 )
 
             direct_res = await asyncio.to_thread(_direct_sync)
@@ -1407,6 +1438,17 @@ async def handle_create_project(request):
     }
     project_mgr.save_project(proj_data, proj_id)
     _recent_created_projects[dedup_key] = (time.time(), proj_data)
+
+    if job_id:
+        ACTIVE_JOBS[job_id] = {
+            "status": "done",
+            "percent": 100,
+            "step": "done",
+            "message": "Project ready! Opening Studio...",
+            "characters": characters,
+            "url": f"/kokoro/studio?project={proj_id}" if default_engine == "kokoro" else f"/studio?project={proj_id}"
+        }
+
     return web.json_response(proj_data)
 
 
@@ -1519,6 +1561,26 @@ async def handle_ai_direct(request):
         add_emotions = bool(data.get("add_emotions", True))
         engine = data.get("engine", "fish_s2")
         default_voice = data.get("default_voice", "")
+        job_id = data.get("job_id", "").strip()
+
+        if job_id:
+            ACTIVE_JOBS[job_id] = {
+                "status": "processing",
+                "percent": 8,
+                "step": "init",
+                "message": "Initializing script blocks...",
+                "characters": [],
+                "total_blocks": len(blocks),
+                "current_chunk": 0,
+                "total_chunks": 1
+            }
+
+        def _on_ai_progress(p_data):
+            if job_id:
+                ACTIVE_JOBS[job_id] = {
+                    "status": "done" if p_data.get("percent", 0) >= 100 else "processing",
+                    **p_data
+                }
 
         cfg = load_config()
         if not api_key:
@@ -1563,10 +1625,21 @@ async def handle_ai_direct(request):
                 split_dialogue=split_dialogue,
                 cast_voices=cast_voices,
                 add_emotions=add_emotions,
-                default_narrator_voice=default_voice
+                default_narrator_voice=default_voice,
+                progress_callback=_on_ai_progress
             )
 
         res = await asyncio.to_thread(_direct_sync)
+
+        if job_id:
+            ACTIVE_JOBS[job_id] = {
+                "status": "done",
+                "percent": 100,
+                "step": "done",
+                "message": "Script directing complete!",
+                "characters": res.get("characters", []),
+                "blocks": res.get("blocks", [])
+            }
 
         if res.get("ok") and save_key and api_key:
             cfg[f"{provider}_api_key"] = api_key
@@ -2037,6 +2110,26 @@ async def handle_epub_import(request):
 
         ai_direct = bool(data.get("ai_direct", False))
         characters = []
+        job_id = data.get("job_id", "").strip()
+
+        if job_id:
+            ACTIVE_JOBS[job_id] = {
+                "status": "processing",
+                "percent": 8,
+                "step": "extracting",
+                "message": "Extracting chapter manuscript & speech blocks...",
+                "characters": [],
+                "total_blocks": len(blocks),
+                "current_chunk": 0,
+                "total_chunks": 1
+            }
+
+        def _on_epub_progress(p_data):
+            if job_id:
+                ACTIVE_JOBS[job_id] = {
+                    "status": "done" if p_data.get("percent", 0) >= 100 else "processing",
+                    **p_data
+                }
 
         if ai_direct and blocks:
             try:
@@ -2073,7 +2166,8 @@ async def handle_epub_import(request):
                         split_dialogue=data.get("split_dialogue", True),
                         cast_voices=True,
                         add_emotions=data.get("add_emotions", True),
-                        default_narrator_voice=default_voice
+                        default_narrator_voice=default_voice,
+                        progress_callback=_on_epub_progress
                     )
 
                 direct_res = await asyncio.to_thread(_direct_sync)
@@ -2086,6 +2180,7 @@ async def handle_epub_import(request):
                 print(f"[handle_epub_import] AI Direct notice ({direct_err}), proceeding with default narrator blocks.")
 
         proj_id = f"proj_{uuid.uuid4().hex[:8]}"
+        proj_url = f"/kokoro/studio?project={proj_id}" if engine == "kokoro" else f"/studio?project={proj_id}"
         proj_data = {
             "id": proj_id,
             "title": custom_title,
@@ -2099,6 +2194,16 @@ async def handle_epub_import(request):
         }
         project_mgr.save_project(proj_data, proj_id)
 
+        if job_id:
+            ACTIVE_JOBS[job_id] = {
+                "status": "done",
+                "percent": 100,
+                "step": "done",
+                "message": "Audiobook chapter ready! Opening Studio...",
+                "characters": characters,
+                "url": proj_url
+            }
+
         return web.json_response({
             "ok": True,
             "id": proj_id,
@@ -2106,7 +2211,7 @@ async def handle_epub_import(request):
             "blocks_count": len(blocks),
             "word_count": ch_data["word_count"],
             "estimated_minutes": ch_data["estimated_minutes"],
-            "url": f"/kokoro/studio?project={proj_id}" if engine == "kokoro" else f"/studio?project={proj_id}"
+            "url": proj_url
         })
     except Exception as e:
         import traceback
@@ -2296,6 +2401,7 @@ def create_app():
     app.router.add_get("/api/ai_director/config", handle_get_ai_director_config)
     app.router.add_post("/api/ai_director/config", handle_save_ai_director_config)
     app.router.add_post("/api/ai_director/test_key", handle_test_ai_director_key)
+    app.router.add_get("/api/job_progress", handle_job_progress)
     app.router.add_post("/api/merge_short", handle_merge_short)
 
     # Audio & Config
