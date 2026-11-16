@@ -14,7 +14,7 @@ class AIDirector:
     """
 
     DEFAULT_MODELS = {
-        "gemini": "gemini-3.5-flash",
+        "gemini": "gemini-3.5-flash-lite",
         "groq": "llama-3.3-70b-versatile",
         "openai": "gpt-4o-mini",
         "ollama": "llama3.2"
@@ -35,10 +35,10 @@ class AIDirector:
     @staticmethod
     def _call_gemini_api(api_key: str, model: str, prompt: str, system_prompt: str = "") -> str:
         """Calls Google Gemini API via lightweight standard REST with automatic active model fallback."""
-        requested_model = model or "gemini-3.5-flash"
-        # Candidate model hierarchy in order of preference (prioritizing high-quota models)
+        requested_model = model or "gemini-3.5-flash-lite"
+        # Candidate model hierarchy in order of preference (prioritizing high-speed, high-quota models)
         candidate_models = [requested_model]
-        for fallback in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-3.8-flash"]:
+        for fallback in ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.8-flash"]:
             if fallback not in candidate_models:
                 candidate_models.append(fallback)
 

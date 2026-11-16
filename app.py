@@ -1346,13 +1346,62 @@ async def handle_create_project(request):
         }
         blocks = [b1]
 
+    ai_direct = bool(data.get("ai_direct", False))
+    characters = data.get("characters", [])
+
+    if ai_direct and len(blocks) > 0:
+        try:
+            if default_engine == "kokoro":
+                try:
+                    with open(BASE_DIR / "core" / "voices_metadata.json", "r", encoding="utf-8") as f:
+                        k_raw = json.load(f)
+                        voices = k_raw if isinstance(k_raw, list) else [{"id": k, **v} for k, v in k_raw.items()]
+                except Exception:
+                    voices = []
+            else:
+                try:
+                    with open(BASE_DIR / "core" / "fish_voices_metadata.json", "r", encoding="utf-8") as f:
+                        voices = json.load(f)
+                except Exception:
+                    voices = []
+
+            cfg = load_config()
+            provider = data.get("ai_provider") or cfg.get("default_llm_provider", "gemini")
+            api_key = data.get("ai_api_key") or cfg.get(f"{provider}_api_key") or os.environ.get(f"{provider.upper()}_API_KEY", "")
+            model = data.get("ai_model") or ""
+
+            from core.ai_director import AIDirector
+            director = AIDirector()
+
+            def _direct_sync():
+                return director.direct_story(
+                    blocks=blocks,
+                    voices=voices,
+                    provider=provider,
+                    api_key=api_key,
+                    model=model,
+                    split_dialogue=data.get("split_dialogue", True),
+                    cast_voices=True,
+                    add_emotions=data.get("add_emotions", True),
+                    default_narrator_voice=default_voice
+                )
+
+            direct_res = await asyncio.to_thread(_direct_sync)
+            if direct_res.get("ok"):
+                blocks = direct_res.get("blocks", blocks)
+                characters = direct_res.get("characters", [])
+                for b in blocks:
+                    b["engine"] = default_engine
+        except Exception as direct_err:
+            print(f"[handle_create_project] AI Direct notice ({direct_err}), proceeding with default blocks.")
+
     proj_data = {
         "id": proj_id,
         "title": title,
         "engine": default_engine,
         "default_voice": default_voice,
         "default_settings": defaults if defaults else None,
-        "characters": data.get("characters", []),
+        "characters": characters,
         "blocks": blocks,
         "master_filename": f"{proj_id}_master.wav"
     }
@@ -1986,12 +2035,63 @@ async def handle_epub_import(request):
         for b in blocks:
             b["engine"] = engine
 
+        ai_direct = bool(data.get("ai_direct", False))
+        characters = []
+
+        if ai_direct and blocks:
+            try:
+                # Load voices metadata for LLM casting
+                if engine == "kokoro":
+                    try:
+                        with open(BASE_DIR / "core" / "voices_metadata.json", "r", encoding="utf-8") as f:
+                            k_raw = json.load(f)
+                            voices = k_raw if isinstance(k_raw, list) else [{"id": k, **v} for k, v in k_raw.items()]
+                    except Exception:
+                        voices = []
+                else:
+                    try:
+                        with open(BASE_DIR / "core" / "fish_voices_metadata.json", "r", encoding="utf-8") as f:
+                            voices = json.load(f)
+                    except Exception:
+                        voices = []
+
+                cfg = load_config()
+                provider = data.get("ai_provider") or cfg.get("default_llm_provider", "gemini")
+                api_key = data.get("ai_api_key") or cfg.get(f"{provider}_api_key") or os.environ.get(f"{provider.upper()}_API_KEY", "")
+                model = data.get("ai_model") or ""
+
+                from core.ai_director import AIDirector
+                director = AIDirector()
+
+                def _direct_sync():
+                    return director.direct_story(
+                        blocks=blocks,
+                        voices=voices,
+                        provider=provider,
+                        api_key=api_key,
+                        model=model,
+                        split_dialogue=data.get("split_dialogue", True),
+                        cast_voices=True,
+                        add_emotions=data.get("add_emotions", True),
+                        default_narrator_voice=default_voice
+                    )
+
+                direct_res = await asyncio.to_thread(_direct_sync)
+                if direct_res.get("ok"):
+                    blocks = direct_res.get("blocks", blocks)
+                    characters = direct_res.get("characters", [])
+                    for b in blocks:
+                        b["engine"] = engine
+            except Exception as direct_err:
+                print(f"[handle_epub_import] AI Direct notice ({direct_err}), proceeding with default narrator blocks.")
+
         proj_id = f"proj_{uuid.uuid4().hex[:8]}"
         proj_data = {
             "id": proj_id,
             "title": custom_title,
             "engine": engine,
             "default_voice": default_voice,
+            "characters": characters,
             "blocks": blocks,
             "created_at": time.time(),
             "updated_at": time.time(),

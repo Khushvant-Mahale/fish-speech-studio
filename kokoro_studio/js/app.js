@@ -4162,10 +4162,11 @@ function switchAIDirectorProvider(prov) {
     }
     if (modelSelect) {
       modelSelect.innerHTML = `
-        <option value="gemini-2.5-flash">gemini-2.5-flash (Recommended: Free & Fast)</option>
+        <option value="gemini-3.5-flash-lite" selected>gemini-3.5-flash-lite (Recommended: Ultra Fast &amp; Free)</option>
+        <option value="gemini-flash-lite-latest">gemini-flash-lite-latest (Fastest)</option>
+        <option value="gemini-3.5-flash">gemini-3.5-flash (Standard)</option>
+        <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (High Speed)</option>
         <option value="gemini-3.8-flash">gemini-3.8-flash (Latest Frontier Flash)</option>
-        <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Ultra Lightweight)</option>
-        <option value="gemini-2.5-pro">gemini-2.5-pro (Deep Multimodal Reasoning)</option>
       `;
     }
   } else if (activeAIProvider === "groq") {
@@ -6146,6 +6147,77 @@ function handleEpubChapterChange() {
   }
 }
 
+function toggleEpubCastMode(mode) {
+  const lblMulti = document.getElementById("lbl-epub-mode-multi");
+  const lblSingle = document.getElementById("lbl-epub-mode-single");
+  const opts = document.getElementById("epub-multi-options");
+  const btn = document.getElementById("btn-confirm-epub-import");
+
+  if (mode === "multi") {
+    if (lblMulti) {
+      lblMulti.style.border = "1.5px solid #6366f1";
+      lblMulti.style.background = "rgba(99, 102, 241, 0.12)";
+    }
+    if (lblSingle) {
+      lblSingle.style.border = "1px solid var(--border-color)";
+      lblSingle.style.background = "rgba(255, 255, 255, 0.03)";
+    }
+    if (opts) opts.style.display = "flex";
+    if (btn) {
+      btn.innerHTML = `🎭 Create &amp; AI Direct Chapter`;
+      btn.style.background = "linear-gradient(135deg, #6366f1, #10b981)";
+    }
+  } else {
+    if (lblMulti) {
+      lblMulti.style.border = "1px solid var(--border-color)";
+      lblMulti.style.background = "rgba(255, 255, 255, 0.03)";
+    }
+    if (lblSingle) {
+      lblSingle.style.border = "1.5px solid #10b981";
+      lblSingle.style.background = "rgba(16, 185, 129, 0.12)";
+    }
+    if (opts) opts.style.display = "none";
+    if (btn) {
+      btn.innerHTML = `🚀 Create Chapter Project &amp; Open`;
+      btn.style.background = "linear-gradient(135deg, #6366f1, #4f46e5)";
+    }
+  }
+}
+
+function toggleNewProjMode(mode) {
+  const lblMulti = document.getElementById("lbl-new-proj-multi");
+  const lblSingle = document.getElementById("lbl-new-proj-single");
+  const btn = document.getElementById("btn-create-project-submit");
+
+  if (mode === "multi") {
+    if (lblMulti) {
+      lblMulti.style.border = "1.5px solid #6366f1";
+      lblMulti.style.background = "rgba(99, 102, 241, 0.12)";
+    }
+    if (lblSingle) {
+      lblSingle.style.border = "1px solid var(--border-color)";
+      lblSingle.style.background = "rgba(255, 255, 255, 0.03)";
+    }
+    if (btn) {
+      btn.innerHTML = `🎭 Create &amp; AI Direct Studio`;
+      btn.style.background = "linear-gradient(135deg, #6366f1, #10b981)";
+    }
+  } else {
+    if (lblMulti) {
+      lblMulti.style.border = "1px solid var(--border-color)";
+      lblMulti.style.background = "rgba(255, 255, 255, 0.03)";
+    }
+    if (lblSingle) {
+      lblSingle.style.border = "1.5px solid #10b981";
+      lblSingle.style.background = "rgba(16, 185, 129, 0.12)";
+    }
+    if (btn) {
+      btn.innerHTML = `🚀 Create &amp; Open Studio`;
+      btn.style.background = "linear-gradient(135deg, #6366f1, #4f46e5)";
+    }
+  }
+}
+
 async function confirmEpubChapterImport() {
   if (!currentEpubData) return;
   const bookSelect = document.getElementById("epub-book-select");
@@ -6157,14 +6229,20 @@ async function confirmEpubChapterImport() {
   const voiceSelect = document.getElementById("epub-voice-select");
   const voiceId = voiceSelect ? voiceSelect.value : "bf_emma";
 
+  const isMulti = document.getElementById("epub-mode-multi")?.checked ?? true;
+  const aiModel = document.getElementById("epub-ai-model")?.value || "gemini-3.5-flash-lite";
+  const splitDial = document.getElementById("epub-split-dialogue")?.checked ?? true;
+
   const confirmBtn = document.getElementById("btn-confirm-epub-import");
   if (confirmBtn) {
     confirmBtn.disabled = true;
-    confirmBtn.textContent = "⏳ Extracting & Splitting Chapter...";
+    confirmBtn.innerHTML = isMulti
+      ? `<span>⏳ Casting Characters & Directing with AI...</span>`
+      : `<span>⏳ Extracting Chapter Blocks...</span>`;
   }
 
   try {
-    showToast("📚 Processing chapter text & dialogue quotes...");
+    showToast(isMulti ? "🎭 AI Director: Discovering characters, casting voices & splitting dialogue..." : "📚 Extracting chapter text & sentences...");
     const res = await fetch("/api/epub/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -6174,7 +6252,10 @@ async function confirmEpubChapterImport() {
         chapter_index: chIdx,
         title: (book && ch) ? `${book.title} - ${ch.title}` : undefined,
         engine: "kokoro",
-        default_voice: voiceId
+        default_voice: voiceId,
+        ai_direct: isMulti,
+        ai_model: aiModel,
+        split_dialogue: splitDial
       })
     });
 
@@ -6193,7 +6274,7 @@ async function confirmEpubChapterImport() {
   } finally {
     if (confirmBtn) {
       confirmBtn.disabled = false;
-      confirmBtn.textContent = "🚀 Create Chapter Project & Open";
+      confirmBtn.innerHTML = isMulti ? `🎭 Create &amp; AI Direct Chapter` : `🚀 Create Chapter Project &amp; Open`;
     }
   }
 }
@@ -6207,19 +6288,31 @@ async function handleCreateProjectSubmit() {
   const title = (document.getElementById("new-project-title-input")?.value || "").trim() || "Untitled Project";
   const text = (document.getElementById("new-project-text-input")?.value || "").trim();
   const defaultVoice = document.getElementById("new-project-voice-select")?.value || "blend_fenrir_onyx";
+  const isMulti = document.getElementById("new-project-mode-multi")?.checked ?? true;
 
   isCreatingProject = true;
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.textContent = "⏳ Creating Project...";
+    submitBtn.innerHTML = isMulti
+      ? `<span>⏳ AI Director: Casting & Directing Script...</span>`
+      : `<span>⏳ Creating Project...</span>`;
   }
 
   const defs = getProjectDefaultSettings();
   try {
+    if (isMulti && text) {
+      showToast("🎭 AI Director: Discovering characters & directing story...");
+    }
     const res = await fetch("/api/projects/new", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, text, engine: "kokoro", default_voice: defaultVoice, defaults: defs })
+      body: JSON.stringify({ 
+        title, 
+        text, 
+        default_voice: defaultVoice, 
+        defaults: defs,
+        ai_direct: isMulti && Boolean(text)
+      })
     });
 
     const newProj = await res.json();
@@ -6233,7 +6326,7 @@ async function handleCreateProjectSubmit() {
     isCreatingProject = false;
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.textContent = "Create & Open Studio";
+      submitBtn.innerHTML = isMulti ? `🎭 Create &amp; AI Direct Studio` : `🚀 Create &amp; Open Studio`;
     }
   }
 }
@@ -9002,6 +9095,8 @@ window.closeEpubModal = closeEpubModal;
 window.handleEpubBookChange = handleEpubBookChange;
 window.handleEpubChapterChange = handleEpubChapterChange;
 window.confirmEpubChapterImport = confirmEpubChapterImport;
+window.toggleEpubCastMode = toggleEpubCastMode;
+window.toggleNewProjMode = toggleNewProjMode;
 window.goToColdstartSlide = goToColdstartSlide;
 window.nextColdstartSlide = nextColdstartSlide;
 window.prevColdstartSlide = prevColdstartSlide;
