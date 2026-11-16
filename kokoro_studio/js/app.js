@@ -1424,7 +1424,14 @@ function renderBlocks() {
           ${isCustom ? '<span class="custom-tweak-dot" title="Custom tweaked sentence"></span>' : ''}
         </div>
       </button>
-      <div class="block-content-col">
+      <div class="block-content-col" style="flex-direction: column; align-items: stretch; justify-content: center; gap: 3px;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 2px;">
+          ${(char || (block.speaker && block.speaker !== "Narrator")) ? `
+            <span class="block-character-tag" onclick="openVoiceDrawer(${idx})" style="background: ${blockColor}22; color: ${blockColor}; border: 1px solid ${blockColor}45; border-radius: 4px; padding: 1px 7px; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Character: ${escapeHtml((char && char.name) || block.speaker)} (${escapeHtml(voice.name)}) - click to change voice">
+              🎭 ${escapeHtml((char && char.name) || block.speaker)}
+            </span>
+          ` : ''}
+        </div>
         <textarea class="block-textarea" placeholder="Type sentence here...">${block.text || ""}</textarea>
         <div class="block-audio-scrubber" title="Click anywhere to jump & listen from this point">
           <div class="scrubber-track">
@@ -4264,6 +4271,7 @@ async function handleRunAIDirector() {
     }
 
     window._aiDirectedBlocks = data.blocks;
+    window._aiDirectedCharacters = data.characters || [];
 
     // Display Results Container
     const resBox = document.getElementById("ai-director-results");
@@ -4308,11 +4316,119 @@ function applyAIDirectedBlocks() {
 
   recordHistory("AI Script Director");
 
+  const directedChars = window._aiDirectedCharacters || [];
+  const projId = state.currentProject.id;
+  const defVoice = state.currentProject.default_voice || (state.voices && state.voices[0] ? state.voices[0].id : "af_heart");
+
+  const PALETTE = [
+    "#f59e0b", // Amber/Gold
+    "#10b981", // Emerald
+    "#ec4899", // Rose/Pink
+    "#8b5cf6", // Purple
+    "#06b6d4", // Cyan
+    "#ef4444", // Red
+    "#3b82f6", // Blue
+    "#14b8a6", // Teal
+    "#f97316"  // Orange
+  ];
+
+  if (!Array.isArray(state.savedCharacters)) {
+    state.savedCharacters = [];
+  }
+
+  const charMapByName = {};
+  state.savedCharacters.forEach(c => {
+    if (c && c.name) charMapByName[c.name.trim().toLowerCase()] = c;
+  });
+
+  let paletteIdx = 0;
+  directedChars.forEach((c, idx) => {
+    const rawName = (c.name || "Character").trim();
+    const key = rawName.toLowerCase();
+    const isNarrator = key === "narrator" || key.includes("narrator");
+    const assignedVoice = c.assigned_voice_id || c.voice_id || defVoice;
+
+    if (!charMapByName[key]) {
+      let badge = c.badge;
+      if (!badge) {
+        const words = rawName.split(/\s+/).filter(Boolean);
+        badge = words.length >= 2 ? (words[0][0] + words[1][0]).toUpperCase() : rawName.slice(0, 2).toUpperCase();
+      }
+
+      const newChar = {
+        id: c.id || `char_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 4)}`,
+        name: rawName,
+        voice_id: assignedVoice,
+        badge: badge,
+        color: c.color || (isNarrator ? "#6366f1" : PALETTE[paletteIdx % PALETTE.length]),
+        speed: c.speed || 0.90,
+        pitch_shift: c.pitch_shift || 0.0,
+        fx_filter: "none",
+        persona: c.persona || "",
+        gender: c.gender || ""
+      };
+      if (!isNarrator) paletteIdx++;
+
+      state.savedCharacters.push(newChar);
+      charMapByName[key] = newChar;
+    } else {
+      if (assignedVoice) charMapByName[key].voice_id = assignedVoice;
+      if (c.persona) charMapByName[key].persona = c.persona;
+      if (c.badge) charMapByName[key].badge = c.badge;
+      if (c.color) charMapByName[key].color = c.color;
+    }
+  });
+
+  // Ensure primary Narrator character exists in project cast
+  if (!charMapByName["narrator"]) {
+    const narrChar = {
+      id: `char_${Date.now()}_narrator`,
+      name: "Narrator",
+      voice_id: defVoice,
+      badge: "NA",
+      color: "#6366f1",
+      speed: 0.90,
+      pitch_shift: 0.0,
+      fx_filter: "none",
+      persona: "Primary Storyteller",
+      gender: "neutral"
+    };
+    state.savedCharacters.unshift(narrChar);
+    charMapByName["narrator"] = narrChar;
+  }
+
+  // Persist cast to current project and localStorage
+  state.currentProject.characters = state.savedCharacters;
+  try {
+    localStorage.setItem(`kss_chars_${projId}`, JSON.stringify(state.savedCharacters));
+  } catch (e) {}
+
+  // Assign engine and map each block to its character id
   const eng = state.currentProject.engine || "kokoro";
   window._aiDirectedBlocks.forEach(b => {
     b.engine = eng;
     if (!b.speed) b.speed = 0.9;
     if (!b.gain) b.gain = 1.0;
+
+    const spk = (b.speaker || "Narrator").trim();
+    let matchedChar = charMapByName[spk.toLowerCase()];
+    if (!matchedChar) {
+      for (const [k, c] of Object.entries(charMapByName)) {
+        if (k.includes(spk.toLowerCase()) || spk.toLowerCase().includes(k)) {
+          matchedChar = c;
+          break;
+        }
+      }
+    }
+    if (!matchedChar) {
+      matchedChar = charMapByName["narrator"] || state.savedCharacters[0];
+    }
+
+    if (matchedChar) {
+      b.character_id = matchedChar.id;
+      b.speaker = matchedChar.name;
+      b.voice_id = matchedChar.voice_id;
+    }
   });
 
   state.currentProject.blocks = window._aiDirectedBlocks;
@@ -4320,10 +4436,12 @@ function applyAIDirectedBlocks() {
   state.activeBlockIndex = 0;
   state.lastClickedIndex = 0;
 
+  // Immediate UI synchronization
+  renderSavedCharactersList();
   renderStudio();
-  debouncedSave();
+  saveCurrentProject();
   closeAIDirectorModal();
-  showToast(`✅ Successfully applied AI cast across ${window._aiDirectedBlocks.length} blocks!`);
+  showToast(`🎭 AI Cast Applied: ${state.savedCharacters.length} characters assigned across ${window._aiDirectedBlocks.length} speech blocks!`);
 }
 
 window.openAIDirectorModal = openAIDirectorModal;

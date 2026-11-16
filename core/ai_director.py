@@ -2,6 +2,7 @@ import os
 import re
 import json
 import time
+import hashlib
 import urllib.request
 import urllib.error
 from typing import List, Dict, Any, Optional
@@ -9,11 +10,11 @@ from typing import List, Dict, Any, Optional
 class AIDirector:
     """
     Intelligent LLM-powered Story Director & Character Casting Engine.
-    Supports Google Gemini (2.0 Flash / 1.5 Flash), Groq, OpenAI, and Local Ollama.
+    Supports Google Gemini (3.5 Flash / 3.8 Flash), Groq, OpenAI, and Local Ollama.
     """
 
     DEFAULT_MODELS = {
-        "gemini": "gemini-2.5-flash",
+        "gemini": "gemini-3.5-flash",
         "groq": "llama-3.3-70b-versatile",
         "openai": "gpt-4o-mini",
         "ollama": "llama3.2"
@@ -34,10 +35,10 @@ class AIDirector:
     @staticmethod
     def _call_gemini_api(api_key: str, model: str, prompt: str, system_prompt: str = "") -> str:
         """Calls Google Gemini API via lightweight standard REST with automatic active model fallback."""
-        requested_model = model or "gemini-2.5-flash"
-        # Candidate model hierarchy in order of preference
+        requested_model = model or "gemini-3.5-flash"
+        # Candidate model hierarchy in order of preference (prioritizing high-quota models)
         candidate_models = [requested_model]
-        for fallback in ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-2.5-pro"]:
+        for fallback in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-3.8-flash"]:
             if fallback not in candidate_models:
                 candidate_models.append(fallback)
 
@@ -267,8 +268,49 @@ class AIDirector:
                 {"name": "Narrator", "assigned_voice_id": narrator_voice_id, "persona": "Primary Storyteller"}
             ]
 
-        char_map = {c["name"].lower(): c.get("assigned_voice_id", narrator_voice_id) for c in discovered_characters}
-        char_map["narrator"] = narrator_voice_id
+        # Ensure all discovered characters have unique id, color, badge, and voice_id
+        palette = [
+            "#f59e0b",  # Amber/Gold (Rich Dad / Mentor)
+            "#10b981",  # Emerald (Mike / Friend)
+            "#ec4899",  # Rose/Pink
+            "#8b5cf6",  # Purple
+            "#06b6d4",  # Cyan (Author / Youth)
+            "#ef4444",  # Red
+            "#3b82f6",  # Blue
+            "#14b8a6",  # Teal
+            "#f97316",  # Orange
+        ]
+        has_narrator = False
+        p_idx = 0
+        for i, c in enumerate(discovered_characters):
+            c_name = (c.get("name") or "Character").strip()
+            is_narr = c_name.lower() == "narrator" or "narrator" in c_name.lower()
+            if is_narr:
+                has_narrator = True
+            c["id"] = c.get("id") or f"char_{int(time.time())}_{i}_{hashlib.md5(c_name.encode()).hexdigest()[:4]}"
+            words = c_name.split()
+            c["badge"] = c.get("badge") or ((words[0][0] + words[1][0]).upper() if len(words) >= 2 else c_name[:2].upper())
+            c["color"] = c.get("color") or ("#6366f1" if is_narr else palette[p_idx % len(palette)])
+            if not is_narr:
+                p_idx += 1
+            if not c.get("assigned_voice_id"):
+                c["assigned_voice_id"] = narrator_voice_id if is_narr else (voices[0]["id"] if voices else "voice_stanley_narrator")
+            c["voice_id"] = c["assigned_voice_id"]
+
+        if not has_narrator:
+            narr_char = {
+                "id": f"char_{int(time.time())}_narrator",
+                "name": "Narrator",
+                "assigned_voice_id": narrator_voice_id,
+                "voice_id": narrator_voice_id,
+                "badge": "NA",
+                "color": "#6366f1",
+                "persona": "Primary Storyteller",
+                "gender": "neutral"
+            }
+            discovered_characters.insert(0, narr_char)
+
+        char_map = {c["name"].lower(): c for c in discovered_characters}
 
         # Phase 2: Directed Block Generation in safe chunks (25 blocks per chunk to avoid JSON truncation)
         chunk_size = 25
@@ -322,7 +364,18 @@ class AIDirector:
                     if not txt:
                         continue
                     spk = sb.get("speaker") or "Narrator"
-                    vid = sb.get("voice_id") or char_map.get(spk.lower(), narrator_voice_id)
+                    matched_char = char_map.get(spk.lower())
+                    if not matched_char:
+                        for k, c in char_map.items():
+                            if k in spk.lower() or spk.lower() in k:
+                                matched_char = c
+                                break
+                    if not matched_char:
+                        matched_char = char_map.get("narrator", discovered_characters[0])
+
+                    spk_name = matched_char["name"]
+                    cid = matched_char["id"]
+                    vid = sb.get("voice_id") or matched_char["assigned_voice_id"]
                     etag = sb.get("emotion_tag")
 
                     # Clean tag if already prefixed in text
@@ -331,21 +384,24 @@ class AIDirector:
 
                     directed_blocks.append({
                         "id": f"b_{block_counter}",
-                        "speaker": spk,
+                        "speaker": spk_name,
+                        "character_id": cid,
                         "voice_id": vid,
                         "text": txt,
                         "emotion_tag": etag,
-                        "pause_after": 0.6 if spk.lower() == "narrator" else 0.4
+                        "pause_after": 0.6 if spk_name.lower() == "narrator" else 0.4
                     })
                     block_counter += 1
 
             except Exception as batch_err:
                 print(f"[AIDirector] Batch direct notice ({batch_err}), preserving original blocks for this batch.")
+                narr_char = char_map.get("narrator", discovered_characters[0])
                 for b in chunk:
                     directed_blocks.append({
                         "id": f"b_{block_counter}",
-                        "speaker": "Narrator",
-                        "voice_id": b.get("voice_id") or narrator_voice_id,
+                        "speaker": narr_char["name"],
+                        "character_id": narr_char["id"],
+                        "voice_id": b.get("voice_id") or narr_char["assigned_voice_id"],
                         "text": b.get("text", ""),
                         "emotion_tag": b.get("emotion_tag"),
                         "pause_after": b.get("pause_after", 0.6)
