@@ -741,11 +741,17 @@ class ProjectManager:
                 clean_chunk = re.sub(r'\s{2,}', ' ', clean_chunk).strip()
 
                 if clean_chunk:
-                    sub_sentences = self.split_into_sentences(clean_chunk, max_chars=180)
-                    if sub_sentences:
-                        for s in sub_sentences:
-                            if s.strip():
-                                candidate_items.append({"is_heading": False, "text": s.strip(), "pause_after": item_pause})
+                    # Keep paragraph intact as a block (like before).
+                    # Backend Fish & Kokoro engines auto-chunk long blocks safely during GPU inference.
+                    # Only split if a single continuous paragraph is truly massive (>1200 chars).
+                    if len(clean_chunk) > 1200:
+                        sub_sentences = self.split_into_sentences(clean_chunk, max_chars=800)
+                        if sub_sentences:
+                            for s in sub_sentences:
+                                if s.strip():
+                                    candidate_items.append({"is_heading": False, "text": s.strip(), "pause_after": item_pause})
+                        else:
+                            candidate_items.append({"is_heading": False, "text": clean_chunk, "pause_after": item_pause})
                     else:
                         candidate_items.append({"is_heading": False, "text": clean_chunk, "pause_after": item_pause})
 

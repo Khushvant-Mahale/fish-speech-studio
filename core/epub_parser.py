@@ -128,57 +128,47 @@ def inspect_epub(epub_path: str) -> Dict[str, Any]:
     }
 
 def parse_html_chapter(html: str, fpath: str = ""):
-    """Extracts chapter title, word count, and cleaned paragraphs."""
-    # Find h1 / h2 / h3 or title tags
-    title_candidates = []
-    for t_tag in ['h1', 'h2', 'h3']:
-        for m in re.finditer(rf'<{t_tag}[^>]*>(.*?)</{t_tag}>', html, re.IGNORECASE | re.DOTALL):
-            c = clean_text_simple(m.group(1))
-            if c:
-                title_candidates.append(c)
+    """Extracts chapter title, word count, and cleaned paragraphs with chapter heading preserved."""
+    # Match headers (h1-h6) and paragraphs (p) in document order
+    tag_re = re.compile(r'<(h[1-6]|p)\b[^>]*>(.*?)</\1>', re.IGNORECASE | re.DOTALL)
+    elements = []
+    for m in tag_re.finditer(html):
+        tag = m.group(1).lower()
+        text = clean_text_simple(m.group(2))
+        if text:
+            elements.append((tag, text))
 
-    # Paragraph elements
-    raw_paras = re.findall(r'<p\b[^>]*>(.*?)</p>', html, re.IGNORECASE | re.DOTALL)
-    clean_paras = []
-    for p in raw_paras:
-        c = clean_text_simple(p)
-        if c:
-            clean_paras.append(c)
+    headings = []
+    body_paras = []
+    heading_done = False
 
-    # Infer title: look for "CHAPTER ONE / The Boy Who Lived" pattern
-    title = ""
-    start_para_idx = 0
-    if clean_paras:
-        # Check first 3 paragraphs for chapter heading pattern
-        p0 = clean_paras[0] if len(clean_paras) > 0 else ""
-        p1 = clean_paras[1] if len(clean_paras) > 1 else ""
-        p2 = clean_paras[2] if len(clean_paras) > 2 else ""
+    for tag, text in elements:
+        if not heading_done and (tag.startswith('h') or ('chapter' in text.lower() and len(text) < 80)):
+            headings.append(text)
+        else:
+            heading_done = True
+            body_paras.append(text)
 
-        if "chapter" in p0.lower() and len(p0) < 60:
-            if p1 and len(p1) < 60 and not p1.endswith('.'):
-                title = f"{p0} - {p1}"
-                start_para_idx = 2
-            else:
-                title = p0
-                start_para_idx = 1
-        elif "chapter" in p1.lower() and len(p1) < 60:
-            if p2 and len(p2) < 60 and not p2.endswith('.'):
-                title = f"{p1} - {p2}"
-                start_para_idx = 3
-            else:
-                title = f"{p0} - {p1}"
-                start_para_idx = 2
-        elif title_candidates:
-            title = " - ".join(title_candidates[:2])
+    # Clean and infer chapter title and heading banner
+    parts = []
+    for h in headings:
+        clean_h = re.sub(r'^[—\-–\s]+|[—\-–\s]+$', '', h).strip()
+        if clean_h:
+            parts.append(clean_h)
 
-    if not title:
+    if len(parts) >= 2 and any(k in parts[0].lower() for k in ['chapter', 'prologue', 'epilogue', 'act', 'part']):
+        header_block = f"— {parts[0].upper()} — {parts[1]}"
+        title = f"{parts[0].title()}: {parts[1]}"
+    elif parts:
+        header_block = f"— {' — '.join(parts)} —"
+        title = ' - '.join(parts)
+    else:
         m_ch = re.search(r'ch(\d+)', fpath.lower())
-        if m_ch:
-            title = f"Chapter {int(m_ch.group(1))}"
-        elif title_candidates:
-            title = title_candidates[0]
+        num = int(m_ch.group(1)) if m_ch else 1
+        header_block = f"— CHAPTER {num} —"
+        title = f"Chapter {num}"
 
-    story_paras = clean_paras[start_para_idx:] if start_para_idx < len(clean_paras) else clean_paras
+    story_paras = [header_block] + body_paras if body_paras else [header_block]
     full_cleaned_text = '\n\n'.join(story_paras)
     words = full_cleaned_text.split()
     word_count = len(words)
