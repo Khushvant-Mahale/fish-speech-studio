@@ -78,6 +78,44 @@ class AIDirector:
                 msg = err_body
             raise RuntimeError(f"Gemini API Error (HTTP {he.code}): {msg}")
 
+    def test_api_key(self, provider: str, api_key: str, model: str = "") -> Dict[str, Any]:
+        """Verifies API key with the provider using a minimal ping."""
+        target_model = model or self.DEFAULT_MODELS.get(provider, "")
+        try:
+            if provider == "gemini":
+                # Quick ping to Gemini
+                self._call_gemini_api(
+                    api_key=api_key,
+                    model=target_model,
+                    prompt='Reply with JSON: {"status": "ok"}',
+                    system_prompt="Return valid JSON."
+                )
+            elif provider == "groq":
+                self._call_groq_api(
+                    api_key=api_key,
+                    model=target_model,
+                    prompt='Reply with JSON: {"status": "ok"}',
+                    system_prompt="Return valid JSON."
+                )
+            elif provider == "openai":
+                self._call_openai_api(
+                    api_key=api_key,
+                    model=target_model,
+                    prompt='Reply with JSON: {"status": "ok"}',
+                    system_prompt="Return valid JSON."
+                )
+            elif provider == "ollama":
+                self._call_ollama_api(
+                    model=target_model,
+                    prompt='Reply with JSON: {"status": "ok"}',
+                    system_prompt="Return valid JSON."
+                )
+            else:
+                return {"ok": False, "error": f"Unknown provider: {provider}"}
+            return {"ok": True, "message": f"{provider.capitalize()} API key is valid and connected ({target_model})"}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     @staticmethod
     def _call_openai_compatible_api(api_url: str, api_key: str, model: str, prompt: str, system_prompt: str = "") -> str:
         """Calls OpenAI, Groq, or Local Ollama compatible chat completion API."""

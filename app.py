@@ -1569,6 +1569,36 @@ async def handle_save_ai_director_config(request):
         return web.json_response({"ok": False, "error": str(e)}, status=500)
 
 
+async def handle_test_ai_director_key(request):
+    try:
+        data = await request.json()
+        provider = data.get("provider", "gemini")
+        api_key = data.get("api_key", "").strip()
+        model = data.get("model", "")
+        save_key = data.get("save_key", True)
+
+        if not api_key and provider != "ollama":
+            cfg = load_config()
+            api_key = cfg.get(f"{provider}_api_key") or os.environ.get(f"{provider.upper()}_API_KEY", "")
+
+        if not api_key and provider != "ollama":
+            return web.json_response({"ok": False, "error": f"Please enter a valid {provider.capitalize()} API key."}, status=400)
+
+        from core.ai_director import AIDirector
+        director = AIDirector()
+        res = await asyncio.to_thread(director.test_api_key, provider, api_key, model)
+
+        if res.get("ok") and save_key and api_key:
+            cfg = load_config()
+            cfg[f"{provider}_api_key"] = api_key
+            cfg["default_llm_provider"] = provider
+            save_config(cfg)
+
+        return web.json_response(res)
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
 async def handle_merge_short(request):
     data = await request.json()
     blocks = data.get("blocks", [])
@@ -2035,11 +2065,11 @@ async def handle_test_remote(request):
             return web.json_response({"ok": True, "details": res, "url": test_url})
         return web.json_response({
             "ok": False, 
-            "error": "Remote worker not responding to health check (server offline or tunnel expired)",
+            "error": "Remote worker offline or tunnel expired",
             "url": test_url
-        }, status=502)
+        }, status=200)
     except Exception as e:
-        return web.json_response({"ok": False, "error": str(e), "url": test_url}, status=502)
+        return web.json_response({"ok": False, "error": str(e), "url": test_url}, status=200)
 
 
 async def handle_test_fish_key(request):
@@ -2165,6 +2195,7 @@ def create_app():
     app.router.add_post("/api/ai_director/direct", handle_ai_direct)
     app.router.add_get("/api/ai_director/config", handle_get_ai_director_config)
     app.router.add_post("/api/ai_director/config", handle_save_ai_director_config)
+    app.router.add_post("/api/ai_director/test_key", handle_test_ai_director_key)
     app.router.add_post("/api/merge_short", handle_merge_short)
 
     # Audio & Config

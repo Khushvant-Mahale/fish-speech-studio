@@ -528,7 +528,20 @@ async function checkRemoteWorkerHealth(silent = false) {
       const wasOnline = (state.remoteWorkerHealthy === true);
       state.remoteWorkerHealthy = false;
       state.config.active = false;
-      updateEngineUI(remoteUrl, false, { error: data.error });
+
+      // If an ephemeral Cloudflare tunnel is dead, clean it up so we don't perpetually poll a dead tunnel
+      if (remoteUrl && remoteUrl.includes("trycloudflare.com")) {
+        console.log("[Studio] Cloudflare tunnel offline or expired. Reverting to Local CPU.");
+        state.config.remote_worker_url = "";
+        localStorage.removeItem("kokoro_remote_url");
+        fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ remote_worker_url: "", active: false })
+        }).catch(() => {});
+      }
+
+      updateEngineUI("", false, { error: data.error });
 
       const launchBtn = document.getElementById("btn-launch-kaggle");
       const stopBtn = document.getElementById("btn-stop-kaggle");
@@ -3965,6 +3978,28 @@ async function openAIDirectorModal(focusKey = false) {
 
   modal.style.display = "flex";
 
+  const hasProject = Boolean(state.currentProject && state.currentProject.blocks && state.currentProject.blocks.length > 0);
+  const runBtn = document.getElementById("btn-run-ai-director");
+  const tipEl = document.getElementById("ai-project-status-tip");
+
+  if (runBtn) {
+    if (hasProject) {
+      runBtn.innerHTML = `<span>🚀 Run AI Script Director</span>`;
+    } else {
+      runBtn.innerHTML = `<span>💾 Save Director Settings</span>`;
+    }
+  }
+
+  if (tipEl) {
+    if (hasProject) {
+      tipEl.innerHTML = `<span>Story active: <strong>${escapeHtml(state.currentProject.title)}</strong> (${state.currentProject.blocks.length} blocks)</span>`;
+      tipEl.style.color = "#10b981";
+    } else {
+      tipEl.innerHTML = `<span>💡 Tip: Open any project or import an EPUB chapter to auto-direct the script with AI.</span>`;
+      tipEl.style.color = "var(--text-muted)";
+    }
+  }
+
   try {
     const res = await fetch("/api/ai_director/config");
     const cfg = await res.json();
@@ -3976,6 +4011,7 @@ async function openAIDirectorModal(focusKey = false) {
     const keyStatus = document.getElementById("ai-key-status");
     if (keyStatus && cfg.gemini_has_key && activeAIProvider === "gemini") {
       keyStatus.style.display = "block";
+      keyStatus.style.color = "#10b981";
       keyStatus.textContent = `✓ Active Key configured (${cfg.gemini_masked_key})`;
     }
   } catch (e) {
@@ -3996,6 +4032,76 @@ async function openAIDirectorModal(focusKey = false) {
         }, 1500);
       }
     }, 120);
+  }
+}
+
+async function handleVerifyAISaveKey() {
+  const btn = document.getElementById("btn-verify-ai-key");
+  const keyInput = document.getElementById("ai-director-api-key");
+  const modelSelect = document.getElementById("ai-director-model-select");
+  const statusEl = document.getElementById("ai-key-status");
+
+  const apiKey = (keyInput ? keyInput.value : "").trim();
+  const model = modelSelect ? modelSelect.value : "";
+
+  if (!apiKey && activeAIProvider !== "ollama") {
+    if (statusEl) {
+      statusEl.style.display = "block";
+      statusEl.style.color = "#ef4444";
+      statusEl.textContent = `⚠️ Please paste a valid ${activeAIProvider.toUpperCase()} API key first.`;
+    }
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "⏳ Verifying...";
+  }
+
+  if (statusEl) {
+    statusEl.style.display = "block";
+    statusEl.style.color = "#60a5fa";
+    statusEl.textContent = `Connecting to ${activeAIProvider.toUpperCase()}...`;
+  }
+
+  try {
+    const res = await fetch("/api/ai_director/test_key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: activeAIProvider,
+        api_key: apiKey,
+        model: model,
+        save_key: true
+      })
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      if (statusEl) {
+        statusEl.style.color = "#10b981";
+        statusEl.textContent = `✓ ${data.message || 'Key verified and saved successfully!'}`;
+      }
+      showToast(`✓ ${activeAIProvider.toUpperCase()} API Key verified and saved!`);
+      const cfgRes = await fetch("/api/ai_director/config");
+      const cfg = await cfgRes.json();
+      if (keyInput) keyInput.placeholder = `Connected (${cfg[`${activeAIProvider}_masked_key`] || 'Saved'})`;
+    } else {
+      if (statusEl) {
+        statusEl.style.color = "#ef4444";
+        statusEl.textContent = `❌ ${data.error || 'Verification failed. Please check key.'}`;
+      }
+    }
+  } catch (err) {
+    if (statusEl) {
+      statusEl.style.color = "#ef4444";
+      statusEl.textContent = `❌ Connection error: ${err.message}`;
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "💾 Save & Verify Key";
+    }
   }
 }
 
@@ -4104,7 +4210,13 @@ function toggleAIKeyVisibility() {
 
 async function handleRunAIDirector() {
   if (!state.currentProject || !state.currentProject.blocks || state.currentProject.blocks.length === 0) {
-    showToast("⚠️ No blocks to direct. Please load or import a story first.");
+    const keyInput = document.getElementById("ai-director-api-key");
+    if (keyInput && keyInput.value.trim()) {
+      await handleVerifyAISaveKey();
+      showToast("✓ Key verified and saved! Open any story project to run AI directing.", 4500);
+    } else {
+      showToast("💡 Please open or create a chapter project to run AI directing on its manuscript.", 4500);
+    }
     return;
   }
 
