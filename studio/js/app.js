@@ -3683,7 +3683,7 @@ async function handleAutoDirectStory() {
 let activeAIProvider = "gemini";
 window._aiDirectedBlocks = null;
 
-async function openAIDirectorModal() {
+async function openAIDirectorModal(focusKey = false) {
   const modal = document.getElementById("ai-director-modal");
   if (!modal) return;
 
@@ -3709,6 +3709,28 @@ async function openAIDirectorModal() {
   } catch (e) {
     switchAIDirectorProvider("gemini");
   }
+
+  if (focusKey) {
+    setTimeout(() => {
+      const input = document.getElementById("ai-director-api-key");
+      if (input) {
+        input.focus();
+        input.scrollIntoView({ behavior: "smooth", block: "center" });
+        input.style.borderColor = "#8b5cf6";
+        input.style.boxShadow = "0 0 12px rgba(139, 92, 246, 0.6)";
+        setTimeout(() => {
+          input.style.borderColor = "";
+          input.style.boxShadow = "";
+        }, 1500);
+      }
+    }, 120);
+  }
+}
+
+function handleRunOfflineDirectorFromModal() {
+  closeAIDirectorModal();
+  showToast("⚡ Running offline rule-based director...");
+  handleAutoDirectStory();
 }
 
 function closeAIDirectorModal() {
@@ -6842,7 +6864,7 @@ function populateEpubChapters() {
   if (chSelect) {
     chSelect.innerHTML = book.chapters.map(c => 
       `<option value="${c.chapter_index}" data-file="${c.file_path}" data-words="${c.word_count}" data-mins="${c.estimated_minutes}">
-        Ch ${c.chapter_index}: ${escapeHtml(c.title)} (${c.word_count.toLocaleString()} words • ~${c.estimated_minutes} min)
+        ${escapeHtml(c.title)} (${c.word_count.toLocaleString()} words • ~${c.estimated_minutes} min)
       </option>`
     ).join("");
   }
@@ -6866,7 +6888,7 @@ function handleEpubChapterChange() {
   const statsDesc = document.getElementById("epub-stats-desc");
 
   if (statsTitle) {
-    statsTitle.textContent = `${book.title} - Ch ${ch.chapter_index}: ${ch.title}`;
+    statsTitle.textContent = `${book.title} - ${ch.title}`;
   }
   if (statsDesc) {
     statsDesc.textContent = `~${ch.word_count.toLocaleString()} words • Estimated Audio: ${ch.estimated_minutes} mins (~${Math.ceil(ch.word_count / 35)} speech blocks)`;
@@ -6879,6 +6901,8 @@ async function confirmEpubChapterImport() {
   const bIdx = (bookSelect && currentEpubData.total_books > 1) ? parseInt(bookSelect.value, 10) : 1;
   const chSelect = document.getElementById("epub-chapter-select");
   const chIdx = chSelect ? parseInt(chSelect.value, 10) : 1;
+  const book = currentEpubData.books.find(b => b.book_index === bIdx) || currentEpubData.books[0];
+  const ch = (book && book.chapters) ? (book.chapters.find(c => c.chapter_index === chIdx) || book.chapters[0]) : null;
   const voiceSelect = document.getElementById("epub-voice-select");
   const voiceId = voiceSelect ? voiceSelect.value : "voice_stanley_narrator";
 
@@ -6897,6 +6921,7 @@ async function confirmEpubChapterImport() {
         epub_path: currentEpubData.epub_path,
         book_index: bIdx,
         chapter_index: chIdx,
+        title: (book && ch) ? `${book.title} - ${ch.title}` : undefined,
         engine: "fish_s2",
         default_voice: voiceId
       })

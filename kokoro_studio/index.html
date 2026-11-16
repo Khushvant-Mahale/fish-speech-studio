@@ -529,11 +529,11 @@
             </div>
           </div>
           <div class="action-bar-right" id="bulk-action-buttons">
-            <button class="action-pill-btn" id="btn-auto-direct" onclick="handleAutoDirectStory()" title="Auto-detect characters, dialogue quotes, whispers, screaming, and emotional pacing across the entire story">
-              🎭 Auto-Direct Story
+            <button class="action-pill-btn" id="btn-auto-direct" onclick="openAIDirectorModal()" title="Auto-detect characters, attribute dialogue quotes, cast voices from Voice Library, and inject acting tags using Gemini / Groq / OpenAI LLM" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(59, 130, 246, 0.25)); border-color: rgba(139, 92, 246, 0.6); color: #c4b5fd; font-weight: 700;">
+              🤖 Auto-Direct with AI
             </button>
-            <button class="action-pill-btn" id="btn-ai-director" onclick="openAIDirectorModal()" title="🤖 AI Script Director (Gemini / Groq / OpenAI): Automatically detects characters, attributes dialogue, casts voices from library, and adds acting tags" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.22), rgba(59, 130, 246, 0.22)); border-color: rgba(139, 92, 246, 0.5); color: #c4b5fd; font-weight: 700;">
-              🤖 AI Director
+            <button class="action-pill-btn" id="btn-ai-setup" onclick="openAIDirectorModal(true)" title="Configure Google Gemini, Groq, or OpenAI API key for Auto-Directing" style="border-color: rgba(255, 255, 255, 0.15); color: var(--text-muted); font-size: 11.5px; padding: 4px 8px;">
+              ⚙️ API Setup
             </button>
             <button class="action-pill-btn" id="btn-merge-short" onclick="handleMergeShortBlocks()" title="Merge ultra-small consecutive sentences of the same narrator (e.g. 'No network. No emergency lines.') into single blocks">
               🔗 Merge Short
@@ -900,10 +900,15 @@
           </label>
         </div>
 
-        <!-- Action Button -->
-        <button class="btn btn-primary" id="btn-run-ai-director" onclick="handleRunAIDirector()" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); font-weight: 700; font-size: 14px; padding: 12px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);">
-          <span>🚀 Run AI Script Director</span>
-        </button>
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-primary" id="btn-run-ai-director" onclick="handleRunAIDirector()" style="flex: 1; background: linear-gradient(135deg, #8b5cf6, #6366f1); font-weight: 700; font-size: 13.5px; padding: 11px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);">
+            <span>🚀 Run AI Script Director</span>
+          </button>
+          <button class="btn btn-secondary" id="btn-run-offline-director" onclick="handleRunOfflineDirectorFromModal()" style="font-size: 12px; padding: 11px 14px; border-radius: 8px; white-space: nowrap; color: var(--text-muted);" title="Fast regex quotes and pacing without using an API key">
+            <span>⚡ Offline Rules (No Key)</span>
+          </button>
+        </div>
 
         <!-- Live Results Container (shown after AI runs) -->
         <div id="ai-director-results" style="display: none; flex-direction: column; gap: 12px; border-top: 1px solid var(--border-color); padding-top: 14px;">

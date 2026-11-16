@@ -1944,13 +1944,13 @@ async def handle_epub_import(request):
                 return web.json_response({"ok": False, "error": f"Invalid chapter index {chapter_idx}"}, status=400)
             target_ch_meta = book["chapters"][chapter_idx - 1]
 
-        ch_data = get_chapter_text(epub_path, target_ch_meta["file_path"])
+        ch_data = get_chapter_text(epub_path, target_ch_meta["file_path"], chapter_title=target_ch_meta.get("title", ""))
 
         referer = request.headers.get("Referer", "").lower()
         engine = data.get("engine") or ("kokoro" if "/kokoro" in referer else "fish_s2")
         default_voice = data.get("default_voice") or ("bf_emma" if engine == "kokoro" else "voice_stanley_narrator")
 
-        custom_title = data.get("title") or f"{book['title']} - Ch {target_ch_meta['chapter_index']}: {target_ch_meta['title']}"
+        custom_title = data.get("title") or f"{book['title']} - {target_ch_meta['title']}"
 
         blocks = project_mgr.split_text_into_blocks(ch_data["text"], default_voice=default_voice)
         for b in blocks:
