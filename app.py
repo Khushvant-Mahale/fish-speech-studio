@@ -1453,6 +1453,122 @@ async def handle_auto_direct(request):
     return web.json_response(directed)
 
 
+async def handle_ai_direct(request):
+    """Directs story manuscript using advanced LLM reasoning (Gemini / Groq / OpenAI / Ollama)."""
+    try:
+        data = await request.json()
+        blocks = data.get("blocks", [])
+        if not blocks:
+            return web.json_response({"ok": False, "error": "No blocks provided to direct."}, status=400)
+
+        provider = (data.get("provider") or "gemini").lower().strip()
+        model = data.get("model", "").strip()
+        api_key = data.get("api_key", "").strip()
+        save_key = bool(data.get("save_key", False))
+        split_dialogue = bool(data.get("split_dialogue", True))
+        cast_voices = bool(data.get("cast_voices", True))
+        add_emotions = bool(data.get("add_emotions", True))
+        engine = data.get("engine", "fish_s2")
+        default_voice = data.get("default_voice", "")
+
+        cfg = load_config()
+        if not api_key:
+            api_key = cfg.get(f"{provider}_api_key") or cfg.get("llm_api_key", "")
+            if not api_key and provider == "gemini":
+                api_key = os.environ.get("GEMINI_API_KEY", "")
+
+        if not api_key and provider != "ollama":
+            return web.json_response({
+                "ok": False,
+                "error": f"Missing API Key for {provider.capitalize()}. Please enter your API Key or save it in settings."
+            }, status=400)
+
+        # Retrieve voice library metadata based on engine
+        if engine == "kokoro":
+            try:
+                with open(BASE_DIR / "core" / "voices_metadata.json", "r", encoding="utf-8") as f:
+                    k_raw = json.load(f)
+                    if isinstance(k_raw, list):
+                        voices = k_raw
+                    else:
+                        voices = [{"id": k, **v} for k, v in k_raw.items()]
+            except Exception:
+                voices = []
+        else:
+            try:
+                with open(BASE_DIR / "core" / "fish_voices_metadata.json", "r", encoding="utf-8") as f:
+                    voices = json.load(f)
+            except Exception:
+                voices = []
+
+        from core.ai_director import AIDirector
+        director = AIDirector()
+
+        def _direct_sync():
+            return director.direct_story(
+                blocks=blocks,
+                voices=voices,
+                provider=provider,
+                api_key=api_key,
+                model=model,
+                split_dialogue=split_dialogue,
+                cast_voices=cast_voices,
+                add_emotions=add_emotions,
+                default_narrator_voice=default_voice
+            )
+
+        res = await asyncio.to_thread(_direct_sync)
+
+        if res.get("ok") and save_key and api_key:
+            cfg[f"{provider}_api_key"] = api_key
+            cfg["default_llm_provider"] = provider
+            save_config(cfg)
+
+        return web.json_response(res)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
+async def handle_get_ai_director_config(request):
+    cfg = load_config()
+    def _mask(k):
+        if not k:
+            return ""
+        if len(k) <= 8:
+            return "••••••••"
+        return f"{k[:4]}••••••••{k[-4:]}"
+
+    return web.json_response({
+        "default_provider": cfg.get("default_llm_provider", "gemini"),
+        "gemini_has_key": bool(cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY")),
+        "gemini_masked_key": _mask(cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")),
+        "groq_has_key": bool(cfg.get("groq_api_key")),
+        "groq_masked_key": _mask(cfg.get("groq_api_key", "")),
+        "openai_has_key": bool(cfg.get("openai_api_key")),
+        "openai_masked_key": _mask(cfg.get("openai_api_key", ""))
+    })
+
+
+async def handle_save_ai_director_config(request):
+    try:
+        data = await request.json()
+        cfg = load_config()
+        if "provider" in data:
+            cfg["default_llm_provider"] = data["provider"]
+        if "gemini_api_key" in data:
+            cfg["gemini_api_key"] = data["gemini_api_key"].strip()
+        if "groq_api_key" in data:
+            cfg["groq_api_key"] = data["groq_api_key"].strip()
+        if "openai_api_key" in data:
+            cfg["openai_api_key"] = data["openai_api_key"].strip()
+        save_config(cfg)
+        return web.json_response({"ok": True, "message": "AI Director settings saved."})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
 async def handle_merge_short(request):
     data = await request.json()
     blocks = data.get("blocks", [])
@@ -2046,6 +2162,9 @@ def create_app():
     # Text & Auto-directing
     app.router.add_post("/api/split_text", handle_split_text)
     app.router.add_post("/api/auto_direct", handle_auto_direct)
+    app.router.add_post("/api/ai_director/direct", handle_ai_direct)
+    app.router.add_get("/api/ai_director/config", handle_get_ai_director_config)
+    app.router.add_post("/api/ai_director/config", handle_save_ai_director_config)
     app.router.add_post("/api/merge_short", handle_merge_short)
 
     # Audio & Config

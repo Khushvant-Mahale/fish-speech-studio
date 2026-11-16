@@ -3951,6 +3951,252 @@ async function handleAutoDirectStory() {
   }
 }
 
+// ----------------- AI SCRIPT DIRECTOR (LLM) ----------------- //
+let activeAIProvider = "gemini";
+window._aiDirectedBlocks = null;
+
+async function openAIDirectorModal() {
+  const modal = document.getElementById("ai-director-modal");
+  if (!modal) return;
+
+  const resBox = document.getElementById("ai-director-results");
+  if (resBox) resBox.style.display = "none";
+  window._aiDirectedBlocks = null;
+
+  modal.style.display = "flex";
+
+  try {
+    const res = await fetch("/api/ai_director/config");
+    const cfg = await res.json();
+    if (cfg && cfg.default_provider) {
+      switchAIDirectorProvider(cfg.default_provider);
+    } else {
+      switchAIDirectorProvider("gemini");
+    }
+    const keyStatus = document.getElementById("ai-key-status");
+    if (keyStatus && cfg.gemini_has_key && activeAIProvider === "gemini") {
+      keyStatus.style.display = "block";
+      keyStatus.textContent = `✓ Active Key configured (${cfg.gemini_masked_key})`;
+    }
+  } catch (e) {
+    switchAIDirectorProvider("gemini");
+  }
+}
+
+function closeAIDirectorModal() {
+  const modal = document.getElementById("ai-director-modal");
+  if (modal) modal.style.display = "none";
+}
+
+function switchAIDirectorProvider(prov) {
+  activeAIProvider = prov || "gemini";
+  const tabs = ["gemini", "groq", "openai", "ollama"];
+  tabs.forEach(t => {
+    const tabEl = document.getElementById(`tab-llm-${t}`);
+    if (tabEl) {
+      if (t === activeAIProvider) {
+        tabEl.classList.add("active");
+        tabEl.style.background = "linear-gradient(135deg, rgba(139, 92, 246, 0.4), rgba(99, 102, 241, 0.4))";
+        tabEl.style.borderColor = "#8b5cf6";
+        tabEl.style.color = "#fff";
+      } else {
+        tabEl.classList.remove("active");
+        tabEl.style.background = "";
+        tabEl.style.borderColor = "";
+        tabEl.style.color = "";
+      }
+    }
+  });
+
+  const keyLabel = document.getElementById("ai-key-label");
+  const keyInput = document.getElementById("ai-director-api-key");
+  const keyLink = document.getElementById("ai-key-link");
+  const modelSelect = document.getElementById("ai-director-model-select");
+  const keyContainer = document.getElementById("ai-key-container");
+  const keyStatus = document.getElementById("ai-key-status");
+  if (keyStatus) keyStatus.style.display = "none";
+
+  if (activeAIProvider === "gemini") {
+    if (keyContainer) keyContainer.style.display = "block";
+    if (keyLabel) keyLabel.textContent = "Google Gemini API Key";
+    if (keyInput) keyInput.placeholder = "AIzaSy...";
+    if (keyLink) {
+      keyLink.style.display = "inline";
+      keyLink.href = "https://aistudio.google.com/app/apikey";
+      keyLink.textContent = "Get Free Gemini Key (Instant) ↗";
+    }
+    if (modelSelect) {
+      modelSelect.innerHTML = `
+        <option value="gemini-2.0-flash">gemini-2.0-flash (Recommended: Free & Fast)</option>
+        <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+        <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+      `;
+    }
+  } else if (activeAIProvider === "groq") {
+    if (keyContainer) keyContainer.style.display = "block";
+    if (keyLabel) keyLabel.textContent = "Groq Cloud API Key";
+    if (keyInput) keyInput.placeholder = "gsk_...";
+    if (keyLink) {
+      keyLink.style.display = "inline";
+      keyLink.href = "https://console.groq.com/keys";
+      keyLink.textContent = "Get Free Groq API Key ↗";
+    }
+    if (modelSelect) {
+      modelSelect.innerHTML = `
+        <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Ultra Fast ~300 T/s)</option>
+        <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+      `;
+    }
+  } else if (activeAIProvider === "openai") {
+    if (keyContainer) keyContainer.style.display = "block";
+    if (keyLabel) keyLabel.textContent = "OpenAI API Key";
+    if (keyInput) keyInput.placeholder = "sk-proj-...";
+    if (keyLink) {
+      keyLink.style.display = "inline";
+      keyLink.href = "https://platform.openai.com/api-keys";
+      keyLink.textContent = "Get OpenAI Key ↗";
+    }
+    if (modelSelect) {
+      modelSelect.innerHTML = `
+        <option value="gpt-4o-mini">gpt-4o-mini (Fast & Cost Effective)</option>
+        <option value="gpt-4o">gpt-4o</option>
+      `;
+    }
+  } else if (activeAIProvider === "ollama") {
+    if (keyContainer) keyContainer.style.display = "none";
+    if (modelSelect) {
+      modelSelect.innerHTML = `
+        <option value="llama3.2">llama3.2 (Local)</option>
+        <option value="qwen2.5">qwen2.5</option>
+        <option value="mistral">mistral</option>
+      `;
+    }
+  }
+}
+
+function toggleAIKeyVisibility() {
+  const inp = document.getElementById("ai-director-api-key");
+  if (!inp) return;
+  inp.type = (inp.type === "password") ? "text" : "password";
+}
+
+async function handleRunAIDirector() {
+  if (!state.currentProject || !state.currentProject.blocks || state.currentProject.blocks.length === 0) {
+    showToast("⚠️ No blocks to direct. Please load or import a story first.");
+    return;
+  }
+
+  const btn = document.getElementById("btn-run-ai-director");
+  const keyInput = document.getElementById("ai-director-api-key");
+  const modelSelect = document.getElementById("ai-director-model-select");
+  const saveKeyCheck = document.getElementById("ai-director-save-key");
+  const optCast = document.getElementById("ai-opt-cast");
+  const optSplit = document.getElementById("ai-opt-split");
+  const optEmotions = document.getElementById("ai-opt-emotions");
+
+  const apiKey = (keyInput ? keyInput.value : "").trim();
+  const model = modelSelect ? modelSelect.value : "";
+  const saveKey = saveKeyCheck ? saveKeyCheck.checked : true;
+  const engine = state.currentProject.engine || "kokoro";
+  const defaultVoice = state.currentProject.default_voice || "";
+
+  const originalBtnText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<span>⏳ AI Director analyzing manuscript & casting roles...</span>`;
+
+  try {
+    const res = await fetch("/api/ai_director/direct", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        blocks: state.currentProject.blocks,
+        provider: activeAIProvider,
+        api_key: apiKey,
+        model: model,
+        save_key: saveKey,
+        engine: engine,
+        default_voice: defaultVoice,
+        cast_voices: optCast ? optCast.checked : true,
+        split_dialogue: optSplit ? optSplit.checked : true,
+        add_emotions: optEmotions ? optEmotions.checked : true
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || "Failed to direct story with AI.");
+    }
+
+    window._aiDirectedBlocks = data.blocks;
+
+    // Display Results Container
+    const resBox = document.getElementById("ai-director-results");
+    const headline = document.getElementById("ai-results-headline");
+    const countEl = document.getElementById("ai-results-count");
+    const cardsEl = document.getElementById("ai-character-cards");
+
+    if (resBox) resBox.style.display = "flex";
+    if (headline) headline.textContent = `✨ Directing Complete! (${data.total_blocks} blocks)`;
+    if (countEl) countEl.textContent = `${data.characters.length} characters identified`;
+
+    if (cardsEl) {
+      cardsEl.innerHTML = data.characters.map(c => `
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; font-size: 12px;">
+          <div>
+            <span style="font-weight: 700; color: #fff;">${escapeHtml(c.name || 'Character')}</span>
+            <span style="color: var(--text-muted); font-size: 11px; margin-left: 6px;">(${escapeHtml(c.persona || c.gender || '')})</span>
+          </div>
+          <span style="color: #a78bfa; font-family: monospace; font-size: 11px; background: rgba(139, 92, 246, 0.15); padding: 2px 6px; border-radius: 4px;">
+            ${escapeHtml(c.assigned_voice_id || '')}
+          </span>
+        </div>
+      `).join("");
+    }
+
+    showToast(`🎭 AI Directing complete! Identified ${data.characters.length} characters.`);
+
+  } catch (err) {
+    console.error("AI Director error:", err);
+    showToast(`❌ AI Director failed: ${err.message}`, 6000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalBtnText;
+  }
+}
+
+function applyAIDirectedBlocks() {
+  if (!window._aiDirectedBlocks || !state.currentProject) {
+    showToast("⚠️ No directed blocks to apply.");
+    return;
+  }
+
+  recordHistory("AI Script Director");
+
+  const eng = state.currentProject.engine || "kokoro";
+  window._aiDirectedBlocks.forEach(b => {
+    b.engine = eng;
+    if (!b.speed) b.speed = 0.9;
+    if (!b.gain) b.gain = 1.0;
+  });
+
+  state.currentProject.blocks = window._aiDirectedBlocks;
+  state.selectedBlockIndices = new Set([0]);
+  state.activeBlockIndex = 0;
+  state.lastClickedIndex = 0;
+
+  renderStudio();
+  debouncedSave();
+  closeAIDirectorModal();
+  showToast(`✅ Successfully applied AI cast across ${window._aiDirectedBlocks.length} blocks!`);
+}
+
+window.openAIDirectorModal = openAIDirectorModal;
+window.closeAIDirectorModal = closeAIDirectorModal;
+window.switchAIDirectorProvider = switchAIDirectorProvider;
+window.toggleAIKeyVisibility = toggleAIKeyVisibility;
+window.handleRunAIDirector = handleRunAIDirector;
+window.applyAIDirectedBlocks = applyAIDirectedBlocks;
+
 function applyDeliveryPreset(presetKey) {
   if (!state.currentProject || !state.currentProject.blocks || state.currentProject.blocks.length === 0) return;
 
