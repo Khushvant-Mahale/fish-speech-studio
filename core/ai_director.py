@@ -13,7 +13,7 @@ class AIDirector:
     """
 
     DEFAULT_MODELS = {
-        "gemini": "gemini-2.0-flash",
+        "gemini": "gemini-2.5-flash",
         "groq": "llama-3.3-70b-versatile",
         "openai": "gpt-4o-mini",
         "ollama": "llama3.2"
@@ -33,63 +33,83 @@ class AIDirector:
 
     @staticmethod
     def _call_gemini_api(api_key: str, model: str, prompt: str, system_prompt: str = "") -> str:
-        """Calls Google Gemini API via lightweight standard REST."""
-        model_name = model or "gemini-2.0-flash"
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        
-        payload: Dict[str, Any] = {
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": prompt}]
-                }
-            ],
-            "generationConfig": {
-                "temperature": 0.2,
-                "responseMimeType": "application/json"
-            }
-        }
-        if system_prompt:
-            payload["systemInstruction"] = {
-                "parts": [{"text": system_prompt}]
-            }
+        """Calls Google Gemini API via lightweight standard REST with automatic active model fallback."""
+        requested_model = model or "gemini-2.5-flash"
+        # Candidate model hierarchy in order of preference
+        candidate_models = [requested_model]
+        for fallback in ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-2.5-pro"]:
+            if fallback not in candidate_models:
+                candidate_models.append(fallback)
 
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST"
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=45) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                candidates = data.get("candidates", [])
-                if candidates and "content" in candidates[0]:
-                    parts = candidates[0]["content"].get("parts", [])
-                    if parts:
-                        return parts[0].get("text", "")
-                raise ValueError("Empty or malformed response from Gemini API.")
-        except urllib.error.HTTPError as he:
-            err_body = he.read().decode("utf-8", errors="ignore")
+        last_err = None
+        for current_model in candidate_models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{current_model}:generateContent?key={api_key}"
+            payload: Dict[str, Any] = {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [{"text": prompt}]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "responseMimeType": "application/json"
+                }
+            }
+            if system_prompt:
+                payload["systemInstruction"] = {
+                    "parts": [{"text": system_prompt}]
+                }
+
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
             try:
-                err_json = json.loads(err_body)
-                msg = err_json.get("error", {}).get("message", err_body)
-            except Exception:
-                msg = err_body
-            raise RuntimeError(f"Gemini API Error (HTTP {he.code}): {msg}")
+                with urllib.request.urlopen(req, timeout=45) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    candidates = data.get("candidates", [])
+                    if candidates and "content" in candidates[0]:
+                        parts = candidates[0]["content"].get("parts", [])
+                        if parts:
+                            return parts[0].get("text", "")
+                    raise ValueError("Empty response from Gemini API.")
+            except urllib.error.HTTPError as he:
+                err_body = he.read().decode("utf-8", errors="ignore")
+                try:
+                    err_json = json.loads(err_body)
+                    msg = err_json.get("error", {}).get("message", err_body)
+                except Exception:
+                    msg = err_body
+                last_err = RuntimeError(f"Gemini API Error (HTTP {he.code}): {msg}")
+                # If model is 404 (not found / deprecated), try next fallback model
+                if he.code == 404:
+                    continue
+                else:
+                    raise last_err
+            except Exception as e:
+                last_err = e
+                continue
+
+        if last_err:
+            raise last_err
+        raise RuntimeError("No available Gemini model responded successfully.")
 
     def test_api_key(self, provider: str, api_key: str, model: str = "") -> Dict[str, Any]:
         """Verifies API key with the provider using a minimal ping."""
         target_model = model or self.DEFAULT_MODELS.get(provider, "")
         try:
             if provider == "gemini":
-                # Quick ping to Gemini
+                # Quick ping to Gemini with auto-fallback
                 self._call_gemini_api(
                     api_key=api_key,
                     model=target_model,
                     prompt='Reply with JSON: {"status": "ok"}',
                     system_prompt="Return valid JSON."
                 )
+                return {"ok": True, "message": f"Google Gemini API key verified and connected ({target_model})", "model": target_model}
             elif provider == "groq":
                 self._call_groq_api(
                     api_key=api_key,
@@ -97,6 +117,7 @@ class AIDirector:
                     prompt='Reply with JSON: {"status": "ok"}',
                     system_prompt="Return valid JSON."
                 )
+                return {"ok": True, "message": f"Groq API key verified and connected ({target_model})", "model": target_model}
             elif provider == "openai":
                 self._call_openai_api(
                     api_key=api_key,
@@ -104,15 +125,16 @@ class AIDirector:
                     prompt='Reply with JSON: {"status": "ok"}',
                     system_prompt="Return valid JSON."
                 )
+                return {"ok": True, "message": f"OpenAI API key verified and connected ({target_model})", "model": target_model}
             elif provider == "ollama":
                 self._call_ollama_api(
                     model=target_model,
                     prompt='Reply with JSON: {"status": "ok"}',
                     system_prompt="Return valid JSON."
                 )
+                return {"ok": True, "message": f"Local Ollama verified ({target_model})", "model": target_model}
             else:
                 return {"ok": False, "error": f"Unknown provider: {provider}"}
-            return {"ok": True, "message": f"{provider.capitalize()} API key is valid and connected ({target_model})"}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 

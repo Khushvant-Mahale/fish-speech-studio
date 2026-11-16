@@ -3883,9 +3883,10 @@ function switchAIDirectorProvider(prov) {
     }
     if (modelSelect) {
       modelSelect.innerHTML = `
-        <option value="gemini-2.0-flash">gemini-2.0-flash (Recommended: Free & Fast)</option>
-        <option value="gemini-1.5-flash">gemini-1.5-flash</option>
-        <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+        <option value="gemini-2.5-flash">gemini-2.5-flash (Recommended: Free & Fast)</option>
+        <option value="gemini-3.8-flash">gemini-3.8-flash (Latest Frontier Flash)</option>
+        <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Ultra Lightweight)</option>
+        <option value="gemini-2.5-pro">gemini-2.5-pro (Deep Multimodal Reasoning)</option>
       `;
     }
   } else if (activeAIProvider === "groq") {
@@ -3899,8 +3900,9 @@ function switchAIDirectorProvider(prov) {
     }
     if (modelSelect) {
       modelSelect.innerHTML = `
-        <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Ultra Fast ~300 T/s)</option>
-        <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+        <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (Recommended: 280 T/s, High IQ)</option>
+        <option value="llama-3.1-8b-instant">llama-3.1-8b-instant (Fastest, High Quota)</option>
+        <option value="mixtral-8x7b-32768">mixtral-8x7b-32768 (32k Long Context)</option>
       `;
     }
   } else if (activeAIProvider === "openai") {
