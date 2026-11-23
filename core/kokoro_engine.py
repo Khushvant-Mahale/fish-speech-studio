@@ -310,7 +310,12 @@ class KokoroEngine:
                 print(f"[KokoroEngine] Remote GPU worker failed ({e}), falling back to local CPU...")
 
         # Synthesize audio locally on CPU
+        import psutil, os
+        p = psutil.Process(os.getpid())
+        print(f"[KokoroEngine] Starting local synthesis for: '{clean_text[:40]}...'", flush=True)
+        print(f"[KokoroEngine] RAM before synthesis: {p.memory_info().rss / 1024 / 1024:.1f} MB", flush=True)
         voice_vec = self.get_voice_vector(voice_id, blend_weights)
+        print(f"[KokoroEngine] Voice vector resolved. Calling kokoro.create...", flush=True)
         if len(clean_text) > 120 and any(p in clean_text for p in [". ", "? ", "! ", "... "]):
             sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+|\n+', clean_text) if s.strip()]
             if len(sentences) > 1:
@@ -339,6 +344,7 @@ class KokoroEngine:
                 speed=speed,
                 lang=lang
             )
+        print(f"[KokoroEngine] kokoro.create completed successfully! Samples: {len(raw_samples)}, RAM: {p.memory_info().rss / 1024 / 1024:.1f} MB", flush=True)
 
         # Cache raw neural speech before gain and DSP for future instant re-sculpting (<0.1s)
         try:
