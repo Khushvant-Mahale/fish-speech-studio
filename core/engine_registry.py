@@ -144,6 +144,96 @@ class EdgeTTSEngineAdapter(BaseEngineAdapter):
         return eng.synthesize_block(**kwargs)
 
 
+class ElevenLabsEngineAdapter(BaseEngineAdapter):
+    def __init__(self, elevenlabs_engine=None):
+        self.engine_id = "elevenlabs"
+        self.display_name = "ElevenLabs Premier"
+        self.description = "Industry standard commercial voices (v4 / v3 Multilingual, Flash v2.5)."
+        self.capabilities = {
+            "supports_emotion_tags": False,
+            "supports_voice_blending": False,
+            "supports_reference_audio": True,
+            "supports_client_synthesis": False,
+            "supports_pitch_rate": True,
+            "supports_rolling_context": False,
+            "cost_tier": "commercial_paid",
+            "execution_mode": "cloud_commercial"
+        }
+        self._engine = elevenlabs_engine
+
+    def _get_engine(self):
+        if self._engine is None:
+            from core.elevenlabs_engine import ElevenLabsEngine
+            self._engine = ElevenLabsEngine()
+        return self._engine
+
+    def get_voices(self) -> List[Dict[str, Any]]:
+        return self._get_engine().get_voices()
+
+    def synthesize_block(self, **kwargs) -> Dict[str, Any]:
+        return self._get_engine().synthesize_block(**kwargs)
+
+
+class CartesiaEngineAdapter(BaseEngineAdapter):
+    def __init__(self, cartesia_engine=None):
+        self.engine_id = "cartesia"
+        self.display_name = "Cartesia Sonic"
+        self.description = "Ultra low latency high-speed commercial neural speech (Sonic 3.6 / Sonic 4)."
+        self.capabilities = {
+            "supports_emotion_tags": False,
+            "supports_voice_blending": False,
+            "supports_reference_audio": False,
+            "supports_client_synthesis": False,
+            "supports_pitch_rate": True,
+            "supports_rolling_context": False,
+            "cost_tier": "commercial_paid",
+            "execution_mode": "cloud_commercial"
+        }
+        self._engine = cartesia_engine
+
+    def _get_engine(self):
+        if self._engine is None:
+            from core.cartesia_engine import CartesiaEngine
+            self._engine = CartesiaEngine()
+        return self._engine
+
+    def get_voices(self) -> List[Dict[str, Any]]:
+        return self._get_engine().get_voices()
+
+    def synthesize_block(self, **kwargs) -> Dict[str, Any]:
+        return self._get_engine().synthesize_block(**kwargs)
+
+
+class OpenAIEngineAdapter(BaseEngineAdapter):
+    def __init__(self, openai_engine=None):
+        self.engine_id = "openai"
+        self.display_name = "OpenAI Audio"
+        self.description = "State-of-the-art clear commercial voices (gpt-4o-mini-tts, tts-1, tts-1-hd)."
+        self.capabilities = {
+            "supports_emotion_tags": False,
+            "supports_voice_blending": False,
+            "supports_reference_audio": False,
+            "supports_client_synthesis": False,
+            "supports_pitch_rate": True,
+            "supports_rolling_context": False,
+            "cost_tier": "commercial_paid",
+            "execution_mode": "cloud_commercial"
+        }
+        self._engine = openai_engine
+
+    def _get_engine(self):
+        if self._engine is None:
+            from core.openai_engine import OpenAIEngine
+            self._engine = OpenAIEngine()
+        return self._engine
+
+    def get_voices(self) -> List[Dict[str, Any]]:
+        return self._get_engine().get_voices()
+
+    def synthesize_block(self, **kwargs) -> Dict[str, Any]:
+        return self._get_engine().synthesize_block(**kwargs)
+
+
 class EngineRegistry:
     def __init__(self):
         self._adapters: Dict[str, BaseEngineAdapter] = {}
@@ -162,6 +252,12 @@ class EngineRegistry:
             return self._adapters.get("kokoro")
         if eid in ("edge", "edge_tts", "edge-tts", "ms_edge"):
             return self._adapters.get("edge_tts")
+        if eid in ("elevenlabs", "eleven", "eleven_labs", "11labs"):
+            return self._adapters.get("elevenlabs")
+        if eid in ("cartesia", "sonic", "sonic_4"):
+            return self._adapters.get("cartesia")
+        if eid in ("openai", "openai_tts", "gpt4o_tts"):
+            return self._adapters.get("openai")
         return self._adapters.get(eid) or self._adapters.get("fish_s2")
 
     def list_engines(self) -> List[Dict[str, Any]]:
@@ -187,4 +283,7 @@ def initialize_engine_registry(fish_engine=None, kokoro_engine=None, edge_engine
     engine_registry.register(FishEngineAdapter(fish_engine=fish_engine))
     engine_registry.register(KokoroEngineAdapter(kokoro_engine=kokoro_engine))
     engine_registry.register(EdgeTTSEngineAdapter(edge_tts_engine=edge_engine))
+    engine_registry.register(ElevenLabsEngineAdapter())
+    engine_registry.register(CartesiaEngineAdapter())
+    engine_registry.register(OpenAIEngineAdapter())
     return engine_registry

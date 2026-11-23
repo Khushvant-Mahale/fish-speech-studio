@@ -247,8 +247,19 @@ async def handle_get_voices(request):
         return web.json_response(voices)
 
     edge_voices = engine_registry.get_voices_for_engine("edge_tts")
-    # Unified voice catalog: Cinema (Drama 3) + Fast (Kokoro) + Free (Edge TTS)
-    return web.json_response(voices + k_voices + edge_voices)
+    eleven_voices = engine_registry.get_voices_for_engine("elevenlabs")
+    cartesia_voices = engine_registry.get_voices_for_engine("cartesia")
+    openai_voices = engine_registry.get_voices_for_engine("openai")
+
+    if engine_param in ("eleven", "elevenlabs"):
+        return web.json_response(eleven_voices)
+    if engine_param in ("cartesia", "sonic"):
+        return web.json_response(cartesia_voices)
+    if engine_param in ("openai", "gpt"):
+        return web.json_response(openai_voices)
+
+    # Unified voice catalog: Cinema (Drama 3) + Fast (Kokoro) + Free (Edge TTS) + Pro Commercial (ElevenLabs, Cartesia, OpenAI)
+    return web.json_response(voices + k_voices + edge_voices + eleven_voices + cartesia_voices + openai_voices)
 
 
 async def handle_upload_reference_voice(request):
@@ -828,6 +839,52 @@ async def handle_synthesize_block(request):
                     edge_adapter.synthesize_block,
                     text=text,
                     voice_id=voice_id or "en-US-GuyNeural",
+                    speed=speed,
+                    gain=gain,
+                    pitch_shift=pitch_shift,
+                    warmth=warmth,
+                    clarity=clarity,
+                    reverb=reverb,
+                    radio_fx=radio_fx,
+                    fx_filter=fx_filter,
+                    force_refresh=force_refresh
+                )
+                if not fut.done():
+                    fut.set_result(res)
+                if isinstance(res, dict) and not res.get("error"):
+                    user = get_current_user(request)
+                    res["tier_status"] = tier_mgr.get_public_status(user=user)
+                return web.json_response(res)
+            except asyncio.CancelledError:
+                if not fut.done():
+                    fut.cancel()
+                raise
+            except Exception as e:
+                if not fut.done():
+                    fut.set_exception(e)
+                return web.json_response({"error": str(e)}, status=500)
+            finally:
+                in_flight_synthesis_futures.pop(task_key, None)
+
+        if block_engine in ("elevenlabs", "cartesia", "openai"):
+            task_key = f"{block_engine}::{text}::{voice_id or ''}::{speed}::{gain}::{pitch_shift}::{warmth}::{clarity}::{reverb}::{radio_fx}::{fx_filter}"
+            if not force_refresh and task_key in in_flight_synthesis_futures:
+                try:
+                    res = await in_flight_synthesis_futures[task_key]
+                    return web.json_response(res)
+                except Exception as e:
+                    return web.json_response({"error": str(e)}, status=500)
+
+            loop = asyncio.get_running_loop()
+            fut = loop.create_future()
+            in_flight_synthesis_futures[task_key] = fut
+
+            try:
+                adapter = engine_registry.get_engine(block_engine)
+                res = await asyncio.to_thread(
+                    adapter.synthesize_block,
+                    text=text,
+                    voice_id=voice_id,
                     speed=speed,
                     gain=gain,
                     pitch_shift=pitch_shift,
@@ -1437,6 +1494,20 @@ def sync_synthesize_block_for_export(b: dict, active_engine_name: str) -> Option
             warmth=float(b.get("warmth", 0.0)),
             clarity=float(b.get("clarity", 0.0)),
             reverb=float(b.get("reverb", 0.0)),
+            radio_fx=bool(b.get("radio_fx", False)),
+            fx_filter=str(b.get("fx_filter") or "none").strip().lower()
+        )
+    elif b_engine in ("elevenlabs", "cartesia", "openai"):
+        adapter = engine_registry.get_engine(b_engine)
+        res = adapter.synthesize_block(
+            text=text,
+            voice_id=voice_id,
+            speed=float(b.get("speed", 1.0) or 1.0),
+            gain=float(b.get("gain", 1.0) or 1.0),
+            pitch_shift=float(b.get("pitch_shift", 0.0) or 0.0),
+            warmth=float(b.get("warmth", 0.0) or 0.0),
+            clarity=float(b.get("clarity", 0.0) or 0.0),
+            reverb=float(b.get("reverb", 0.0) or 0.0),
             radio_fx=bool(b.get("radio_fx", False)),
             fx_filter=str(b.get("fx_filter") or "none").strip().lower()
         )
