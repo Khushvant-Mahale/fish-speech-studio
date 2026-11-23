@@ -488,6 +488,25 @@
                   delete b.cachedAudioUrl;
                 }
               });
+
+              // Sanitize cross-project pollution: if not School, strip School audio takes
+              const schoolHashes = ["652c166f47a50e826f1505c68266a511_a88de341", "058a92014623d97616b48d50d643621d", "d6890204724d4c896fab7b36ae5f512e", "3019f98fe796dcecd498d31df02d952b", "5ae74ab04b597c892218da8b4baf7377", "7f0941d7a67e37f36faeac888ee72007", "4a809eb3c504d1c02f220d88279cb637", "435b677ada00cf79e0416e0338f199f4", "0860b274a9eda5a17d415c4c2e2d6cf5"];
+              if (id !== "proj_eb9ab585") {
+                parsed.blocks.forEach(b => {
+                  if (b.audio_url && schoolHashes.some(h => b.audio_url.includes(h))) {
+                    modified = true;
+                    delete b.audio_url;
+                    delete b.cachedAudioUrl;
+                    delete b.cachedSig;
+                    delete b.duration;
+                    delete b.hash;
+                  }
+                  if (b.cachedAudioUrl && schoolHashes.some(h => b.cachedAudioUrl.includes(h))) {
+                    modified = true;
+                    delete b.cachedAudioUrl;
+                  }
+                });
+              }
               if (modified) {
                 try { localStorage.setItem(`kashva_proj_${id}`, JSON.stringify(parsed)); } catch (e) {}
               }
@@ -644,18 +663,27 @@
       try {
         const body = typeof init.body === "string" ? JSON.parse(init.body) : {};
         const raw_blocks = body.blocks || (body.block ? [body.block] : []);
-        const projId = body.project_id || (window.state && window.state.currentProject && window.state.currentProject.id) || "proj_eb9ab585";
+        const projId = body.project_id || (window.state && window.state.currentProject && window.state.currentProject.id) || (new URLSearchParams(window.location.search)).get("project") || "";
         const proj = (demoDataset && demoDataset.projects && projId) ? demoDataset.projects[projId] : null;
 
         const results = raw_blocks.map(b => {
-          const origBlock = proj && proj.blocks ? proj.blocks[b.index] : null;
-          let finalUrl = (origBlock && origBlock.audio_url) || b.cachedAudioUrl || b.audio_url || "";
-          if (finalUrl && finalUrl.includes("demo_clip.wav")) {
-            finalUrl = (origBlock && origBlock.audio_url && !origBlock.audio_url.includes("demo_clip.wav")) ? origBlock.audio_url : "";
+          let origBlock = null;
+          if (proj && proj.blocks) {
+            if (b.id) origBlock = proj.blocks.find(ob => ob && ob.id === b.id);
+            if (!origBlock && typeof b.index === "number" && proj.blocks[b.index]) {
+              const candidate = proj.blocks[b.index];
+              if ((candidate.text || "").trim() === (b.text || "").trim()) {
+                origBlock = candidate;
+              }
+            }
+            if (!origBlock && b.text) {
+              origBlock = proj.blocks.find(ob => ob && (ob.text || "").trim() === (b.text || "").trim());
+            }
           }
-          if (!finalUrl && b.hash) {
-            finalUrl = `/api/audio/${b.hash}.wav`;
-          }
+
+          let finalUrl = (origBlock && origBlock.audio_url) || "";
+          if (finalUrl && finalUrl.includes("demo_clip.wav")) finalUrl = "";
+
           if (finalUrl) {
             return {
               index: b.index,
@@ -677,14 +705,27 @@
       }
     }
 
-    // 13. Synthesis Mock -> Return original take or realistic procedural tone (never demo_clip.wav)
+    // 13. Synthesis Mock -> Return original take strictly if matching, or realistic procedural speech
     if (path.startsWith("/api/synthesize_block") && method === "POST") {
       try {
         const b = typeof init.body === "string" ? JSON.parse(init.body) : {};
         const idx = b.index !== undefined ? b.index : 0;
-        const projId = b.project_id || (window.state && window.state.currentProject && window.state.currentProject.id) || "proj_eb9ab585";
+        const projId = b.project_id || (window.state && window.state.currentProject && window.state.currentProject.id) || (new URLSearchParams(window.location.search)).get("project") || "";
         const proj = (demoDataset && demoDataset.projects && projId) ? demoDataset.projects[projId] : null;
-        const origBlock = proj && proj.blocks ? proj.blocks[idx] : null;
+
+        let origBlock = null;
+        if (proj && proj.blocks) {
+          if (b.id) origBlock = proj.blocks.find(ob => ob && ob.id === b.id);
+          if (!origBlock && typeof idx === "number" && proj.blocks[idx]) {
+            const candidate = proj.blocks[idx];
+            if ((candidate.text || "").trim() === (b.text || "").trim()) {
+              origBlock = candidate;
+            }
+          }
+          if (!origBlock && b.text) {
+            origBlock = proj.blocks.find(ob => ob && (ob.text || "").trim() === (b.text || "").trim());
+          }
+        }
 
         if (origBlock && origBlock.audio_url && !origBlock.audio_url.includes("demo_clip.wav")) {
           return jsonResponse({
@@ -695,17 +736,7 @@
           });
         }
 
-        // If Block 1 specifically, 058a920...wav is its actual corridor monologue
-        if (idx === 1 && projId === "proj_eb9ab585") {
-          return jsonResponse({
-            ok: true,
-            audio_url: "/api/audio/058a92014623d97616b48d50d643621d.wav",
-            hash: "8a7a8f94e51cf0dcba884f6c56aad07f",
-            duration: 23.08
-          });
-        }
-
-        // Distinct procedural take for un-pruned blocks
+        // Procedural speech generation with estimated duration based on text length
         const estDur = Math.max(1.2, Math.min(8.0, Number(((b.text || "").length * 0.062).toFixed(1))));
         return jsonResponse({
           ok: true,

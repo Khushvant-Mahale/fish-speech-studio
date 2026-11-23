@@ -49,6 +49,7 @@ const state = {
     savedModelIds: new Set()
   }
 };
+window.state = state;
 
 // ---------------- UTILITIES & HELPERS ---------------- //
 
@@ -819,6 +820,21 @@ async function openProject(projectId, updateUrl = true) {
         if (block.cachedAudioUrl && block.cachedAudioUrl.includes("demo_clip.wav")) {
           delete block.cachedAudioUrl;
         }
+
+        // Sanitize cross-project pollution: if this project is NOT School (proj_eb9ab585), wipe any takes belonging to School
+        const schoolHashes = ["652c166f47a50e826f1505c68266a511_a88de341", "058a92014623d97616b48d50d643621d", "d6890204724d4c896fab7b36ae5f512e", "3019f98fe796dcecd498d31df02d952b", "5ae74ab04b597c892218da8b4baf7377", "7f0941d7a67e37f36faeac888ee72007", "4a809eb3c504d1c02f220d88279cb637", "435b677ada00cf79e0416e0338f199f4", "0860b274a9eda5a17d415c4c2e2d6cf5"];
+        if (projectId !== "proj_eb9ab585") {
+          if (block.audio_url && schoolHashes.some(h => block.audio_url.includes(h))) {
+            delete block.audio_url;
+            delete block.cachedAudioUrl;
+            delete block.cachedSig;
+            delete block.duration;
+            delete block.hash;
+          }
+          if (block.cachedAudioUrl && schoolHashes.some(h => block.cachedAudioUrl.includes(h))) {
+            delete block.cachedAudioUrl;
+          }
+        }
         if (block.take_cache) {
           Object.keys(block.take_cache).forEach(k => {
             const t = block.take_cache[k];
@@ -958,6 +974,9 @@ function createBlockSynthesizePayload(block, forceRefresh = false) {
   }
 
   return {
+    project_id: state.currentProject?.id || "",
+    id: block.id || "",
+    index: state.currentProject?.blocks ? state.currentProject.blocks.indexOf(block) : -1,
     text: block.text,
     voice_id: chosenVoiceId,
     engine: activeEng,
@@ -3837,7 +3856,10 @@ async function syncProjectAudioCache(forceAll = false) {
     const res = await fetch("/api/check_cache", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ blocks: blocksToCheck })
+      body: JSON.stringify({
+        project_id: state.currentProject.id,
+        blocks: blocksToCheck
+      })
     });
     if (!res.ok) return;
     const data = await res.json();
