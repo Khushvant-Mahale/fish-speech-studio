@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: kashva-voice
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "7860"
