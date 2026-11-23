@@ -117,6 +117,14 @@ class CartesiaEngine:
         force_refresh: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
+        raw_m = kwargs.get("model") or model_id
+        if raw_m in ("sonic_4", "sonic-4"):
+            model_id = "sonic-4"
+        elif raw_m in ("sonic_3.6", "sonic-3.6", "sonic-english"):
+            model_id = "sonic-english"
+        elif raw_m:
+            model_id = str(raw_m)
+
         clean_text = self._clean_text_for_speech(text)
         if not clean_text:
             return {"error": "Text cannot be empty"}

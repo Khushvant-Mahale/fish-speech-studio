@@ -18,6 +18,7 @@ const state = {
   isBatchRunning: false,
   nextSentenceTimer: null,
   activeEngine: "fish_s2",
+  activeModel: "drama3",
   folders: [],
   activeFolderId: null,
   activeFolderData: null,
@@ -890,6 +891,7 @@ function debouncedSave() {
 function createBlockSynthesizePayload(block, forceRefresh = false) {
   const char = getCharacterById(block.character_id || block.speaker);
   let activeEng = block.engine || (char && char.engine) || state.activeEngine || "fish_s2";
+  let activeMod = block.model || (char && char.model) || state.activeModel || (state.currentProject && state.currentProject.model) || "";
   let chosenVoiceId = block.voice_id || (char && (char.voice_id || char.assigned_voice_id));
 
   // Voice compatibility guard per engine
@@ -945,6 +947,7 @@ function createBlockSynthesizePayload(block, forceRefresh = false) {
     text: block.text,
     voice_id: chosenVoiceId,
     engine: activeEng,
+    model: activeMod,
     emotion_tag: block.emotion_tag || "",
     reference_audio: refAudio,
     reference_text: refText,
@@ -963,12 +966,53 @@ function createBlockSynthesizePayload(block, forceRefresh = false) {
   };
 }
 
+function getEngineModelBadge(bEngine, bModel) {
+  let badgeText = "Drama 3";
+  let badgeIcon = "🎭";
+  let badgeBg = "rgba(245, 158, 11, 0.15)";
+  let badgeColor = "#fcd34d";
+
+  if (bEngine === "fish_s2") {
+    badgeText = (bModel === "s2_pro" || bModel === "s2.1-pro" || bModel === "s2-pro") ? "S2.1 Pro" : "Drama 3";
+    badgeIcon = "🎭";
+    badgeBg = "rgba(245, 158, 11, 0.15)";
+    badgeColor = "#fcd34d";
+  } else if (bEngine === "elevenlabs") {
+    badgeText = (bModel === "v3") ? "Eleven v3" : (bModel === "flash_v2.5" ? "Flash v2.5" : "Eleven v4");
+    badgeIcon = "🌟";
+    badgeBg = "rgba(139, 92, 246, 0.15)";
+    badgeColor = "#c4b5fd";
+  } else if (bEngine === "cartesia") {
+    badgeText = (bModel === "sonic_3.6") ? "Sonic 3.6" : "Sonic 4";
+    badgeIcon = "⚡";
+    badgeBg = "rgba(236, 72, 153, 0.15)";
+    badgeColor = "#f472b6";
+  } else if (bEngine === "openai") {
+    badgeText = (bModel === "tts-1") ? "tts-1" : "gpt-4o";
+    badgeIcon = "🤖";
+    badgeBg = "rgba(16, 185, 129, 0.15)";
+    badgeColor = "#6ee7b7";
+  } else if (bEngine === "edge_tts") {
+    badgeText = "Edge TTS";
+    badgeIcon = "🌐";
+    badgeBg = "rgba(16, 185, 129, 0.15)";
+    badgeColor = "#34d399";
+  } else if (bEngine === "kokoro") {
+    badgeText = "Kokoro 82M";
+    badgeIcon = "⚡";
+    badgeBg = "rgba(59, 130, 246, 0.15)";
+    badgeColor = "#93c5fd";
+  }
+  return { text: badgeText, bg: badgeBg, color: badgeColor, icon: badgeIcon };
+}
+
 function getBlockSignature(block) {
   if (!block) return "";
   const text = (block.text || "").trim();
   const char = (typeof getCharacterById === "function") ? getCharacterById(block.character_id || block.speaker) : null;
   const voice = block.voice_id || (char && (char.voice_id || char.assigned_voice_id)) || "";
-  const engine = block.engine || state.activeEngine || "fish_s2";
+  const engine = block.engine || (char && char.engine) || state.activeEngine || "fish_s2";
+  const model = block.model || (char && char.model) || state.activeModel || "";
   const emotion = block.emotion_tag || "";
   let refAudio = (char && char.reference_audio) || "";
   const voiceObj = (typeof getVoiceById === "function") ? getVoiceById(voice) : null;
@@ -998,7 +1042,7 @@ function getBlockSignature(block) {
   if (blend) {
     blendStr = Object.entries(blend).sort().map(([k, v]) => `${k}:${Number(v).toFixed(2)}`).join(",");
   }
-  return `${engine}__${text}__${voice}__${emotion}__${refAudio}__${temp}__${topP}__${blendStr}__${speed}__${gain}__${pitch}__${warmth}__${clarity}__${reverb}__${filter}`;
+  return `${engine}__${model}__${text}__${voice}__${emotion}__${refAudio}__${temp}__${topP}__${blendStr}__${speed}__${gain}__${pitch}__${warmth}__${clarity}__${reverb}__${filter}`;
 }
 
 function saveCurrentTakeToBlockCache(block) {
@@ -3503,8 +3547,18 @@ function syncRowHeaderVisuals(block, rowEl) {
   const char = block.character_id
     ? (typeof getCharacterById === "function" ? getCharacterById(block.character_id) : null)
     : (block.speaker && (!voice || block.speaker !== voice.name) && typeof getCharacterById === "function" ? getCharacterById(block.speaker) : null);
-  const blockColor = (char && char.color) ? char.color : (voice ? voice.color : "#6366f1");
-  const blockBadge = (char && char.badge) ? char.badge : (voice ? (voice.badge || (voice.id ? voice.id.slice(0, 2).toUpperCase() : "VO")) : "VO");
+  
+  const isCharVoice = Boolean(char && block.voice_id && (block.voice_id === char.voice_id || block.voice_id === char.assigned_voice_id));
+  const isCustomVoice = Boolean(
+    (voice && !isCharVoice) ||
+    (!char && (block.voice_id || block.speaker)) ||
+    (block.is_custom_edited && voice && !isCharVoice)
+  );
+
+  const blockColor = (isCustomVoice && voice && voice.color) ? voice.color : ((char && char.color) ? char.color : (voice ? voice.color : "#6366f1"));
+  const blockBadge = (isCustomVoice && voice)
+    ? (voice.badge || (voice.name ? voice.name.slice(0, 2).toUpperCase() : "VO"))
+    : ((char && char.badge) ? char.badge : (voice ? (voice.badge || (voice.id ? voice.id.slice(0, 2).toUpperCase() : "VO")) : "VO"));
   const isCustom = Boolean(char && block.is_custom_edited);
 
   const avatar = rowEl.querySelector(".block-avatar");
@@ -3518,15 +3572,32 @@ function syncRowHeaderVisuals(block, rowEl) {
     charTag.style.backgroundColor = `${blockColor}22`;
     charTag.style.color = blockColor;
     charTag.style.borderColor = `${blockColor}45`;
-    if (char) {
+    const cleanVoiceName = voice && voice.name ? voice.name.replace(/\s*\([^)]*\)/g, '').trim() : (block.speaker || "Voice");
+    if (isCustomVoice && voice) {
+      charTag.textContent = `🎙️ ${cleanVoiceName}`;
+      charTag.className = "block-character-tag custom-voice-tag";
+      charTag.title = `Custom Voice: ${voice.name}${char ? ` (Overriding ${char.name})` : ''} - click to change voice`;
+    } else if (char) {
       charTag.textContent = `🎭 ${char.name}`;
       charTag.className = "block-character-tag";
       charTag.title = `Character: ${char.name} (${voice ? voice.name : ''}) - click to change voice`;
     } else {
-      charTag.textContent = `🎙️ ${block.speaker || (voice ? voice.name : 'Voice')}`;
+      charTag.textContent = `🎙️ ${cleanVoiceName}`;
       charTag.className = "block-character-tag standalone-voice-tag";
-      charTag.title = `Standalone Voice: ${voice ? voice.name : (block.speaker || 'Voice')} - click to change voice`;
+      charTag.title = `Standalone Voice: ${cleanVoiceName} - click to change voice`;
     }
+  }
+
+  const engPill = rowEl.querySelector(".block-engine-pill");
+  if (engPill) {
+    const bEngine = block.engine || (char && char.engine) || (voice && voice.engine) || (state.currentProject?.tier === "cinema_pro" ? "fish_s2" : "edge_tts");
+    const bModel = block.model || (char && char.model);
+    const bEngBadge = getEngineModelBadge(bEngine, bModel);
+    engPill.style.background = bEngBadge.bg;
+    engPill.style.color = bEngBadge.color;
+    engPill.style.borderColor = `${bEngBadge.color}33`;
+    engPill.title = `Engine: ${bEngBadge.text}`;
+    engPill.innerHTML = `<span>${bEngBadge.icon}</span> ${bEngBadge.text}`;
   }
 }
 
@@ -3538,12 +3609,13 @@ function findMatchingTake(block) {
     return block.take_cache[newSig];
   }
 
-  // 2. Smart fallback: find take with matching sentence text and target voice
+  // 2. Smart fallback: find take with matching sentence text, target model, and target voice
   const text = (block.text || "").trim();
   const char = (typeof getCharacterById === "function") ? getCharacterById(block.character_id || block.speaker) : null;
   const targetVoice = block.voice_id || (char && (char.voice_id || char.assigned_voice_id)) || "";
   const voiceObj = (typeof getVoiceById === "function") ? getVoiceById(targetVoice) : null;
   const targetEngine = block.engine || voiceObj?.engine || state.activeEngine || "fish_s2";
+  const targetModel = block.model || (char && char.model) || state.activeModel || "";
 
   let bestTake = null;
   let bestTs = -1;
@@ -3551,14 +3623,30 @@ function findMatchingTake(block) {
   for (const [sKey, take] of Object.entries(block.take_cache)) {
     if (!take || !take.audio_url) continue;
     const parts = sKey.split("__");
-    if (parts.length >= 3) {
+    if (parts.length >= 4) {
       const tEng = parts[0];
-      const tText = parts[1];
-      const tVoice = parts[2];
+      const tModel = parts[1];
+      const tText = parts[2];
+      const tVoice = parts[3];
 
       const isVoiceMatch = (tVoice === targetVoice) || (targetVoice && (tVoice.includes(targetVoice) || targetVoice.includes(tVoice)));
       const isTextMatch = (tText === text);
+      const isModelMatch = !targetModel || !tModel || (tModel === targetModel);
 
+      if (isTextMatch && isVoiceMatch && isModelMatch) {
+        const ts = take.timestamp || 0;
+        if (!bestTake || (tEng === targetEngine && ts >= bestTs) || ts > bestTs) {
+          bestTake = take;
+          bestTs = ts;
+        }
+      }
+    } else if (parts.length >= 3) {
+      // Legacy signature format fallback
+      const tEng = parts[0];
+      const tText = parts[1];
+      const tVoice = parts[2];
+      const isVoiceMatch = (tVoice === targetVoice) || (targetVoice && (tVoice.includes(targetVoice) || targetVoice.includes(tVoice)));
+      const isTextMatch = (tText === text);
       if (isTextMatch && isVoiceMatch) {
         const ts = take.timestamp || 0;
         if (!bestTake || (tEng === targetEngine && ts >= bestTs) || ts > bestTs) {
@@ -4047,53 +4135,26 @@ function renderBlocks() {
     const char = block.character_id
       ? getCharacterById(block.character_id)
       : (block.speaker && (!voice || block.speaker !== voice.name) ? getCharacterById(block.speaker) : null);
+    const isCharVoice = Boolean(char && block.voice_id && (block.voice_id === char.voice_id || block.voice_id === char.assigned_voice_id));
+    const isCustomVoice = Boolean(
+      (voice && !isCharVoice) ||
+      (!char && (block.voice_id || block.speaker)) ||
+      (block.is_custom_edited && voice && !isCharVoice)
+    );
     const isStandaloneVoice = !char && Boolean(block.voice_id || block.speaker);
-    const blockColor = (char && char.color) ? char.color : (voice ? voice.color : "#6366f1");
-    const blockBadge = (char && char.badge) ? char.badge : (voice ? (voice.badge || voice.id.slice(0, 2).toUpperCase()) : "VO");
+    const blockColor = (isCustomVoice && voice && voice.color) ? voice.color : ((char && char.color) ? char.color : (voice ? voice.color : "#6366f1"));
+    const blockBadge = (isCustomVoice && voice)
+      ? (voice.badge || (voice.name ? voice.name.slice(0, 2).toUpperCase() : "VO"))
+      : ((char && char.badge) ? char.badge : (voice ? (voice.badge || voice.id.slice(0, 2).toUpperCase()) : "VO"));
     const isCustom = Boolean(char && block.is_custom_edited);
     const bEngine = block.engine || (char && char.engine) || (voice && voice.engine) || (state.currentProject?.tier === "cinema_pro" ? "fish_s2" : "edge_tts");
     const bModel = block.model || (char && char.model);
-    let badgeText = "Drama 3";
-    let badgeIcon = "🎭";
-    let badgeBg = "rgba(245, 158, 11, 0.15)";
-    let badgeColor = "#fcd34d";
+    const bEngBadge = getEngineModelBadge(bEngine, bModel);
 
-    if (bEngine === "fish_s2") {
-      badgeText = (bModel === "s2_pro") ? "S2.1 Pro" : "Drama 3";
-      badgeIcon = "🎭";
-      badgeBg = "rgba(245, 158, 11, 0.15)";
-      badgeColor = "#fcd34d";
-    } else if (bEngine === "elevenlabs") {
-      badgeText = (bModel === "v3") ? "Eleven v3" : (bModel === "flash_v2.5" ? "Flash v2.5" : "Eleven v4");
-      badgeIcon = "🌟";
-      badgeBg = "rgba(139, 92, 246, 0.15)";
-      badgeColor = "#c4b5fd";
-    } else if (bEngine === "cartesia") {
-      badgeText = (bModel === "sonic_3.6") ? "Sonic 3.6" : "Sonic 4";
-      badgeIcon = "⚡";
-      badgeBg = "rgba(236, 72, 153, 0.15)";
-      badgeColor = "#f472b6";
-    } else if (bEngine === "openai") {
-      badgeText = (bModel === "tts-1") ? "tts-1" : "gpt-4o";
-      badgeIcon = "🤖";
-      badgeBg = "rgba(16, 185, 129, 0.15)";
-      badgeColor = "#6ee7b7";
-    } else if (bEngine === "edge_tts") {
-      badgeText = "Edge TTS";
-      badgeIcon = "🌐";
-      badgeBg = "rgba(16, 185, 129, 0.15)";
-      badgeColor = "#34d399";
-    } else if (bEngine === "kokoro") {
-      badgeText = "Kokoro 82M";
-      badgeIcon = "⚡";
-      badgeBg = "rgba(59, 130, 246, 0.15)";
-      badgeColor = "#93c5fd";
-    }
-    const bEngBadge = { text: badgeText, bg: badgeBg, color: badgeColor, icon: badgeIcon };
-
-    const blockTitle = char
-      ? `Character: ${char.name} (${voice ? voice.name : 'Voice'}) • Engine: ${bEngBadge.text}${isCustom ? ' • Customized for this sentence' : ' • Synced'}`
-      : `Standalone Voice: ${voice ? voice.name : (block.speaker || 'Voice')} • Engine: ${bEngBadge.text} (Click to change)`;
+    const cleanVoiceName = voice && voice.name ? voice.name.replace(/\s*\([^)]*\)/g, '').trim() : (block.speaker || "Voice");
+    const blockTitle = (isCustomVoice && voice)
+      ? `Custom Voice: ${voice.name}${char ? ` (Overriding ${char.name})` : ''} • Engine: ${bEngBadge.text}${isCustom ? ' • Customized for this sentence' : ''}`
+      : (char ? `Character: ${char.name} (${voice ? voice.name : 'Voice'}) • Engine: ${bEngBadge.text}${isCustom ? ' • Customized for this sentence' : ' • Synced'}` : `Standalone Voice: ${cleanVoiceName} • Engine: ${bEngBadge.text} (Click to change)`);
 
     // SENTENCE BLOCK WITH AUDIO SCRUBBER, DRAG HANDLE & SLEEK CUSTOM CHECKBOX
     row.innerHTML = `
@@ -4118,13 +4179,17 @@ function renderBlocks() {
       </button>
       <div class="block-content-col" style="flex-direction: column; align-items: stretch; justify-content: center; gap: 3px;">
         <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 2px;">
-          ${char ? `
+          ${(isCustomVoice && voice) ? `
+            <span class="block-character-tag custom-voice-tag" onclick="openVoiceDrawer(${idx})" style="background: ${blockColor}22; color: ${blockColor}; border: 1px solid ${blockColor}45; border-radius: 4px; padding: 1px 7px; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Custom Voice: ${escapeHtml(voice.name)}${char ? ` (Overriding ${escapeHtml(char.name)})` : ''} - click to change voice">
+              🎙️ ${escapeHtml(cleanVoiceName)}
+            </span>
+          ` : char ? `
             <span class="block-character-tag" onclick="openVoiceDrawer(${idx})" style="background: ${blockColor}22; color: ${blockColor}; border: 1px solid ${blockColor}45; border-radius: 4px; padding: 1px 7px; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Character: ${escapeHtml(char.name)} (${escapeHtml(voice ? voice.name : '')}) - click to change voice">
               🎭 ${escapeHtml(char.name)}
             </span>
           ` : (isStandaloneVoice && (block.speaker !== "Narrator" || (voice && voice.id !== state.defaultNarratorVoiceId))) ? `
-            <span class="block-character-tag standalone-voice-tag" onclick="openVoiceDrawer(${idx})" style="background: ${blockColor}22; color: ${blockColor}; border: 1px solid ${blockColor}45; border-radius: 4px; padding: 1px 7px; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Standalone Voice: ${escapeHtml(voice ? voice.name : block.speaker)} - click to change voice">
-              🎙️ ${escapeHtml(block.speaker || (voice ? voice.name : 'Voice'))}
+            <span class="block-character-tag standalone-voice-tag" onclick="openVoiceDrawer(${idx})" style="background: ${blockColor}22; color: ${blockColor}; border: 1px solid ${blockColor}45; border-radius: 4px; padding: 1px 7px; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Standalone Voice: ${escapeHtml(cleanVoiceName)} - click to change voice">
+              🎙️ ${escapeHtml(cleanVoiceName)}
             </span>
           ` : ''}
           <span class="block-engine-pill" style="font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: ${bEngBadge.bg}; color: ${bEngBadge.color}; border: 1px solid ${bEngBadge.color}33; display: inline-flex; align-items: center; gap: 3px;" title="Engine: ${bEngBadge.text}">
@@ -4662,6 +4727,11 @@ function handleRevertToOverriddenCast() {
   delete activeBlock.is_custom_edited;
   delete activeBlock.overridden_character_id;
   delete activeBlock.overridden_speaker;
+  if (char.model) {
+    activeBlock.model = char.model;
+  } else {
+    delete activeBlock.model;
+  }
 
   if (char.reference_audio) {
     activeBlock.reference_audio = char.reference_audio;
@@ -4990,6 +5060,11 @@ function handleApplyVoiceToSelected() {
 
     b.voice_id = activeVoiceId;
     b.engine = activeEngine;
+    if (activeBlock.model) {
+      b.model = activeBlock.model;
+    } else {
+      delete b.model;
+    }
     if (activeBlock.reference_audio) {
       b.reference_audio = activeBlock.reference_audio;
       b.reference_text = activeBlock.reference_text || "";
@@ -8239,6 +8314,8 @@ function renderInspector() {
   if (rawModel === "drama-3") rawModel = "drama3";
   if (rawModel === "s2-pro") rawModel = "s2_pro";
   const effectiveModel = rawModel;
+  state.activeEngine = blockEngine;
+  state.activeModel = effectiveModel;
 
   let engDisplayName = "Fish Speech (Drama 3)";
   let engSubName = "Cinema emotion acting • Voice cloning";
@@ -10955,6 +11032,17 @@ function assignVoiceToTarget(voice) {
       block.engine = "edge_tts";
     } else if (voice.id && (voice.id.startsWith("af_") || voice.id.startsWith("am_") || voice.id.startsWith("bf_") || voice.id.startsWith("bm_"))) {
       block.engine = "kokoro";
+    }
+    const defaultModels = {
+      fish_s2: "drama3",
+      elevenlabs: "v4",
+      cartesia: "sonic_4",
+      openai: "gpt-4o-mini-tts",
+      edge_tts: "edge_neural",
+      kokoro: "kokoro_webgpu"
+    };
+    if (block.engine && (!block.model || (block.engine === "fish_s2" && !["drama3", "s2_pro"].includes(block.model)))) {
+      block.model = defaultModels[block.engine] || "";
     }
 
     if (voice.reference_audio) {
@@ -14257,19 +14345,27 @@ function selectEngineOption(newEngine, newModel = null) {
   // Close the dropdown immediately
   toggleEngineModelDropdown(false);
 
-  // Global project & chapter engine tracking
+  const defaultModels = {
+    fish_s2: "drama3",
+    elevenlabs: "v4",
+    cartesia: "sonic_4",
+    openai: "gpt-4o-mini-tts",
+    edge_tts: "edge_neural",
+    kokoro: "kokoro_webgpu"
+  };
+
+  const chosenModel = newModel || defaultModels[newEngine] || "";
+
+  // Update active tracking in state
   state.activeEngine = newEngine;
-  if (state.currentProject) {
-    state.currentProject.engine = newEngine;
-    if (newModel) state.currentProject.model = newModel;
-  }
+  state.activeModel = chosenModel;
 
   // Ensure Kokoro is strictly client-side on user's device
   if (newEngine === "kokoro" && window.KokoroClient) {
     window.KokoroClient.setClientKokoroEnabled(true);
   }
 
-  // Target active block or selected blocks rather than blindly wiping the whole chapter!
+  // Target active block or selected blocks rather than blindly mutating character or chapter!
   const targets = (state.selectedBlockIndices && state.selectedBlockIndices.size > 0)
     ? Array.from(state.selectedBlockIndices)
     : (typeof state.activeBlockIndex === "number" && state.activeBlockIndex >= 0 ? [state.activeBlockIndex] : []);
@@ -14278,14 +14374,17 @@ function selectEngineOption(newEngine, newModel = null) {
     targets.forEach(idx => {
       const block = state.currentProject.blocks[idx];
       if (!block || block.type === "heading" || block.is_spoken === false) return;
+
+      // 1. Isolate changes to this sentence block only - NEVER mutate char.engine / char.model
       block.engine = newEngine;
-      if (newModel) block.model = newModel;
+      block.model = chosenModel;
       block.is_custom_edited = true;
 
       const char = block.character_id ? getCharacterById(block.character_id) : (block.speaker ? getCharacterById(block.speaker) : null);
       if (char) {
-        char.engine = newEngine;
-        if (newModel) char.model = newModel;
+        // Track the original character identity for revert purposes, but do NOT mutate character definition
+        if (!block.overridden_character_id) block.overridden_character_id = char.id;
+        if (!block.overridden_speaker) block.overridden_speaker = char.name;
       }
 
       const currentVoice = getVoiceById(block.voice_id);
@@ -14307,27 +14406,32 @@ function selectEngineOption(newEngine, newModel = null) {
         } else {
           block.voice_id = isFemale ? "fish_9f508743280b46788d64de199cbb5093" : "fish_71804f0aa9e8457e92e9e49c26691514";
         }
-        if (char) {
-          char.voice_id = block.voice_id;
-          char.assigned_voice_id = block.voice_id;
-        }
       }
-      delete block.cachedAudioUrl;
-      delete block.audio_url;
-      delete block.cachedSig;
-      delete block.duration;
-      delete block.audio_hash;
+
+      // 2. Check and manage audio cache for this specific block & model
+      const row = document.querySelector(`[data-index="${idx}"]`);
+      if (typeof invalidateBlockAudio === "function") {
+        invalidateBlockAudio(block, row);
+      } else {
+        delete block.cachedAudioUrl;
+        delete block.audio_url;
+        delete block.cachedSig;
+        delete block.duration;
+        delete block.audio_hash;
+        delete block.rawAudioUrl;
+        delete block.raw_audio_url;
+      }
     });
-    saveSavedCharactersToStorage();
-    const modelLabel = newModel ? ` (${newModel})` : "";
+
+    const modelLabel = chosenModel ? ` (${chosenModel})` : "";
     showToast(`⚡ Set ${newEngine.toUpperCase()}${modelLabel} for ${targets.length} sentence${targets.length > 1 ? 's' : ''}`);
   } else {
-    state.activeEngine = newEngine;
+    // Only set project default if NO sentence blocks were selected/active
     if (state.currentProject) {
       state.currentProject.engine = newEngine;
-      if (newModel) state.currentProject.model = newModel;
+      if (chosenModel) state.currentProject.model = chosenModel;
     }
-    showToast(`⚡ Set default engine to ${newEngine.toUpperCase()}${newModel ? ' (' + newModel + ')' : ''}`);
+    showToast(`⚡ Set default engine to ${newEngine.toUpperCase()}${chosenModel ? ' (' + chosenModel + ')' : ''}`);
   }
 
   renderBlocks();

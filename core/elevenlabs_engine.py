@@ -158,6 +158,16 @@ class ElevenLabsEngine:
         force_refresh: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
+        raw_m = kwargs.get("model") or model_id
+        if raw_m in ("v4", "v4_cinematic", "v4-cinematic"):
+            model_id = "eleven_multilingual_v2"
+        elif raw_m in ("v3", "eleven_multilingual_v1"):
+            model_id = "eleven_multilingual_v1"
+        elif raw_m in ("flash", "flash_v2.5", "eleven_flash_v2_5"):
+            model_id = "eleven_flash_v2_5"
+        elif raw_m:
+            model_id = str(raw_m)
+
         clean_text = self._clean_text_for_speech(text)
         if not clean_text:
             return {"error": "Text cannot be empty"}

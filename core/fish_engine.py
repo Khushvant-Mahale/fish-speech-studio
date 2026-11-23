@@ -263,7 +263,8 @@ class FishEngine:
         warmth: float,
         clarity: float,
         reverb: float,
-        fx_filter: str
+        fx_filter: str,
+        model: Optional[str] = None
     ) -> str:
         """Computes deterministic MD5 hash for audio caching."""
         ref_sig = "noref"
@@ -274,9 +275,9 @@ class FishEngine:
             except Exception:
                 ref_sig = ref_audio_path.name
 
-        model_name = getattr(self, "model", "drama-3") or "drama-3"
+        norm_model = "s2.1-pro" if model in ("s2_pro", "s2-pro", "s2.1-pro") else ("drama-3" if model in ("drama3", "drama-3") else (getattr(self, "model", "drama-3") or "drama-3"))
         cache_str = (
-            f"fish_{model_name}__{formatted_text}__{ref_sig}__{ref_text or ''}__"
+            f"fish_{norm_model}__{formatted_text}__{ref_sig}__{ref_text or ''}__"
             f"{speed:.2f}__{temperature:.2f}__{top_p:.2f}__{gain:.2f}__"
             f"{pitch_shift:.1f}__{warmth:.1f}__{clarity:.1f}__{reverb:.2f}__{fx_filter}"
         )
@@ -303,6 +304,7 @@ class FishEngine:
         prev_audio: Optional[str] = None,
         prev_text: Optional[str] = None,
         enable_rolling_context: bool = True,
+        model: Optional[str] = None,
         **kwargs
     ) -> Dict:
         """
@@ -316,6 +318,8 @@ class FishEngine:
         # Validate voice_id: if foreign voice from Kokoro or Edge, reset to None for default fallback
         if voice_id and ("Neural" in str(voice_id) or str(voice_id).startswith(("am_", "af_", "bm_", "bf_"))):
             voice_id = None
+
+        model_name = "s2.1-pro" if model in ("s2_pro", "s2-pro", "s2.1-pro") else ("drama-3" if model in ("drama3", "drama-3") else (getattr(self, "model", "drama-3") or "drama-3"))
 
         # Format emotion prompt
         formatted_text = self.format_emotion_text(clean_text, emotion_tag)
@@ -337,7 +341,8 @@ class FishEngine:
         # Cache check
         cache_hash = self.compute_cache_hash(
             formatted_text, ref_path, ref_text, speed_f, temp_f, top_p_f,
-            gain_f, pitch_shift_f, warmth_f, clarity_f, reverb_f, fx_filter_s
+            gain_f, pitch_shift_f, warmth_f, clarity_f, reverb_f, fx_filter_s,
+            model=model_name
         )
         cache_file = CACHE_DIR / f"{cache_hash}.wav"
 
@@ -358,7 +363,8 @@ class FishEngine:
         # Check raw neural audio cache for instant DSP re-sculpting (<0.1s)
         raw_cache_hash = self.compute_cache_hash(
             formatted_text, ref_path, ref_text, 1.0, temp_f, top_p_f,
-            1.0, 0.0, 0.0, 0.0, 0.0, "none"
+            1.0, 0.0, 0.0, 0.0, 0.0, "none",
+            model=model_name
         )
         raw_cache_file = CACHE_DIR / f"raw_{raw_cache_hash}.wav"
 
@@ -444,7 +450,7 @@ class FishEngine:
         if not audio_bytes and self.api_key:
             try:
                 audio_bytes = self._call_cloud_api(
-                    formatted_text, ref_path, ref_text, speed_f, temp_f, top_p_f, voice_id
+                    formatted_text, ref_path, ref_text, speed_f, temp_f, top_p_f, voice_id, model=model_name
                 )
                 source_tag = "fish_cloud_api"
             except urllib.error.HTTPError as e:
@@ -680,11 +686,12 @@ class FishEngine:
         speed: float,
         temperature: float,
         top_p: float,
-        voice_id: Optional[str]
+        voice_id: Optional[str],
+        model: Optional[str] = None
     ) -> bytes:
         """Sends inference request to official Fish Audio REST API."""
         api_endpoint = "https://api.fish.audio/v1/tts"
-        model_name = getattr(self, "model", "drama-3") or "drama-3"
+        model_name = "s2.1-pro" if model in ("s2_pro", "s2-pro", "s2.1-pro") else ("drama-3" if model in ("drama3", "drama-3") else (getattr(self, "model", "drama-3") or "drama-3"))
 
         payload = {
             "text": text,

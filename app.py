@@ -788,6 +788,7 @@ async def handle_synthesize_block(request):
         active_engine_name = cfg.get("active_engine", "fish_s2")
         block_engine = (data.get("engine") or active_engine_name).lower()
         force_refresh = bool(data.get("force_refresh", False))
+        model = (data.get("model") or "").strip()
 
         # Safe number conversion
         def _num(v, default=0.0):
@@ -867,7 +868,7 @@ async def handle_synthesize_block(request):
                 in_flight_synthesis_futures.pop(task_key, None)
 
         if block_engine in ("elevenlabs", "cartesia", "openai"):
-            task_key = f"{block_engine}::{text}::{voice_id or ''}::{speed}::{gain}::{pitch_shift}::{warmth}::{clarity}::{reverb}::{radio_fx}::{fx_filter}"
+            task_key = f"{block_engine}::{model}::{text}::{voice_id or ''}::{speed}::{gain}::{pitch_shift}::{warmth}::{clarity}::{reverb}::{radio_fx}::{fx_filter}"
             if not force_refresh and task_key in in_flight_synthesis_futures:
                 try:
                     res = await in_flight_synthesis_futures[task_key]
@@ -893,7 +894,8 @@ async def handle_synthesize_block(request):
                     reverb=reverb,
                     radio_fx=radio_fx,
                     fx_filter=fx_filter,
-                    force_refresh=force_refresh
+                    force_refresh=force_refresh,
+                    model=model
                 )
                 if not fut.done():
                     fut.set_result(res)
@@ -986,7 +988,7 @@ async def handle_synthesize_block(request):
 
         # Unique task key for in-flight deduplication
         prev_a = data.get("prev_audio") or ""
-        task_key = f"{block_engine}::{text}::{voice_id or ''}::{emotion_tag or ''}::{reference_audio or ''}::{prev_a}::{speed}::{temperature}::{top_p}"
+        task_key = f"{block_engine}::{model}::{text}::{voice_id or ''}::{emotion_tag or ''}::{reference_audio or ''}::{prev_a}::{speed}::{temperature}::{top_p}"
 
         # If this exact sentence is already being synthesized right now, wait for it and return the same result!
         if not force_refresh and task_key in in_flight_synthesis_futures:
@@ -1026,7 +1028,8 @@ async def handle_synthesize_block(request):
                     force_refresh=force_refresh,
                     prev_audio=prev_audio,
                     prev_text=prev_text,
-                    enable_rolling_context=True
+                    enable_rolling_context=True,
+                    model=model
                 )
                 if not fut.done():
                     fut.set_result(res)
@@ -1194,11 +1197,72 @@ async def handle_check_cache(request):
                         pass
                 results.append({"index": idx, "cached": False, "hash": c_hash, "engine": "kokoro"})
 
+            elif block_engine in ("elevenlabs", "cartesia", "openai"):
+                model_val = item.get("model") or ""
+                target_voice = voice_id or ""
+                pitch_shift_f = float(pitch_shift)
+                warmth_f = float(warmth)
+                clarity_f = float(clarity)
+                reverb_f = float(reverb)
+
+                if block_engine == "elevenlabs":
+                    m_id = "eleven_flash_v2_5"
+                    if model_val in ("v4", "v4_cinematic", "v4-cinematic"):
+                        m_id = "eleven_multilingual_v2"
+                    elif model_val in ("v3", "eleven_multilingual_v1"):
+                        m_id = "eleven_multilingual_v1"
+                    elif model_val in ("flash", "flash_v2.5", "eleven_flash_v2_5"):
+                        m_id = "eleven_flash_v2_5"
+                    elif model_val:
+                        m_id = str(model_val)
+                    clean_t = re.sub(r'\[.*?\]', '', text).strip()
+                    c_key = f"eleven::{clean_t}::{target_voice}::{m_id}::{speed}::{gain}::{pitch_shift_f}::{warmth_f}::{clarity_f}::{reverb_f}::{radio_fx}::{fx_filter}"
+                elif block_engine == "cartesia":
+                    m_id = "sonic-english"
+                    if model_val in ("sonic_4", "sonic-4"):
+                        m_id = "sonic-4"
+                    elif model_val in ("sonic_3.6", "sonic-3.6", "sonic-english"):
+                        m_id = "sonic-english"
+                    elif model_val:
+                        m_id = str(model_val)
+                    clean_t = re.sub(r'\[.*?\]', '', text).strip()
+                    c_key = f"cartesia::{clean_t}::{target_voice}::{m_id}::{speed}::{gain}::{pitch_shift_f}::{warmth_f}::{clarity_f}::{reverb_f}::{radio_fx}::{fx_filter}"
+                else: # openai
+                    m_id = "tts-1"
+                    if model_val in ("tts-1", "tts-1-hd"):
+                        m_id = str(model_val)
+                    elif model_val in ("gpt-4o-mini-tts", "gpt-4o", "gpt-4o-mini"):
+                        m_id = "gpt-4o-mini-tts"
+                    elif model_val:
+                        m_id = str(model_val)
+                    clean_t = re.sub(r'\[.*?\]', '', text).strip()
+                    speed_clamped = max(0.25, min(4.0, float(speed)))
+                    c_key = f"openai::{clean_t}::{target_voice}::{m_id}::{speed_clamped}::{gain}::{pitch_shift_f}::{warmth_f}::{clarity_f}::{reverb_f}::{radio_fx}::{fx_filter}"
+
+                c_hash = hashlib.md5(c_key.encode("utf-8")).hexdigest()
+                c_file = CACHE_DIR / f"{c_hash}.wav"
+                if c_file.exists():
+                    try:
+                        info = sf.info(str(c_file))
+                        results.append({
+                            "index": idx,
+                            "cached": True,
+                            "hash": c_hash,
+                            "audio_url": f"/api/audio/{c_hash}.wav",
+                            "duration": round(info.duration, 2),
+                            "engine": block_engine
+                        })
+                        continue
+                    except Exception:
+                        pass
+                results.append({"index": idx, "cached": False, "hash": c_hash, "engine": block_engine})
+
             else:
                 # Fish S2
                 emotion_tag = item.get("emotion_tag")
                 reference_audio = item.get("reference_audio")
                 reference_text = item.get("reference_text")
+                item_model = item.get("model")
                 temp = max(0.1, min(1.0, _num(item.get("temperature"), 0.70)))
                 top_p = max(0.1, min(1.0, _num(item.get("top_p"), 0.85)))
 
@@ -1207,7 +1271,8 @@ async def handle_check_cache(request):
 
                 c_hash = fish_engine.compute_cache_hash(
                     formatted_text, ref_path, r_text, speed, temp, top_p,
-                    gain, pitch_shift, warmth, clarity, reverb, fx_filter
+                    gain, pitch_shift, warmth, clarity, reverb, fx_filter,
+                    model=item_model
                 )
                 c_file = CACHE_DIR / f"{c_hash}.wav"
 
@@ -1238,7 +1303,8 @@ async def handle_check_cache(request):
                 # Check raw cache
                 raw_hash = fish_engine.compute_cache_hash(
                     formatted_text, ref_path, r_text, 1.0, temp, top_p,
-                    1.0, 0.0, 0.0, 0.0, 0.0, "none"
+                    1.0, 0.0, 0.0, 0.0, 0.0, "none",
+                    model=item_model
                 )
                 raw_file = CACHE_DIR / f"raw_{raw_hash}.wav"
                 raw_hash_file = CACHE_DIR / f"raw_{c_hash}.wav"

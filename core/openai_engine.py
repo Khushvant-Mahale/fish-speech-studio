@@ -129,6 +129,14 @@ class OpenAIEngine:
         force_refresh: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
+        raw_m = kwargs.get("model") or model_id
+        if raw_m in ("tts-1", "tts-1-hd"):
+            model_id = str(raw_m)
+        elif raw_m in ("gpt-4o-mini-tts", "gpt-4o", "gpt-4o-mini"):
+            model_id = "gpt-4o-mini-tts"
+        elif raw_m:
+            model_id = str(raw_m)
+
         clean_text = self._clean_text_for_speech(text)
         if not clean_text:
             return {"error": "Text cannot be empty"}
