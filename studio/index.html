@@ -632,6 +632,42 @@
                 </div>
                 <span class="engine-model-check" id="check-engine-edge_tts" style="display: none;">✓</span>
               </div>
+
+              <!-- Option: ElevenLabs -->
+              <div class="engine-model-item" data-engine="elevenlabs" onclick="selectEngineOption('elevenlabs')">
+                <div class="engine-model-item-main">
+                  <div class="engine-model-item-top">
+                    <span class="engine-model-item-name">🌟 ElevenLabs</span>
+                    <span class="engine-model-pill" style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd;">v4 / Flash</span>
+                  </div>
+                  <div class="engine-model-item-desc">Industry-standard premier commercial audio</div>
+                </div>
+                <span class="engine-model-check" id="check-engine-elevenlabs" style="display: none;">✓</span>
+              </div>
+
+              <!-- Option: Cartesia Sonic -->
+              <div class="engine-model-item" data-engine="cartesia" onclick="selectEngineOption('cartesia')">
+                <div class="engine-model-item-main">
+                  <div class="engine-model-item-top">
+                    <span class="engine-model-item-name">⚡ Cartesia Sonic</span>
+                    <span class="engine-model-pill" style="background: rgba(236, 72, 153, 0.2); color: #f472b6;">Sonic 3.6/4</span>
+                  </div>
+                  <div class="engine-model-item-desc">Ultra-low latency high-speed commercial voices</div>
+                </div>
+                <span class="engine-model-check" id="check-engine-cartesia" style="display: none;">✓</span>
+              </div>
+
+              <!-- Option: OpenAI Audio -->
+              <div class="engine-model-item" data-engine="openai" onclick="selectEngineOption('openai')">
+                <div class="engine-model-item-main">
+                  <div class="engine-model-item-top">
+                    <span class="engine-model-item-name">🤖 OpenAI Audio</span>
+                    <span class="engine-model-pill" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7;">gpt-4o-mini</span>
+                  </div>
+                  <div class="engine-model-item-desc">High-clarity clear speech (Alloy, Echo, Nova)</div>
+                </div>
+                <span class="engine-model-check" id="check-engine-openai" style="display: none;">✓</span>
+              </div>
             </div>
           </div>
 
@@ -2837,6 +2873,14 @@
         <div>
           <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Character Name</label>
           <input type="text" id="char-modal-name-input" class="search-input" placeholder="e.g. Detective Cole, Sarah (Heroine), Demon Lord...">
+        </div>
+
+        <!-- Voice Model Engine Selection -->
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Voice Model Engine</label>
+          <div id="char-modal-engine-selector" style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <!-- Populated dynamically based on project tier -->
+          </div>
         </div>
 
         <!-- Voice Actor Selection -->

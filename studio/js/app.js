@@ -5476,6 +5476,16 @@ function renderSavedCharactersList() {
     const badgeText = char.badge || char.name.slice(0, 2).toUpperCase();
     const personaText = char.persona ? `<div style="font-size: 10px; color: #94a3b8; margin-top: 1px; line-height: 1.3; max-height: 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(char.persona)}</div>` : '';
     const voiceDisplayName = voiceObj?.name || voiceId || "Default Voice";
+    const charEngine = char.engine || voiceObj?.engine || (voiceDisplayName.includes("Neural") ? "edge_tts" : "fish_s2");
+    const engineBadges = {
+      edge_tts: { text: "Edge TTS", bg: "rgba(16, 185, 129, 0.18)", color: "#34d399", icon: "🌐" },
+      kokoro: { text: "Kokoro 82M", bg: "rgba(59, 130, 246, 0.18)", color: "#93c5fd", icon: "⚡" },
+      fish_s2: { text: "Drama 3", bg: "rgba(245, 158, 11, 0.18)", color: "#fcd34d", icon: "🎭" },
+      elevenlabs: { text: "ElevenLabs", bg: "rgba(139, 92, 246, 0.18)", color: "#c4b5fd", icon: "🌟" },
+      cartesia: { text: "Cartesia", bg: "rgba(236, 72, 153, 0.18)", color: "#f472b6", icon: "⚡" },
+      openai: { text: "OpenAI", bg: "rgba(16, 185, 129, 0.18)", color: "#6ee7b7", icon: "🤖" }
+    };
+    const eBadge = engineBadges[charEngine] || { text: charEngine.toUpperCase(), bg: "rgba(255,255,255,0.08)", color: "#ddd", icon: "🎙️" };
 
     card.innerHTML = `
       <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; width: 100%; min-width: 0; box-sizing: border-box;">
@@ -5491,8 +5501,8 @@ function renderSavedCharactersList() {
               </span>
             </div>
             ${personaText}
-            <div style="font-size: 10px; color: #a5b4fc; display: flex; align-items: center; gap: 4px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; min-width: 0;" title="Assigned Voice: ${escapeHtml(voiceDisplayName)}">
-              <span style="flex-shrink: 0;">🎙️</span>
+            <div style="font-size: 10px; color: #a5b4fc; display: flex; align-items: center; gap: 5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; min-width: 0;" title="Assigned: ${escapeHtml(eBadge.text)} • ${escapeHtml(voiceDisplayName)}">
+              <span style="font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: ${eBadge.bg}; color: ${eBadge.color}; border: 1px solid ${eBadge.color}33; flex-shrink: 0;">${eBadge.icon} ${eBadge.text}</span>
               <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1;">${escapeHtml(voiceDisplayName)}</span>
             </div>
           </div>
@@ -5564,12 +5574,70 @@ function renderSavedCharactersList() {
 
 // ---------------- CHARACTER MODAL & AUTO-SYNC ENGINE ---------------- //
 
-function populateCharModalVoiceSelect() {
+function renderCharModalEngineSelector(selectedEngine) {
+  const container = document.getElementById("char-modal-engine-selector");
+  if (!container) return;
+
+  const isPro = (state.currentProject?.tier === "cinema_pro");
+  const engines = isPro ? [
+    { id: "fish_s2", name: "🎭 Fish Drama 3", color: "#f59e0b" },
+    { id: "elevenlabs", name: "🌟 ElevenLabs", color: "#8b5cf6" },
+    { id: "cartesia", name: "⚡ Cartesia", color: "#ec4899" },
+    { id: "openai", name: "🤖 OpenAI", color: "#10b981" },
+    { id: "edge_tts", name: "🌐 Edge TTS (0 Cr)", color: "#34d399" }
+  ] : [
+    { id: "edge_tts", name: "🌐 Microsoft Edge TTS", color: "#10b981" },
+    { id: "kokoro", name: "⚡ Kokoro 82M", color: "#3b82f6" },
+    { id: "fish_s2", name: "🐟 Fish S2 (Colab)", color: "#f59e0b" }
+  ];
+
+  state.editingCharModalEngine = selectedEngine || (isPro ? "fish_s2" : "edge_tts");
+
+  container.innerHTML = engines.map(e => {
+    const isSelected = (e.id === state.editingCharModalEngine);
+    return `
+      <button type="button" class="action-pill-btn"
+        onclick="handleCharModalEngineChange('${e.id}')"
+        style="padding: 5px 11px; font-size: 11px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: all 0.16s ease;
+        border: 1.5px solid ${isSelected ? e.color : 'rgba(255,255,255,0.12)'};
+        background: ${isSelected ? `${e.color}25` : 'rgba(255,255,255,0.04)'};
+        color: ${isSelected ? '#fff' : 'var(--text-muted)'};">
+        ${e.name}
+      </button>
+    `;
+  }).join("");
+}
+
+function handleCharModalEngineChange(newEngine) {
+  state.editingCharModalEngine = newEngine;
+  renderCharModalEngineSelector(newEngine);
+  populateCharModalVoiceSelect(newEngine);
+
+  const select = document.getElementById("char-modal-voice-select");
+  if (select && select.options.length > 0) {
+    const currentVal = select.value;
+    const currentVoice = getVoiceById(currentVal);
+    if (!currentVoice || (currentVoice.engine || "fish_s2") !== newEngine) {
+      select.selectedIndex = 0;
+      updateCharModalVoiceDetails(select.value);
+    }
+  }
+}
+
+function populateCharModalVoiceSelect(targetEngine = null) {
   const select = document.getElementById("char-modal-voice-select");
   if (!select || !state.voices || state.voices.length === 0) return;
 
-  const html = state.voices.map(v => {
-    return `<option value="${v.id}">${v.flag || "🎙️"} ${v.name} (${v.accent} ${v.gender}) - ${v.timbre || 'Voice'}</option>`;
+  const eng = targetEngine || state.editingCharModalEngine || (state.currentProject?.tier === "cinema_pro" ? "fish_s2" : "edge_tts");
+  state.editingCharModalEngine = eng;
+
+  let voices = state.voices.filter(v => (v.engine || "fish_s2") === eng);
+  if (voices.length === 0) {
+    voices = state.voices;
+  }
+
+  const html = voices.map(v => {
+    return `<option value="${v.id}" data-engine="${v.engine || eng}">${v.flag || "🎙️"} ${v.name} (${v.accent || 'EN'} ${v.gender || 'Actor'})</option>`;
   }).join("");
   select.innerHTML = html;
 }
@@ -5757,7 +5825,12 @@ function openEditCharacterModal(charId) {
   if (!char) return;
 
   state.editingCharacterId = charId;
-  populateCharModalVoiceSelect();
+  const voiceObj = getVoiceById(char.voice_id);
+  const charEngine = char.engine || voiceObj?.engine || (char.voice_id && char.voice_id.includes("Neural") ? "edge_tts" : (state.currentProject?.tier === "cinema_pro" ? "fish_s2" : "edge_tts"));
+  state.editingCharModalEngine = charEngine;
+
+  renderCharModalEngineSelector(charEngine);
+  populateCharModalVoiceSelect(charEngine);
 
   const modal = document.getElementById("save-character-modal");
   const titleEl = document.getElementById("save-character-modal-title");
@@ -5814,7 +5887,11 @@ function handleOpenSaveCharacterModal() {
   }
 
   state.editingCharacterId = null; // Create mode
-  populateCharModalVoiceSelect();
+  const activeEngine = activeBlock.engine || (state.currentProject?.tier === "cinema_pro" ? "fish_s2" : "edge_tts");
+  state.editingCharModalEngine = activeEngine;
+
+  renderCharModalEngineSelector(activeEngine);
+  populateCharModalVoiceSelect(activeEngine);
 
   const modal = document.getElementById("save-character-modal");
   const titleEl = document.getElementById("save-character-modal-title");
@@ -5901,8 +5978,10 @@ function confirmSaveCharacter() {
 
     recordHistory(`Edit Character: ${charName}`);
 
+    const voiceObj = getVoiceById(voiceId);
     char.name = charName;
     char.voice_id = voiceId;
+    char.engine = state.editingCharModalEngine || voiceObj?.engine || (voiceId.includes("Neural") ? "edge_tts" : "fish_s2");
     char.speed = speed;
     char.pause_after = pause;
     char.pitch_shift = pitch;
@@ -5914,8 +5993,7 @@ function confirmSaveCharacter() {
     char.color = color;
     char.badge = badge;
 
-    const voiceObj = getVoiceById(voiceId);
-    if (voiceObj.blend_weights) {
+    if (voiceObj && voiceObj.blend_weights) {
       char.blend_weights = JSON.parse(JSON.stringify(voiceObj.blend_weights));
     } else {
       delete char.blend_weights;
@@ -5943,10 +6021,12 @@ function confirmSaveCharacter() {
     showToast(msg + "!");
   } else {
     // Create new character
+    const voiceObj = getVoiceById(voiceId);
     const newChar = {
       id: "char_" + Date.now().toString(36) + "_" + Math.floor(Math.random() * 1000),
       name: charName,
       voice_id: voiceId,
+      engine: state.editingCharModalEngine || voiceObj?.engine || (voiceId.includes("Neural") ? "edge_tts" : "fish_s2"),
       speed: speed,
       gain: 1.0,
       pause_after: pause,
@@ -5960,8 +6040,7 @@ function confirmSaveCharacter() {
       badge: badge
     };
 
-    const voiceObj = getVoiceById(voiceId);
-    if (voiceObj.blend_weights) {
+    if (voiceObj && voiceObj.blend_weights) {
       newChar.blend_weights = JSON.parse(JSON.stringify(voiceObj.blend_weights));
     }
 
@@ -5977,6 +6056,9 @@ function confirmSaveCharacter() {
     const activeBlock = state.currentProject.blocks[activeIdx];
     if (activeBlock && !activeBlock.character_id && activeBlock.type !== "heading") {
       activeBlock.character_id = newChar.id;
+      activeBlock.speaker = newChar.name;
+      activeBlock.engine = newChar.engine;
+      activeBlock.voice_id = newChar.voice_id;
       activeBlock.is_custom_edited = false;
       renderStudio();
     }
@@ -6010,6 +6092,7 @@ function syncCharacterToBlocks(charId, overwriteCustom = false) {
 
       b.character_id = char.id;
       b.speaker = char.name;
+      b.engine = char.engine || voiceObj?.engine || (chosenVoiceId && chosenVoiceId.includes("Neural") ? "edge_tts" : "fish_s2");
       b.voice_id = chosenVoiceId;
       b.reference_audio = char.reference_audio || voiceObj?.reference_audio || "";
       b.reference_text = char.reference_text || voiceObj?.reference_text || "";
@@ -6098,16 +6181,7 @@ function applyCharacterToSelected(charId) {
     b.speaker = char.name;
     b.is_custom_edited = false;
     b.voice_id = chosenVoiceId;
-
-    if (char.engine) {
-      b.engine = char.engine;
-    } else if (voiceObj && voiceObj.engine) {
-      b.engine = voiceObj.engine;
-    } else if (chosenVoiceId && chosenVoiceId.includes("Neural")) {
-      b.engine = "edge_tts";
-    } else if (chosenVoiceId && (chosenVoiceId.startsWith("af_") || chosenVoiceId.startsWith("am_") || chosenVoiceId.startsWith("bf_") || chosenVoiceId.startsWith("bm_"))) {
-      b.engine = "kokoro";
-    }
+    b.engine = char.engine || voiceObj?.engine || (chosenVoiceId && chosenVoiceId.includes("Neural") ? "edge_tts" : "fish_s2");
     b.reference_audio = char.reference_audio || voiceObj?.reference_audio || "";
     b.reference_text = char.reference_text || voiceObj?.reference_text || "";
 
@@ -16144,6 +16218,7 @@ window.toggleFishAudioSample = toggleFishAudioSample;
 window.useFishVoiceModel = useFishVoiceModel;
 window.saveFishVoiceModel = saveFishVoiceModel;
 window.switchDrawerMode = switchDrawerMode;
+window.handleCharModalEngineChange = handleCharModalEngineChange;
 window.handleVoiceDrawerBackdropClick = handleVoiceDrawerBackdropClick;
 window.openDrawerEditVoice = openDrawerEditVoice;
 window.handleSaveEditedVoice = handleSaveEditedVoice;
