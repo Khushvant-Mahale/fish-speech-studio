@@ -1783,13 +1783,19 @@ async def handle_create_project(request):
         split_long_emotional_blocks = bool(data.get("split_long_emotional_blocks", True))
         tag_placement = data.get("tag_placement", "pill")
         cast_mode = data.get("cast_mode", "multi")
+        tier = (data.get("tier") or "standard").lower().strip()
+        if tier not in ("standard", "cinema_pro"):
+            tier = "standard"
         
-        default_engine = (data.get("engine") or "").lower()
+        default_engine = (data.get("engine") or "").lower().strip()
         if not default_engine:
             referer = request.headers.get("Referer", "").lower()
-            default_engine = "kokoro" if "/kokoro" in referer else "fish_s2"
+            if tier == "cinema_pro":
+                default_engine = "fish_s2"
+            else:
+                default_engine = "kokoro" if "/kokoro" in referer else "edge_tts"
 
-        default_voice = data.get("default_voice") or defaults.get("voice_id", "voice_stanley_narrator" if default_engine == "fish_s2" else "blend_fenrir_onyx")
+        default_voice = data.get("default_voice") or defaults.get("voice_id", "voice_stanley_narrator" if default_engine == "fish_s2" else ("en-US-GuyNeural" if default_engine == "edge_tts" else "blend_fenrir_onyx"))
 
         dedup_key = f"{title}_{hashlib_str(raw_text or str(data.get('blocks', [])))}"
         now = time.time()
@@ -1909,6 +1915,7 @@ async def handle_create_project(request):
         proj_data = {
             "id": proj_id,
             "title": title,
+            "tier": tier,
             "engine": default_engine,
             "default_voice": default_voice,
             "default_settings": defaults if defaults else None,

@@ -390,15 +390,94 @@ async function loadVoices() {
   }
 }
 
-function populateVoiceSelects() {
+let currentNewProjectTier = "standard";
+
+function handleNewProjectTierChange(tier) {
+  currentNewProjectTier = tier || "standard";
+  const lblStandard = document.getElementById("lbl-new-proj-tier-standard");
+  const lblPro = document.getElementById("lbl-new-proj-tier-pro");
+  const radioStandard = document.getElementById("new-project-tier-standard");
+  const radioPro = document.getElementById("new-project-tier-pro");
+
+  if (currentNewProjectTier === "standard") {
+    if (radioStandard) radioStandard.checked = true;
+    if (lblStandard) {
+      lblStandard.style.borderColor = "#10b981";
+      lblStandard.style.background = "rgba(16, 185, 129, 0.10)";
+    }
+    if (lblPro) {
+      lblPro.style.borderColor = "var(--border-color)";
+      lblPro.style.background = "rgba(255, 255, 255, 0.03)";
+    }
+  } else {
+    if (radioPro) radioPro.checked = true;
+    if (lblPro) {
+      lblPro.style.borderColor = "#8b5cf6";
+      lblPro.style.background = "rgba(139, 92, 246, 0.12)";
+    }
+    if (lblStandard) {
+      lblStandard.style.borderColor = "var(--border-color)";
+      lblStandard.style.background = "rgba(255, 255, 255, 0.03)";
+    }
+  }
+
+  populateVoiceSelects(currentNewProjectTier);
+}
+
+function populateVoiceSelects(tier = currentNewProjectTier || "standard") {
   const newProjSelect = document.getElementById("new-project-voice-select");
   const importSelect = document.getElementById("import-voice-select");
   if (!state.voices || state.voices.length === 0) return;
 
-  const html = state.voices.map(v => {
-    const isDefault = v.id === "fish_narrator_dark" || v.id === "blend_fenrir_onyx";
-    return `<option value="${v.id}" ${isDefault ? 'selected' : ''}>${v.flag || '🎙️'} ${v.name} (${v.accent || 'EN'} • ${v.gender || 'Actor'})</option>`;
-  }).join("");
+  const isPro = (tier === "cinema_pro");
+
+  // Filter voices according to studio tier
+  let filteredVoices = [];
+  if (isPro) {
+    // Cinema Pro: Fish Drama 3, ElevenLabs, Cartesia, OpenAI, and Edge TTS (for free narrator)
+    filteredVoices = state.voices.filter(v => 
+      v.engine === "fish_s2" || 
+      v.engine === "elevenlabs" || 
+      v.engine === "cartesia" || 
+      v.engine === "openai" || 
+      v.engine === "edge_tts"
+    );
+  } else {
+    // Standard Free: Edge TTS and Kokoro (and fish_s2 if Colab tunnel connected)
+    const hasColab = Boolean(state.config?.remote_worker_url);
+    filteredVoices = state.voices.filter(v => 
+      v.engine === "edge_tts" || 
+      v.engine === "kokoro" || 
+      (hasColab && v.engine === "fish_s2")
+    );
+  }
+
+  if (filteredVoices.length === 0) {
+    filteredVoices = state.voices;
+  }
+
+  const groupDefs = [
+    { id: "fish_s2", label: "🎭 Fish Speech Drama 3 (Cinema Emotion Acting)" },
+    { id: "elevenlabs", label: "🌟 ElevenLabs Premier (v4 / v3 / Flash)" },
+    { id: "cartesia", label: "⚡ Cartesia Sonic (Ultra-Fast 3.6 / 4)" },
+    { id: "openai", label: "🤖 OpenAI Audio (gpt-4o-mini / tts-1)" },
+    { id: "edge_tts", label: "🌐 Microsoft Edge TTS (300+ Clean Free Cloud Voices)" },
+    { id: "kokoro", label: "⚡ Kokoro 82M (On-Device WebGPU • Free)" }
+  ];
+
+  let html = "";
+  groupDefs.forEach(g => {
+    const groupVoices = filteredVoices.filter(v => (v.engine || "fish_s2") === g.id);
+    if (groupVoices.length === 0) return;
+    html += `<optgroup label="${g.label}">`;
+    groupVoices.forEach(v => {
+      const isDefault = isPro
+        ? (v.id === "voice_stanley_narrator" || v.id === "fish_narrator_dark")
+        : (v.id === "en-US-GuyNeural" || v.id === "blend_fenrir_onyx" || (v.id && v.id.includes("GuyNeural")));
+      html += `<option value="${v.id}" data-engine="${v.engine || g.id}" ${isDefault ? 'selected' : ''}>${v.flag || '🎙️'} ${v.name} (${v.accent || 'EN'} • ${v.gender || 'Actor'})</option>`;
+    });
+    html += `</optgroup>`;
+  });
 
   if (newProjSelect) newProjSelect.innerHTML = html;
   if (importSelect) importSelect.innerHTML = html;
@@ -11051,7 +11130,7 @@ function openNewProjectModal() {
   const modal = document.getElementById("new-project-modal");
   if (!modal) return;
   modal.classList.add("active");
-  populateVoiceSelects();
+  handleNewProjectTierChange(currentNewProjectTier || "standard");
   const input = document.getElementById("new-project-title-input");
   if (input && !input.value.trim()) {
     input.value = "New Story Project";
@@ -11676,9 +11755,14 @@ async function handleCreateProjectSubmit(overrideAiDirect = null) {
   const title = (document.getElementById("new-project-title-input")?.value || "").trim() || "Untitled Project";
   const text = (document.getElementById("new-project-text-input")?.value || "").trim();
   const folderId = document.getElementById("new-project-folder-select")?.value || "";
-  const isFish = (state.activeEngine || "fish_s2") === "fish_s2";
-  const fallbackVoice = isFish ? "fish_narrator_dark" : "blend_fenrir_onyx";
-  const defaultVoice = document.getElementById("new-project-voice-select")?.value || fallbackVoice;
+  const selectedTier = document.querySelector('input[name="new-project-tier"]:checked')?.value || currentNewProjectTier || "standard";
+  const selectedVoiceSelect = document.getElementById("new-project-voice-select");
+  const selectedVoiceOpt = selectedVoiceSelect?.selectedOptions?.[0];
+  const selectedVoiceEngine = selectedVoiceOpt?.getAttribute("data-engine") || (selectedTier === "cinema_pro" ? "fish_s2" : "edge_tts");
+
+  const isFish = selectedVoiceEngine === "fish_s2";
+  const fallbackVoice = isFish ? "fish_narrator_dark" : (selectedVoiceEngine === "edge_tts" ? "en-US-GuyNeural" : "blend_fenrir_onyx");
+  const defaultVoice = selectedVoiceSelect?.value || fallbackVoice;
   const isMulti = document.getElementById("new-proj-mode-multi")?.checked ?? true;
   const castMode = isMulti ? "multi" : "single";
   const aiModel = document.getElementById("new-proj-ai-model")?.value || "gemini-3.5-flash-lite";
@@ -11733,6 +11817,8 @@ async function handleCreateProjectSubmit(overrideAiDirect = null) {
         job_id: jobId,
         title, 
         text, 
+        tier: selectedTier,
+        engine: selectedVoiceEngine,
         folder_id: folderId || undefined,
         default_voice: defaultVoice, 
         defaults: defs,
@@ -16123,6 +16209,7 @@ window.closeRemoveCharacterModal = closeRemoveCharacterModal;
 window.executeRemoveCharacterFromChapterOnly = executeRemoveCharacterFromChapterOnly;
 window.executeDeleteCharacterFromEntireSeries = executeDeleteCharacterFromEntireSeries;
 window.handleNewProjectDirectorModeChange = handleNewProjectDirectorModeChange;
+window.handleNewProjectTierChange = handleNewProjectTierChange;
 window.handleCreateProjectManualFastSplit = handleCreateProjectManualFastSplit;
 window.handleStubMethodChange = handleStubMethodChange;
 
