@@ -810,10 +810,19 @@ async function openProject(projectId, updateUrl = true) {
           block.cachedAudioUrl = block.hash ? `/api/audio/${block.hash}.wav` : "";
           if (!block.cachedAudioUrl) delete block.cachedAudioUrl;
         }
+        // Sanitize any demo_clip.wav takes that polluted localStorage
+        if (block.audio_url && block.audio_url.includes("demo_clip.wav")) {
+          delete block.audio_url;
+          delete block.cachedAudioUrl;
+          delete block.cachedSig;
+        }
+        if (block.cachedAudioUrl && block.cachedAudioUrl.includes("demo_clip.wav")) {
+          delete block.cachedAudioUrl;
+        }
         if (block.take_cache) {
           Object.keys(block.take_cache).forEach(k => {
             const t = block.take_cache[k];
-            if (t && t.audio_url && t.audio_url.startsWith("blob:")) {
+            if (t && t.audio_url && (t.audio_url.startsWith("blob:") || t.audio_url.includes("demo_clip.wav"))) {
               if (block.hash) {
                 t.audio_url = `/api/audio/${block.hash}.wav`;
               } else {
@@ -1120,7 +1129,7 @@ function switchToView(viewName, updateUrl = true) {
     const projTitle = state.currentProject?.title || "Story Studio";
     document.title = `${projTitle} — Kashva Voice`;
     if (updateUrl && state.currentProject?.id) {
-      const studioUrl = `/app/studio?project=${encodeURIComponent(state.currentProject.id)}`;
+      const studioUrl = `/app/studio/?project=${encodeURIComponent(state.currentProject.id)}`;
       history.pushState({ view: "studio", projectId: state.currentProject.id }, "", studioUrl);
     }
   }
@@ -1903,7 +1912,7 @@ function renderSingleProjectCard(p, isFolderView = false, chIdx = 0, totalInFold
 
   const durationStr = formatAudioDuration(p.total_duration);
   const dateStr = formatTimeAgo(p.updated_at ? p.updated_at * 1000 : null);
-  const studioUrl = `/app/studio?project=${encodeURIComponent(p.id)}`;
+  const studioUrl = `/app/studio/?project=${encodeURIComponent(p.id)}`;
   const isPlaying = activePreviewProjectId === p.id && currentDashboardAudio && !currentDashboardAudio.paused;
 
   // Build cast voice badges
@@ -4140,23 +4149,30 @@ function renderBlocks() {
     const char = block.character_id
       ? getCharacterById(block.character_id)
       : (block.speaker && (!voice || block.speaker !== voice.name) ? getCharacterById(block.speaker) : null);
-    const isCharVoice = Boolean(char && block.voice_id && (block.voice_id === char.voice_id || block.voice_id === char.assigned_voice_id));
+    const isCharVoice = Boolean(
+      char && block.voice_id &&
+      (block.voice_id === (char.voice_id || char.assigned_voice_id)) &&
+      (!block.engine || block.engine === (char.engine || "fish_s2")) &&
+      (!block.speaker || block.speaker === char.name)
+    );
     const isCustomVoice = Boolean(
-      (voice && !isCharVoice) ||
+      !isCharVoice ||
+      block.is_custom_edited ||
       (!char && (block.voice_id || block.speaker)) ||
-      (block.is_custom_edited && voice && !isCharVoice)
+      (block.speaker && char && block.speaker !== char.name) ||
+      (voice && char && block.voice_id !== (char.voice_id || char.assigned_voice_id))
     );
     const isStandaloneVoice = !char && Boolean(block.voice_id || block.speaker);
+    const cleanVoiceName = voice && voice.name ? voice.name.replace(/\s*\([^)]*\)/g, '').trim() : (block.speaker || "Voice");
     const blockColor = (isCustomVoice && voice && voice.color) ? voice.color : ((char && char.color) ? char.color : (voice ? voice.color : "#6366f1"));
     const blockBadge = (isCustomVoice && voice)
-      ? (voice.badge || (voice.name ? voice.name.slice(0, 2).toUpperCase() : "VO"))
-      : ((char && char.badge) ? char.badge : (voice ? (voice.badge || voice.id.slice(0, 2).toUpperCase()) : "VO"));
+      ? (voice.badge || (cleanVoiceName ? cleanVoiceName.slice(0, 2).toUpperCase() : "VO"))
+      : ((char && char.badge) ? char.badge : (voice ? (voice.badge || cleanVoiceName.slice(0, 2).toUpperCase()) : "VO"));
     const isCustom = Boolean(char && block.is_custom_edited);
     const bEngine = block.engine || (char && char.engine) || (voice && voice.engine) || (state.currentProject?.tier === "cinema_pro" ? "fish_s2" : "edge_tts");
     const bModel = block.model || (char && char.model);
     const bEngBadge = getEngineModelBadge(bEngine, bModel);
 
-    const cleanVoiceName = voice && voice.name ? voice.name.replace(/\s*\([^)]*\)/g, '').trim() : (block.speaker || "Voice");
     const blockTitle = (isCustomVoice && voice)
       ? `Custom Voice: ${voice.name}${char ? ` (Overriding ${char.name})` : ''} • Engine: ${bEngBadge.text}${isCustom ? ' • Customized for this sentence' : ''}`
       : (char ? `Character: ${char.name} (${voice ? voice.name : 'Voice'}) • Engine: ${bEngBadge.text}${isCustom ? ' • Customized for this sentence' : ' • Synced'}` : `Standalone Voice: ${cleanVoiceName} • Engine: ${bEngBadge.text} (Click to change)`);
@@ -8317,7 +8333,7 @@ function renderInspector() {
   let rawModel = block.model || (char && char.model) || state.currentProject?.model || defaultModels[blockEngine] || "drama3";
   if (rawModel === "gpt-4o-mini") rawModel = "gpt-4o-mini-tts";
   if (rawModel === "drama-3") rawModel = "drama3";
-  if (rawModel === "s2-pro") rawModel = "s2_pro";
+  if (rawModel === "s2-pro" || rawModel === "s2.1-pro" || rawModel === "s2") rawModel = "s2_pro";
   const effectiveModel = rawModel;
   state.activeEngine = blockEngine;
   state.activeModel = effectiveModel;
@@ -8413,7 +8429,9 @@ function renderInspector() {
   // Update checkmarks and active states in #engine-model-dropdown: exactly ONE subitem matches
   document.querySelectorAll("#engine-model-dropdown .engine-model-subitem").forEach(item => {
     const itemEng = item.dataset.engine;
-    const itemModel = item.dataset.model;
+    let itemModel = item.dataset.model;
+    if (itemModel === "drama-3") itemModel = "drama3";
+    if (itemModel === "s2-pro" || itemModel === "s2.1-pro") itemModel = "s2_pro";
     const isThis = (itemEng === blockEngine) && (itemModel === effectiveModel);
     item.classList.toggle("active", isThis);
     const checkEl = item.querySelector(".engine-model-check");
@@ -9231,11 +9249,13 @@ async function playBlockAudio(idx, targetOffset = 0, isAutoContinuation = false,
 
     state.storyAudioPlayer.onerror = (e) => {
       console.warn("[AudioPlayer] Error playing audio:", targetUrl, e);
-      if (!targetUrl.includes("demo_clip.wav")) {
-        console.log("[AudioPlayer] Falling back to demo_clip.wav");
-        startPlayback("/api/audio/demo_clip.wav", 2.4, true);
-      } else {
-        updatePlaybackUI(idx, false);
+      updatePlaybackUI(idx, false);
+      if (state.isPlayingStory) {
+        if (idx + 1 < (state.currentProject?.blocks?.length || 0)) {
+          playBlockAudio(idx + 1, 0, true);
+        } else {
+          stopStoryPlayback();
+        }
       }
     };
 
@@ -14360,11 +14380,14 @@ function updateEngineModelDropdownUI() {
   };
   let curModel = targetBlock?.model || state.activeModel || state.currentProject?.model || defaultModels[curEngine] || "drama3";
   if (curModel === "drama-3") curModel = "drama3";
-  if (curModel === "s2-pro") curModel = "s2_pro";
+  if (curModel === "s2-pro" || curModel === "s2.1-pro" || curModel === "s2") curModel = "s2_pro";
+  if (curModel === "gpt-4o-mini") curModel = "gpt-4o-mini-tts";
 
   document.querySelectorAll("#engine-model-dropdown .engine-model-subitem").forEach(item => {
     const itemEng = item.dataset.engine;
-    const itemModel = item.dataset.model;
+    let itemModel = item.dataset.model;
+    if (itemModel === "drama-3") itemModel = "drama3";
+    if (itemModel === "s2-pro" || itemModel === "s2.1-pro") itemModel = "s2_pro";
     const isThis = (itemEng === curEngine) && (itemModel === curModel);
     item.classList.toggle("active", isThis);
     const checkEl = item.querySelector(".engine-model-check");
@@ -14449,6 +14472,10 @@ function selectEngineOption(newEngine, newModel = null) {
           block.voice_id = isFemale ? "nova" : "onyx";
         } else {
           block.voice_id = isFemale ? "fish_9f508743280b46788d64de199cbb5093" : "fish_71804f0aa9e8457e92e9e49c26691514";
+        }
+        const assignedVoice = getVoiceById(block.voice_id);
+        if (assignedVoice && assignedVoice.name) {
+          block.speaker = assignedVoice.name.replace(/\s*\([^)]*\)/g, '').trim();
         }
       }
 

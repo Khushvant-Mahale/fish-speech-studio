@@ -46,22 +46,13 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request).then((res) => {
         if (res.ok) return res;
-        // If file not found (404), return fallback demo audio
-        return fetch("/api/audio/demo_clip.wav").then((fallbackRes) => {
-          if (fallbackRes.ok) return fallbackRes;
-          return new Response(createDummyWav(2.0), {
-            headers: { "Content-Type": "audio/wav", "Content-Length": "96044" }
-          });
-        }).catch(() => {
-          return new Response(createDummyWav(2.0), {
-            headers: { "Content-Type": "audio/wav", "Content-Length": "96044" }
-          });
+        // If file not found (404), return gentle in-memory chime rather than hijacking with demo_clip.wav
+        return new Response(createDummyWav(1.8), {
+          headers: { "Content-Type": "audio/wav", "Content-Length": "86444" }
         });
       }).catch(() => {
-        return fetch("/api/audio/demo_clip.wav").catch(() => {
-          return new Response(createDummyWav(2.0), {
-            headers: { "Content-Type": "audio/wav", "Content-Length": "96044" }
-          });
+        return new Response(createDummyWav(1.8), {
+          headers: { "Content-Type": "audio/wav", "Content-Length": "86444" }
         });
       })
     );

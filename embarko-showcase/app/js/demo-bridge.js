@@ -359,12 +359,8 @@
         const res = await originalFetch(resource, init);
         if (res.ok) return res;
       } catch (e) {}
-      // Fallback: return demo_clip.wav or in-memory generated PCM buffer
-      try {
-        const fallbackRes = await originalFetch("/api/audio/demo_clip.wav");
-        if (fallbackRes.ok) return fallbackRes;
-      } catch (e) {}
-      const wavBuffer = createDummyWav(2.0);
+      // Fallback: generate in-memory synthetic chime rather than hijacking with demo_clip.wav
+      const wavBuffer = createDummyWav(1.8);
       return new Response(wavBuffer, {
         status: 200,
         headers: { "Content-Type": "audio/wav" }
@@ -468,7 +464,35 @@
           const customSaved = localStorage.getItem(`kashva_proj_${id}`);
           if (customSaved) {
             const parsed = JSON.parse(customSaved);
-            if (parsed && Array.isArray(parsed.blocks)) return jsonResponse(parsed);
+            if (parsed && Array.isArray(parsed.blocks)) {
+              // Sanitize any poisoned demo_clip.wav takes that got saved to localStorage
+              const origProj = demoDataset && demoDataset.projects && demoDataset.projects[id];
+              let modified = false;
+              parsed.blocks.forEach((b, bIdx) => {
+                if (b.audio_url && b.audio_url.includes("demo_clip.wav")) {
+                  modified = true;
+                  const origB = origProj && origProj.blocks ? origProj.blocks[bIdx] : null;
+                  if (origB && origB.audio_url && !origB.audio_url.includes("demo_clip.wav")) {
+                    b.audio_url = origB.audio_url;
+                    b.cachedAudioUrl = origB.cachedAudioUrl || origB.audio_url;
+                    b.duration = origB.duration;
+                    b.hash = origB.hash;
+                  } else {
+                    delete b.audio_url;
+                    delete b.cachedAudioUrl;
+                    delete b.cachedSig;
+                  }
+                }
+                if (b.cachedAudioUrl && b.cachedAudioUrl.includes("demo_clip.wav")) {
+                  modified = true;
+                  delete b.cachedAudioUrl;
+                }
+              });
+              if (modified) {
+                try { localStorage.setItem(`kashva_proj_${id}`, JSON.stringify(parsed)); } catch (e) {}
+              }
+              return jsonResponse(parsed);
+            }
           }
         }
       } catch (e) {}
@@ -620,22 +644,31 @@
       try {
         const body = typeof init.body === "string" ? JSON.parse(init.body) : {};
         const raw_blocks = body.blocks || (body.block ? [body.block] : []);
+        const projId = body.project_id || (window.state && window.state.currentProject && window.state.currentProject.id) || "proj_eb9ab585";
+        const proj = (demoDataset && demoDataset.projects && projId) ? demoDataset.projects[projId] : null;
+
         const results = raw_blocks.map(b => {
-          const rawUrl = b.cachedAudioUrl || b.audio_url || "";
-          let finalUrl = rawUrl;
+          const origBlock = proj && proj.blocks ? proj.blocks[b.index] : null;
+          let finalUrl = (origBlock && origBlock.audio_url) || b.cachedAudioUrl || b.audio_url || "";
+          if (finalUrl && finalUrl.includes("demo_clip.wav")) {
+            finalUrl = (origBlock && origBlock.audio_url && !origBlock.audio_url.includes("demo_clip.wav")) ? origBlock.audio_url : "";
+          }
           if (!finalUrl && b.hash) {
             finalUrl = `/api/audio/${b.hash}.wav`;
           }
-          if (!finalUrl) {
-            finalUrl = `/api/audio/demo_clip.wav`;
+          if (finalUrl) {
+            return {
+              index: b.index,
+              cached: true,
+              audio_url: finalUrl,
+              hash: (origBlock && origBlock.hash) || b.hash || "",
+              engine: (origBlock && origBlock.engine) || b.engine || "fish_s2",
+              duration: (origBlock && origBlock.duration) || b.duration || 2.4
+            };
           }
           return {
             index: b.index,
-            cached: true,
-            audio_url: finalUrl,
-            hash: b.hash || "demo_clip",
-            engine: b.engine || "fish_s2",
-            duration: b.duration || 2.4
+            cached: false
           };
         });
         return jsonResponse({ results });
@@ -644,14 +677,45 @@
       }
     }
 
-    // 13. Synthesis Mock -> Returns real demo_clip.wav
+    // 13. Synthesis Mock -> Return original take or realistic procedural tone (never demo_clip.wav)
     if (path.startsWith("/api/synthesize_block") && method === "POST") {
-      return jsonResponse({
-        ok: true,
-        audio_url: "/api/audio/demo_clip.wav",
-        hash: "demo_clip",
-        duration: 2.4
-      });
+      try {
+        const b = typeof init.body === "string" ? JSON.parse(init.body) : {};
+        const idx = b.index !== undefined ? b.index : 0;
+        const projId = b.project_id || (window.state && window.state.currentProject && window.state.currentProject.id) || "proj_eb9ab585";
+        const proj = (demoDataset && demoDataset.projects && projId) ? demoDataset.projects[projId] : null;
+        const origBlock = proj && proj.blocks ? proj.blocks[idx] : null;
+
+        if (origBlock && origBlock.audio_url && !origBlock.audio_url.includes("demo_clip.wav")) {
+          return jsonResponse({
+            ok: true,
+            audio_url: origBlock.audio_url,
+            hash: origBlock.hash || `take_${idx}`,
+            duration: origBlock.duration || 2.4
+          });
+        }
+
+        // If Block 1 specifically, 058a920...wav is its actual corridor monologue
+        if (idx === 1 && projId === "proj_eb9ab585") {
+          return jsonResponse({
+            ok: true,
+            audio_url: "/api/audio/058a92014623d97616b48d50d643621d.wav",
+            hash: "8a7a8f94e51cf0dcba884f6c56aad07f",
+            duration: 23.08
+          });
+        }
+
+        // Distinct procedural take for un-pruned blocks
+        const estDur = Math.max(1.2, Math.min(8.0, Number(((b.text || "").length * 0.062).toFixed(1))));
+        return jsonResponse({
+          ok: true,
+          audio_url: `/api/audio/synth_${idx}_${Date.now()}.wav`,
+          hash: `synth_${idx}`,
+          duration: estDur
+        });
+      } catch (e) {
+        return jsonResponse({ ok: false, error: e.message }, 500);
+      }
     }
 
     // 14. Split Text / Auto Director
