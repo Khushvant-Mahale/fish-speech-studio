@@ -17,10 +17,21 @@
 
   async function loadInitialData() {
     try {
+      const fetchJson = async (filename) => {
+        const candidates = [`demo-data/${filename}`, `/app/demo-data/${filename}`, `/studio/demo-data/${filename}`];
+        for (const url of candidates) {
+          try {
+            const res = await originalFetch(url);
+            if (res.ok) return await res.json();
+          } catch (e) {}
+        }
+        return null;
+      };
+
       const [fv, kv, dp] = await Promise.all([
-        originalFetch("/studio/demo-data/fish_voices.json").then(r => r.json()).catch(() => []),
-        originalFetch("/studio/demo-data/kokoro_voices.json").then(r => r.json()).catch(() => []),
-        originalFetch("/studio/demo-data/default_project.json").then(r => r.json()).catch(() => null)
+        fetchJson("fish_voices.json").then(r => r || []),
+        fetchJson("kokoro_voices.json").then(r => r || []),
+        fetchJson("default_project.json")
       ]);
       cachedFishVoices = fv;
       cachedKokoroVoices = kv;

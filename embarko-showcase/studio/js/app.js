@@ -349,8 +349,6 @@ async function initApp() {
 
     if (projectId) {
       await openProject(projectId, false);
-    } else if (isStudioPath && state.projects && state.projects.length > 0) {
-      await openProject(state.projects[0].id, false);
     } else {
       switchToView("dashboard", false);
     }
@@ -359,12 +357,11 @@ async function initApp() {
     window.addEventListener("popstate", (e) => {
       const params = new URLSearchParams(window.location.search);
       const pid = params.get("project") || params.get("id");
-      const isStudio = window.location.pathname.startsWith("/studio");
       if (!state.currentUser) {
         switchToView("auth", false);
       } else if (pid && (!state.currentProject || state.currentProject.id !== pid)) {
         openProject(pid, false);
-      } else if (!pid && !isStudio) {
+      } else if (!pid) {
         switchToView("dashboard", false);
       }
     });
@@ -1105,7 +1102,8 @@ function switchToView(viewName, updateUrl = true) {
     if (studioEl) studioEl.style.display = "none";
     document.title = "Story Projects — Kashva Voice";
     if (updateUrl) {
-      history.pushState({ view: "dashboard" }, "", "/");
+      const appBase = window.location.pathname.startsWith("/app") ? "/app/" : (window.location.pathname.startsWith("/studio") ? "/studio/" : "/");
+      history.pushState({ view: "dashboard" }, "", appBase);
     }
     loadProjectsList();
   } else {
@@ -1115,7 +1113,8 @@ function switchToView(viewName, updateUrl = true) {
     const projTitle = state.currentProject?.title || "Story Studio";
     document.title = `${projTitle} — Kashva Voice`;
     if (updateUrl && state.currentProject?.id) {
-      const studioUrl = `/studio?project=${encodeURIComponent(state.currentProject.id)}`;
+      const appBase = window.location.pathname.startsWith("/app") ? "/app" : (window.location.pathname.startsWith("/studio") ? "/studio" : "/studio");
+      const studioUrl = `${appBase}?project=${encodeURIComponent(state.currentProject.id)}`;
       history.pushState({ view: "studio", projectId: state.currentProject.id }, "", studioUrl);
     }
   }

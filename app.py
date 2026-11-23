@@ -3685,6 +3685,8 @@ def create_app():
 
     app.router.add_get("/", handle_index)
     app.router.add_get("/login", handle_index)
+    app.router.add_get("/app", handle_index)
+    app.router.add_get("/app/", handle_index)
     app.router.add_get("/studio", handle_index)
     app.router.add_get("/studio/", handle_index)
     app.router.add_get("/projects", handle_index)
