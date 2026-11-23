@@ -455,15 +455,27 @@ print("  click the '⚡ Local CPU Engine' badge in the top bar,")
 print("  paste the URL, and click 'Save & Activate'.")
 print("=" * 76 + "\n")
 
-INACTIVITY_TIMEOUT_SECONDS = 300  # 5 minutes idle
+# ==============================================================================
+# ⚙️ USER CONFIGURATION
+# Set idle timeout in minutes (e.g. 15, 20, 30, 60).
+# Set to 0 to DISABLE auto-shutdown completely (worker runs until you manually stop it).
+# ==============================================================================
+IDLE_TIMEOUT_MINUTES = 30
+INACTIVITY_TIMEOUT_SECONDS = IDLE_TIMEOUT_MINUTES * 60
+
 def inactivity_watchdog():
+    if INACTIVITY_TIMEOUT_SECONDS <= 0:
+        print("[*] Inactivity Watchdog: DISABLED (worker runs continuously until you stop the cell).")
+        return
+
+    print(f"[*] Inactivity Watchdog: Active ({IDLE_TIMEOUT_MINUTES} minutes idle timeout). Reset on every Studio action.")
     while True:
         time.sleep(30)
         idle_duration = time.time() - last_activity_time[0]
         if idle_duration > INACTIVITY_TIMEOUT_SECONDS:
             print("\n" + "=" * 76)
             print(f"  ⏱ INACTIVITY TIMEOUT DETECTED ({int(idle_duration / 60)} minutes idle)")
-            print("  🛑 Terminating Kaggle GPU worker to protect user's free weekly GPU quota!")
+            print("  🛑 Terminating GPU worker to protect user's free GPU quota!")
             print("=" * 76 + "\n", flush=True)
             try:
                 subprocess.run(["pkill", "-9", "-f", "cloudflared"], check=False)

@@ -403,3 +403,72 @@ def process_audio_fx(
 
 # Backwards compatibility alias
 apply_dsp_pipeline = process_audio_fx
+
+
+def resample_audio(samples: np.ndarray, orig_sr: int, dest_sr: int = 44100) -> np.ndarray:
+    """
+    Resample 1D audio array to target sample rate using polyphase filtering.
+    Preserves audio quality without aliasing or phase smearing.
+    """
+    if samples is None or len(samples) == 0:
+        return np.zeros(0, dtype=np.float32)
+    if int(orig_sr) == int(dest_sr):
+        return samples.astype(np.float32)
+
+    from math import gcd
+    g = gcd(int(orig_sr), int(dest_sr))
+    up = int(dest_sr // g)
+    down = int(orig_sr // g)
+
+    if HAS_SCIPY and signal is not None:
+        return signal.resample_poly(samples.astype(np.float32), up, down).astype(np.float32)
+
+    # Fallback linear interpolation
+    num_samples = int(len(samples) * dest_sr / orig_sr)
+    indices = np.linspace(0, len(samples) - 1, num_samples)
+    return np.interp(indices, np.arange(len(samples)), samples).astype(np.float32)
+
+
+def stitch_audio_blocks(
+    blocks: list,
+    target_sr: int = 44100,
+    default_pause: float = 0.5
+) -> np.ndarray:
+    """
+    Stitches multiple audio blocks from different engines (Kokoro 24k, Edge 24k, Fish 44.1k)
+    into a uniform, mastered, production-grade audio narrative.
+    Each element in blocks should be:
+      dict with {"samples": np.ndarray, "sr": int, "pause_after": float}
+      OR tuple (samples, sr, pause_after)
+    """
+    segments = []
+    for item in blocks:
+        if isinstance(item, tuple):
+            samples, sr = item[0], item[1]
+            pause = float(item[2]) if len(item) > 2 else default_pause
+        elif isinstance(item, dict):
+            samples = item.get("samples")
+            sr = int(item.get("sr", target_sr))
+            pause = float(item.get("pause_after", item.get("pause", default_pause)) or default_pause)
+        else:
+            continue
+
+        if samples is not None and len(samples) > 0:
+            resampled = resample_audio(samples, orig_sr=sr, dest_sr=target_sr)
+            segments.append(resampled)
+
+        if pause > 0:
+            silence = np.zeros(int(target_sr * pause), dtype=np.float32)
+            segments.append(silence)
+
+    if not segments:
+        return np.zeros(0, dtype=np.float32)
+
+    master = np.concatenate(segments)
+    # Peak normalization with -0.5 dB ceiling
+    max_peak = np.max(np.abs(master))
+    if max_peak > 0.01:
+        target_peak = 0.944  # ~ -0.5 dBFS
+        master = (master / max_peak) * target_peak
+
+    return np.clip(master, -1.0, 1.0).astype(np.float32)

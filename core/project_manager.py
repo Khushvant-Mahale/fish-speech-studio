@@ -1,14 +1,17 @@
 import json
-
+import os
 import re
+import time
+import uuid
 
 from pathlib import Path
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 PROJECTS_DIR = BASE_DIR / "projects"
+FOLDERS_DIR = PROJECTS_DIR / "folders"
 
 INPUT_DIR = BASE_DIR / "input"
 
@@ -17,6 +20,7 @@ OUTPUT_DIR = BASE_DIR / "output"
 VOICES_FILE = BASE_DIR / "core" / "voices_metadata.json"
 
 PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
+FOLDERS_DIR.mkdir(parents=True, exist_ok=True)
 
 class ProjectManager:
 
@@ -67,10 +71,17 @@ class ProjectManager:
         return self._preset_blends_cache
 
     def get_project_path(self, project_id: str) -> Path:
-
         safe_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", project_id) or "default"
-
-        return PROJECTS_DIR / f"{safe_id}.json"
+        standard = PROJECTS_DIR / f"{safe_id}.json"
+        if standard.exists():
+            return standard
+        try:
+            sub = next(PROJECTS_DIR.glob(f"*/{safe_id}.json"), None)
+            if sub and sub.exists():
+                return sub
+        except Exception:
+            pass
+        return standard
 
     def auto_direct_blocks(self, blocks: List[Dict], default_voice: str = "blend_fenrir_onyx", expand_dialogue: bool = True, defaults: Optional[Dict] = None) -> List[Dict]:
 
@@ -161,16 +172,20 @@ class ProjectManager:
                 continue
 
             # Check unquoted lead-in: "A little boy whispered, Why did you leave us outside?"
+            unquoted_match = re.match(r'^(.*?\b(?:whispered|whispering|screamed|cried|said|asked|shouted|murmured|replied|muttered|breathed|snarled|demanded|hissed|gasped|growled|sneered|snapped|shrieked)[,:]\s*)([A-Z].{3,}[.?!]?)$', text, re.IGNORECASE)
 
-            unquoted_match = re.match(r'^(.*?\b(?:whispered|whispering|screamed|cried|said|asked|shouted|murmured)[,:]\s*)([A-Z].{3,}[.?!]?)$', text, re.IGNORECASE)
+            # Check quoted dialogue tag: 'She whispered, "Don\'t move."' or inverted 'said Snape, ‘although the Dark Lord...’'
+            speech_verbs = r'whispered|whispering|screamed|cried|said|asked|shouted|murmured|replied|muttered|breathed|snarled|demanded|hissed|gasped|growled|sneered|snapped|shrieked|urged|pleaded|repeated|continued|resumed|added'
+            quoted_intro_match = re.match(
+                rf'^(.*?\b(?:{speech_verbs})(?:\s+[A-Za-z\u2019\'\-]+){{0,3}}[,:]\s*)([\"“\u2018\'](?:[^\r\n\"“”\u2018\u2019\']|(?<=\w)[\'’](?=\w))+[\"”\u2019\'])$',
+                text, re.IGNORECASE
+            )
 
-            # Check quoted dialogue tag: 'She whispered, "Don\'t move."'
-
-            quoted_intro_match = re.match(r'^(.*?\b(?:whispered|whispering|screamed|cried|said|asked|shouted|murmured)[,:]\s*)([\"“][^\"”]+[\"”])$', text, re.IGNORECASE)
-
-            # Check quoted speech followed by tag: '"Don\'t move," she whispered.'
-
-            trailing_tag_match = re.match(r'^([\"“][^\"”]+[\"”])\s*([,]?\s*(?:she|he|they|the\s+\w+)?\s*(?:whispered|screamed|said|asked|shouted|murmured).*)$', text, re.IGNORECASE)
+            # Check quoted speech followed by tag: '"Don\'t move," she whispered.' or '‘Yes, Bellatrix,’ said Snape, betraying a hint of impatience'
+            trailing_tag_match = re.match(
+                rf'^([\"“\u2018\'](?:[^\r\n\"“”\u2018\u2019\']|(?<=\w)[\'’](?=\w))+[\"”\u2019\'])\s*([,]?\s*(?:{speech_verbs})?\s*(?:she|he|they|the\s+\w+|[A-Za-z\u2019\'\-]+)?.*)$',
+                text, re.IGNORECASE
+            )
 
             if expand_dialogue and unquoted_match:
 
@@ -268,15 +283,14 @@ class ProjectManager:
 
             next_text = expanded_blocks[i + 1]["text"] if i < n - 1 else ""
 
-            # Check quotes and dialogue nature
-
-            is_quoted = bool(re.search(r'[\"“].+?[\"”]', text)) or (text.startswith(('"', '“', "'", '‘')) and text.endswith(('"', '”', "'", '’')))
+            # Check quotes and dialogue nature (supports double quotes and British single quotes)
+            is_quoted = bool(re.search(r'[\"“\u2018\'].+?[\"”\u2019\']', text)) or text.startswith(('"', '“', "'", '‘'))
 
             is_intro_lead = text.endswith(":") or bool(self.DIALOGUE_INTRO_CUES.search(text))
 
             prev_was_intro = prev_text.endswith(":") or bool(self.DIALOGUE_INTRO_CUES.search(prev_text))
 
-            next_is_trailing = bool(re.match(r'^(?:she|he|they|the\s+\w+)?\s*(?:whispered|screamed|said|asked|shouted|murmured|cried|breathed)', next_text, re.IGNORECASE))
+            next_is_trailing = bool(re.match(r'^(?:she|he|they|the\s+\w+|[A-Za-z’\'-]+)?\s*(?:whispered|screamed|said|asked|shouted|murmured|cried|breathed|replied|muttered|snarled|demanded|hissed|sneered)', next_text, re.IGNORECASE))
 
             is_dialogue = is_quoted or (prev_was_intro and not is_intro_lead)
 
@@ -666,7 +680,7 @@ class ProjectManager:
 
         return final_chunks
 
-    def split_text_into_blocks(self, raw_text: str, default_voice: str = "blend_fenrir_onyx", defaults: Optional[Dict] = None, clean_pauses: bool = True, inline_ellipsis: bool = True) -> List[Dict]:
+    def split_text_into_blocks(self, raw_text: str, default_voice: str = "blend_fenrir_onyx", defaults: Optional[Dict] = None, clean_pauses: bool = True, inline_ellipsis: bool = True, expand_dialogue: bool = True, **kwargs) -> List[Dict]:
         """
         Splits raw story text into structured sentence blocks before emotion tags,
         cleans trailing [pause] tags into card spacing, and dynamically directs them.
@@ -785,10 +799,10 @@ class ProjectManager:
                     init_b["blend_weights"] = defaults["blend_weights"]
                 initial_blocks.append(init_b)
 
-        directed = self.auto_direct_blocks(initial_blocks, default_voice=default_voice, expand_dialogue=True, defaults=defaults)
+        directed = self.auto_direct_blocks(initial_blocks, default_voice=default_voice, expand_dialogue=expand_dialogue, defaults=defaults)
         return self.merge_ultra_small_blocks(directed)
 
-    def merge_ultra_small_blocks(self, blocks: List[Dict], max_chars: int = 35, max_words: int = 5, max_merged_chars: int = 160) -> List[Dict]:
+    def merge_ultra_small_blocks(self, blocks: List[Dict], max_chars: int = 90, max_words: int = 16, max_merged_chars: int = 320) -> List[Dict]:
 
         """
 
@@ -888,11 +902,11 @@ class ProjectManager:
 
                     break
 
-                # Never merge quoted dialogue with unquoted narrative
-
-                curr_has_quotes = bool(re.search(r'[\"“].+?[\"”]', curr_text)) or curr_text.startswith(('"', '“'))
-
-                nxt_has_quotes = bool(re.search(r'[\"“].+?[\"”]', nxt_text)) or nxt_text.startswith(('"', '“'))
+                # Never merge quoted dialogue with unquoted narrative (supports double quotes and British single quotes)
+                quote_pattern = r'[\"“\u2018\'].+?[\"”\u2019\']'
+                quote_starts = ('"', '“', '‘', "'")
+                curr_has_quotes = bool(re.search(quote_pattern, curr_text)) or curr_text.startswith(quote_starts)
+                nxt_has_quotes = bool(re.search(quote_pattern, nxt_text)) or nxt_text.startswith(quote_starts)
 
                 if curr_has_quotes != nxt_has_quotes:
 
@@ -950,6 +964,10 @@ class ProjectManager:
 
                 return json.load(f)
 
+    # Alias for load_project
+    def get_project(self, project_id: str = "default") -> Dict:
+        return self.load_project(project_id)
+
         # Create default project from sample text
 
         sample_file = INPUT_DIR / "THE ENDLESS ECLIPSE - Sample.txt"
@@ -987,21 +1005,30 @@ class ProjectManager:
         return project_data
 
     def save_project(self, project_data: Dict, project_id: str = "default") -> None:
-
         path = self.get_project_path(project_id)
-
+        if path.exists() and "owner_id" not in project_data:
+            try:
+                with open(path, "r", encoding="utf-8") as exf:
+                    ex_d = json.load(exf)
+                    if ex_d.get("owner_id"):
+                        project_data["owner_id"] = ex_d["owner_id"]
+            except Exception:
+                pass
         with open(path, "w", encoding="utf-8") as f:
-
             json.dump(project_data, f, indent=2, ensure_ascii=False)
 
-    def list_projects(self, engine: Optional[str] = None) -> List[Dict]:
+    def list_projects(self, engine: Optional[str] = None, folder_id: Optional[str] = None, owner_id: Optional[str] = None) -> List[Dict]:
         projects = []
         for p in PROJECTS_DIR.glob("*.json"):
-            if p.name == "config.json":
+            if p.name in ("config.json", "users.json", "sessions.json", "tier.json", "kaggle_session.json"):
                 continue
             try:
                 with open(p, "r", encoding="utf-8") as f:
                     data = json.load(f)
+                    proj_owner = data.get("owner_id")
+                    if owner_id:
+                        if proj_owner != owner_id:
+                            continue
                     mtime = p.stat().st_mtime
                     blocks = data.get("blocks", [])
                     rendered_count = sum(1 for b in blocks if b.get("cachedAudioUrl"))
@@ -1025,40 +1052,41 @@ class ProjectManager:
                     if engine and proj_engine != engine:
                         continue
 
+                    proj_folder_id = data.get("folder_id")
+                    if folder_id is not None:
+                        if folder_id in ("none", "root"):
+                            if proj_folder_id:
+                                continue
+                        elif proj_folder_id != folder_id:
+                            continue
+
                     projects.append({
                         "id": data.get("id", p.stem),
                         "title": data.get("title", p.stem),
                         "engine": proj_engine,
                         "default_voice": data.get("default_voice", "voice_stanley_narrator" if proj_engine == "fish_s2" else "am_adam"),
-
+                        "folder_id": proj_folder_id,
+                        "parent_series_id": data.get("parent_series_id"),
+                        "chapter_number": data.get("chapter_number"),
+                        "is_stub": bool(data.get("is_stub", False)),
+                        "word_count": data.get("word_count", 0),
+                        "estimated_minutes": data.get("estimated_minutes", 0.0),
                         "block_count": len(blocks),
-
                         "rendered_count": rendered_count,
-
                         "total_duration": round(total_dur, 1),
-
                         "voices_used": voices_used[:5],
-
                         "voice_count": len(voices_used),
-
                         "character_count": char_count,
-
                         "preview_audio": preview_audio,
-
                         "master_exists": master_exists,
-
                         "master_filename": master_file if master_exists else None,
-
                         "updated_at": mtime
-
                     })
 
             except Exception:
-
                 pass
 
         projects.sort(key=lambda x: x["updated_at"], reverse=True)
-
         return projects
 
     def duplicate_project(self, project_id: str) -> Optional[Dict]:
@@ -1188,4 +1216,1086 @@ class ProjectManager:
             return True
 
         return False
+
+    # ------------------ FOLDER & AUDIOBOOK SERIES MANAGEMENT ------------------
+    def get_folder_path(self, folder_id: str) -> Path:
+        safe_id = re.sub(r"[^a-zA-Z0-9_\-]", "_", folder_id) or "folder_default"
+        return FOLDERS_DIR / f"{safe_id}.json"
+
+    def list_folders(self, engine: Optional[str] = None, parent_id: Optional[str] = None, include_all: bool = False, owner_id: Optional[str] = None) -> List[Dict]:
+        folders = []
+        if not FOLDERS_DIR.exists():
+            return []
+
+        all_projects = self.list_projects(owner_id=owner_id)
+        proj_map = {p["id"]: p for p in all_projects}
+
+        raw_folders = []
+        for fp in FOLDERS_DIR.glob("*.json"):
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+                f_owner = data.get("owner_id")
+                if owner_id:
+                    if f_owner != owner_id:
+                        continue
+
+                f_engine = data.get("engine", "fish_s2")
+                if engine and f_engine != engine:
+                    continue
+
+                f_id = data.get("id", fp.stem)
+                chapter_order = data.get("chapter_order", [])
+
+                ch_ids = list(chapter_order)
+                for pid, pdata in proj_map.items():
+                    if pdata.get("folder_id") == f_id and pid not in ch_ids:
+                        ch_ids.append(pid)
+
+                total_sentences = 0
+                total_rendered = 0
+                total_duration = 0.0
+                voices_set = set()
+                preview_audio = None
+
+                for cid in ch_ids:
+                    p = proj_map.get(cid)
+                    if not p:
+                        continue
+                    total_sentences += (p.get("block_count") or 0)
+                    total_rendered += (p.get("rendered_count") or 0)
+                    total_duration += (p.get("total_duration") or 0.0)
+                    if p.get("voices_used"):
+                        voices_set.update(p["voices_used"])
+                    if not preview_audio and p.get("preview_audio"):
+                        preview_audio = p["preview_audio"]
+
+                characters = self.get_folder_master_cast(f_id)
+                if not characters:
+                    characters = data.get("characters", []) or data.get("master_cast", [])
+
+                raw_folders.append({
+                    "id": f_id,
+                    "title": data.get("title", fp.stem),
+                    "author": data.get("author", ""),
+                    "description": data.get("description", ""),
+                    "engine": f_engine,
+                    "parent_id": data.get("parent_id"),
+                    "cover_image": data.get("cover_image"),
+                    "chapter_count": len(ch_ids),
+                    "chapter_order": ch_ids,
+                    "block_count": total_sentences,
+                    "rendered_count": total_rendered,
+                    "total_duration": round(total_duration, 1),
+                    "voices_used": list(voices_set)[:5],
+                    "character_count": len(characters),
+                    "characters": characters,
+                    "master_cast": characters,
+                    "preview_audio": preview_audio,
+                    "created_at": data.get("created_at", fp.stat().st_ctime),
+                    "updated_at": data.get("updated_at", fp.stat().st_mtime)
+                })
+            except Exception as e:
+                print(f"[ProjectManager] Error listing folder {fp}: {e}")
+
+        # Map subfolders to parent folders
+        subfolders_by_parent = {}
+        for f in raw_folders:
+            p_pid = f.get("parent_id")
+            if p_pid:
+                subfolders_by_parent.setdefault(p_pid, []).append(f)
+
+        for f in raw_folders:
+            sfs = subfolders_by_parent.get(f["id"], [])
+            f["subfolders"] = [{"id": s["id"], "title": s["title"], "chapter_count": s["chapter_count"]} for s in sfs]
+            f["subfolder_count"] = len(sfs)
+            if sfs:
+                f["total_series_chapters"] = f["chapter_count"] + sum(s.get("chapter_count", 0) for s in sfs)
+                f["total_series_sentences"] = f["block_count"] + sum(s.get("block_count", 0) for s in sfs)
+                f["total_series_duration"] = round(f["total_duration"] + sum(s.get("total_duration", 0.0) for s in sfs), 1)
+
+        if not include_all:
+            if parent_id is not None:
+                folders = [f for f in raw_folders if f.get("parent_id") == parent_id]
+            else:
+                folders = [f for f in raw_folders if not f.get("parent_id")]
+        else:
+            folders = raw_folders
+
+        folders.sort(key=lambda x: x["updated_at"], reverse=True)
+        return folders
+
+    def get_folder(self, folder_id: str, owner_id: Optional[str] = None) -> Optional[Dict]:
+        fp = self.get_folder_path(folder_id)
+        if not fp.exists():
+            return None
+        try:
+            with open(fp, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            return None
+
+        f_owner = data.get("owner_id")
+        if owner_id and f_owner and f_owner != owner_id:
+            return None
+
+        f_id = data.get("id", folder_id)
+        chapter_order = data.get("chapter_order", [])
+
+        all_projs = {p["id"]: p for p in self.list_projects(owner_id=owner_id)}
+        chapters = []
+        for cid in chapter_order:
+            if cid in all_projs:
+                chapters.append(all_projs[cid])
+
+        for pid, pdata in all_projs.items():
+            if pdata.get("folder_id") == f_id and pid not in [c["id"] for c in chapters]:
+                chapters.append(pdata)
+
+        data["chapters"] = chapters
+        data["chapter_ids"] = [c["id"] for c in chapters]
+        data["chapter_count"] = len(chapters)
+        data["block_count"] = sum(c.get("block_count", 0) for c in chapters)
+        data["rendered_count"] = sum(c.get("rendered_count", 0) for c in chapters)
+        data["total_duration"] = round(sum(c.get("total_duration", 0.0) for c in chapters), 1)
+
+        # Detect and attach subfolders
+        subfolders = []
+        for s_fp in FOLDERS_DIR.glob("*.json"):
+            try:
+                with open(s_fp, "r", encoding="utf-8") as sf:
+                    s_data = json.load(sf)
+                    if s_data.get("parent_id") == f_id:
+                        s_order = s_data.get("chapter_order", [])
+                        subfolders.append({
+                            "id": s_data.get("id", s_fp.stem),
+                            "title": s_data.get("title", s_fp.stem),
+                            "author": s_data.get("author", ""),
+                            "description": s_data.get("description", ""),
+                            "chapter_count": len(s_order),
+                            "parent_id": f_id,
+                            "updated_at": s_data.get("updated_at", 0)
+                        })
+            except Exception:
+                pass
+        subfolders.sort(key=lambda x: x.get("title", ""))
+        data["subfolders"] = subfolders
+        data["subfolder_count"] = len(subfolders)
+
+        # If this folder is a subfolder, attach parent folder info
+        parent_id = data.get("parent_id")
+        if parent_id:
+            p_fp = self.get_folder_path(parent_id)
+            if p_fp.exists():
+                try:
+                    with open(p_fp, "r", encoding="utf-8") as pf:
+                        p_data = json.load(pf)
+                        data["parent_folder"] = {
+                            "id": p_data.get("id", parent_id),
+                            "title": p_data.get("title", "Parent Series"),
+                            "author": p_data.get("author", "")
+                        }
+                except Exception:
+                    pass
+
+        # Attach Unified Master Cast
+        master_cast = self.get_folder_master_cast(f_id)
+        if not data.get("characters"):
+            data["characters"] = master_cast
+        data["master_cast"] = data.get("characters") or master_cast
+        data["character_count"] = len(data["master_cast"])
+
+        # Attach Director Settings & Preferences
+        data["director_settings"] = self.get_folder_director_settings(f_id)
+
+        return data
+
+    def create_folder(
+        self,
+        title: str,
+        author: str = "",
+        description: str = "",
+        engine: str = "fish_s2",
+        characters: Optional[List[Dict]] = None,
+        cover_image: Optional[str] = None,
+        parent_id: Optional[str] = None,
+        series_order: int = 0,
+        owner_id: Optional[str] = None
+    ) -> Dict:
+        folder_id = f"folder_{uuid.uuid4().hex[:8]}"
+        now = time.time()
+        folder_data = {
+            "id": folder_id,
+            "title": title.strip() or "Untitled Audiobook Series",
+            "author": author.strip(),
+            "description": description.strip(),
+            "engine": engine,
+            "parent_id": parent_id,
+            "cover_image": cover_image,
+            "characters": characters or [],
+            "chapter_order": [],
+            "owner_id": owner_id,
+            "series_order": series_order,
+            "created_at": now,
+            "updated_at": now
+        }
+        self.save_folder(folder_data, folder_id)
+        return folder_data
+
+    def get_folder_master_cast(self, folder_id: str) -> List[Dict]:
+        """
+        Retrieves the Unified Master Cast for a folder.
+        If the folder is a subfolder (e.g. Book inside a Series),
+        it seamlessly merges characters from both the parent series and current folder.
+        If a parent series has 0 characters, it aggregates characters from its subfolders.
+        """
+        fp = self.get_folder_path(folder_id)
+        if not fp.exists():
+            return []
+        try:
+            with open(fp, "r", encoding="utf-8") as rf:
+                f = json.load(rf)
+        except Exception:
+            return []
+
+        all_chars = list(f.get("characters") or f.get("master_cast") or [])
+        seen_names = {c.get("name", "").strip().lower() for c in all_chars if c.get("name")}
+
+        parent_id = f.get("parent_id")
+        if parent_id:
+            p_fp = self.get_folder_path(parent_id)
+            if p_fp.exists():
+                try:
+                    with open(p_fp, "r", encoding="utf-8") as prf:
+                        parent_f = json.load(prf)
+                    for pc in (parent_f.get("characters") or parent_f.get("master_cast") or []):
+                        p_name = pc.get("name", "").strip().lower()
+                        if p_name and p_name not in seen_names:
+                            all_chars.append(dict(pc))
+                            seen_names.add(p_name)
+                except Exception:
+                    pass
+
+        # If folder itself has no characters, collect from subfolders
+        if not all_chars:
+            for s_fp in FOLDERS_DIR.glob("*.json"):
+                try:
+                    with open(s_fp, "r", encoding="utf-8") as sf:
+                        s_data = json.load(sf)
+                    if s_data.get("parent_id") == folder_id:
+                        for sc in (s_data.get("characters") or s_data.get("master_cast") or []):
+                            s_name = sc.get("name", "").strip().lower()
+                            if s_name and s_name not in seen_names:
+                                all_chars.append(dict(sc))
+                                seen_names.add(s_name)
+                except Exception:
+                    pass
+
+        return all_chars
+
+    def add_characters_to_master_cast(self, folder_id: str, new_characters: List[Dict]) -> bool:
+        """
+        Appends new characters to folder Master Cast and synchronizes with parent series folder.
+        """
+        if not new_characters:
+            return True
+        f = self.get_folder(folder_id)
+        if not f:
+            return False
+
+        existing = f.get("characters", [])
+        existing_names = {c.get("name", "").strip().lower() for c in existing if c.get("name")}
+        added = False
+        for nc in new_characters:
+            name = nc.get("name", "").strip()
+            if name and name.lower() not in existing_names:
+                existing.append(dict(nc))
+                existing_names.add(name.lower())
+                added = True
+
+        if added:
+            f["characters"] = existing
+            self.save_folder(f, folder_id)
+
+        parent_id = f.get("parent_id")
+        if parent_id:
+            parent_f = self.get_folder(parent_id)
+            if parent_f:
+                p_existing = parent_f.get("characters", [])
+                p_names = {c.get("name", "").strip().lower() for c in p_existing if c.get("name")}
+                p_added = False
+                for nc in new_characters:
+                    name = nc.get("name", "").strip()
+                    if name and name.lower() not in p_names:
+                        p_existing.append(dict(nc))
+                        p_names.add(name.lower())
+                        p_added = True
+                if p_added:
+                    parent_f["characters"] = p_existing
+                    self.save_folder(parent_f, parent_id)
+
+        return True
+
+    def get_folder_director_settings(self, folder_id: str) -> Dict[str, Any]:
+        """
+        Retrieves the saved Director Settings & Preferences for a series/book folder.
+        If current folder doesn't have custom settings, it inherits from the parent series.
+        """
+        fp = self.get_folder_path(folder_id)
+        if not fp.exists():
+            return {}
+        try:
+            with open(fp, "r", encoding="utf-8") as rf:
+                data = json.load(rf)
+            settings = data.get("director_settings") or {}
+            if not settings and data.get("parent_id"):
+                parent_id = data["parent_id"]
+                pf = self.get_folder_path(parent_id)
+                if pf.exists():
+                    with open(pf, "r", encoding="utf-8") as prf:
+                        pdata = json.load(prf)
+                    settings = pdata.get("director_settings") or {}
+            return settings
+        except Exception:
+            return {}
+
+    def save_folder_director_settings(self, folder_id: str, settings: Dict[str, Any]) -> bool:
+        """
+        Saves Director Settings & Preferences to the folder and bubbles up to parent series.
+        """
+        fp = self.get_folder_path(folder_id)
+        if not fp.exists():
+            return False
+        try:
+            with open(fp, "r", encoding="utf-8") as rf:
+                data = json.load(rf)
+            data["director_settings"] = dict(settings)
+            data["updated_at"] = time.time()
+            self.save_folder(data, folder_id)
+
+            parent_id = data.get("parent_id")
+            if parent_id:
+                p_fp = self.get_folder_path(parent_id)
+                if p_fp.exists():
+                    with open(p_fp, "r", encoding="utf-8") as prf:
+                        p_data = json.load(prf)
+                    p_data["director_settings"] = dict(settings)
+                    p_data["updated_at"] = time.time()
+                    self.save_folder(p_data, parent_id)
+            return True
+        except Exception as e:
+            print(f"[ProjectManager] Failed to save folder director settings: {e}")
+            return False
+
+    def generate_series_from_epub(
+        self,
+        epub_path: str,
+        title: Optional[str] = None,
+        author: Optional[str] = None,
+        description: Optional[str] = None,
+        engine: str = "fish_s2",
+        selected_book_indices: Optional[List[int]] = None,
+        selected_chapters: Optional[Dict[str, List[int]]] = None
+    ) -> Dict:
+        """
+        Breaks down an eBook (including multi-volume boxsets like Harry Potter 1-7)
+        into a Series Folder with Book subfolders and lightweight Chapter Cards.
+        Chapter text and AI directing are deferred until the user opens each chapter.
+        """
+        from core.epub_parser import inspect_epub
+
+        if not os.path.exists(epub_path):
+            raise FileNotFoundError(f"EPUB file not found: {epub_path}")
+
+        info = inspect_epub(epub_path)
+        books = info.get("books", [])
+        if not books:
+            raise ValueError("No readable books or chapters found in EPUB.")
+
+        first_book = books[0]
+        series_title = (title or "").strip() or first_book.get("title") or "Untitled Audiobook Series"
+        series_author = (author or "").strip() or first_book.get("author") or "Unknown Author"
+        series_desc = (description or "").strip() or f"Complete audio edition of {series_title} by {series_author}."
+
+        is_multi_book = len(books) > 1
+
+        # 1. Create root series folder
+        root_folder = self.create_folder(
+            title=series_title,
+            author=series_author,
+            description=series_desc,
+            engine=engine,
+            parent_id=None
+        )
+        root_folder_id = root_folder["id"]
+
+        total_chapters_created = 0
+        subfolder_list = []
+
+        if is_multi_book:
+            for b in books:
+                b_idx = b["book_index"]
+                if selected_book_indices and b_idx not in selected_book_indices:
+                    continue
+
+                b_title = b.get("title") or f"Book {b_idx}"
+                b_author = b.get("author") or series_author
+                b_desc = f"Book {b_idx} of {series_title} ({len(b.get('chapters', []))} chapters)"
+
+                # Check if specific chapters were selected for this book
+                allowed_chs = None
+                if selected_chapters:
+                    allowed_chs = selected_chapters.get(str(b_idx)) or selected_chapters.get(b_idx)
+
+                # Create subfolder for this book/volume
+                sub_folder = self.create_folder(
+                    title=b_title,
+                    author=b_author,
+                    description=b_desc,
+                    engine=engine,
+                    parent_id=root_folder_id
+                )
+                sub_id = sub_folder["id"]
+                subfolder_list.append(sub_id)
+
+                # Create lightweight chapter stubs
+                for ch in b.get("chapters", []):
+                    ch_index = ch.get("chapter_index")
+                    if allowed_chs is not None and ch_index not in allowed_chs:
+                        continue
+
+                    ch_title = ch.get("title") or f"Chapter {ch_index}"
+                    ch_info = ProjectManager.parse_chapter_info(ch_title, ch_index)
+
+                    proj_id = f"proj_{uuid.uuid4().hex[:8]}"
+                    stub_proj = {
+                        "id": proj_id,
+                        "title": f"{b_title} - {ch_title}",
+                        "engine": engine,
+                        "default_voice": "voice_stanley_narrator" if engine == "fish_s2" else "am_adam",
+                        "folder_id": sub_id,
+                        "parent_series_id": root_folder_id,
+                        "chapter_number": ch_info.get("parsed_number") or ch_index,
+                        "characters": [],
+                        "blocks": [],
+                        "is_stub": True,
+                        "source_epub": epub_path,
+                        "epub_file_path": ch.get("file_path"),
+                        "epub_anchor": ch.get("anchor", ""),
+                        "word_count": ch.get("word_count", 0),
+                        "estimated_minutes": ch.get("estimated_minutes", 0.0),
+                        "created_at": time.time(),
+                        "updated_at": time.time(),
+                        "master_filename": f"{proj_id}_master.wav"
+                    }
+                    self.save_project(stub_proj, proj_id)
+                    self.add_project_to_folder(sub_id, proj_id)
+                    total_chapters_created += 1
+
+                # Natural sort chapters in this subfolder
+                self.sort_folder_chapters(sub_id)
+
+        else:
+            # Single book
+            b = books[0]
+            b_idx = b.get("book_index", 1)
+            allowed_chs = None
+            if selected_chapters:
+                allowed_chs = selected_chapters.get(str(b_idx)) or selected_chapters.get(b_idx) or selected_chapters.get("1") or selected_chapters.get(1)
+
+            for ch in b.get("chapters", []):
+                ch_index = ch.get("chapter_index")
+                if allowed_chs is not None and ch_index not in allowed_chs:
+                    continue
+
+                ch_title = ch.get("title") or f"Chapter {ch_index}"
+                ch_info = ProjectManager.parse_chapter_info(ch_title, ch_index)
+
+                proj_id = f"proj_{uuid.uuid4().hex[:8]}"
+                stub_proj = {
+                    "id": proj_id,
+                    "title": f"{series_title} - {ch_title}",
+                    "engine": engine,
+                    "default_voice": "voice_stanley_narrator" if engine == "fish_s2" else "am_adam",
+                    "folder_id": root_folder_id,
+                    "parent_series_id": root_folder_id,
+                    "chapter_number": ch_info.get("parsed_number") or ch_index,
+                    "characters": [],
+                    "blocks": [],
+                    "is_stub": True,
+                    "source_epub": epub_path,
+                    "epub_file_path": ch.get("file_path"),
+                    "epub_anchor": ch.get("anchor", ""),
+                    "word_count": ch.get("word_count", 0),
+                    "estimated_minutes": ch.get("estimated_minutes", 0.0),
+                    "created_at": time.time(),
+                    "updated_at": time.time(),
+                    "master_filename": f"{proj_id}_master.wav"
+                }
+                self.save_project(stub_proj, proj_id)
+                self.add_project_to_folder(root_folder_id, proj_id)
+                total_chapters_created += 1
+
+            self.sort_folder_chapters(root_folder_id)
+
+        return {
+            "ok": True,
+            "folder_id": root_folder_id,
+            "series_title": series_title,
+            "is_multi_book": is_multi_book,
+            "books_count": len(books),
+            "subfolders": subfolder_list,
+            "total_chapters": total_chapters_created
+        }
+
+    def direct_stub_chapter(
+        self,
+        project_id: str,
+        cast_mode: str = "multi",
+        ai_direct: bool = True,
+        ai_model: str = "gemini-3.5-flash-lite",
+        split_quotes: bool = True,
+        acting_tags: bool = True,
+        acting_intensity: str = "balanced",
+        analysis_temperature: float = 0.7,
+        default_voice: Optional[str] = None,
+        save_as_folder_default: bool = False,
+        progress_callback: Optional[Any] = None
+    ) -> Dict:
+        """
+        Takes an unimported stub chapter created from an eBook, extracts its text,
+        chunks into blocks, and directs dialogue and characters using the series Unified Master Cast.
+        """
+        from core.epub_parser import get_chapter_text
+        from core.ai_director import AIDirector
+
+        proj = self.get_project(project_id)
+        if not proj:
+            raise ValueError(f"Project '{project_id}' not found")
+
+        source_epub = proj.get("source_epub")
+        epub_file_path = proj.get("epub_file_path")
+        if not source_epub or not epub_file_path:
+            raise ValueError(f"Project '{project_id}' does not have an attached EPUB source")
+
+        ch_data = get_chapter_text(source_epub, epub_file_path, chapter_title=proj.get("title", ""))
+        raw_text = ch_data.get("text", "")
+        if not raw_text:
+            raise ValueError("No text could be extracted from chapter")
+
+        engine = proj.get("engine", "fish_s2")
+        chosen_voice = default_voice or proj.get("default_voice") or ("voice_stanley_narrator" if engine == "fish_s2" else "am_adam")
+
+        # Split text into narrative and dialogue blocks
+        blocks = self.split_text_into_blocks(
+            raw_text,
+            default_voice=chosen_voice,
+            clean_pauses=True,
+            inline_ellipsis=True,
+            expand_dialogue=split_quotes
+        )
+
+        folder_id = proj.get("folder_id")
+        master_cast = self.get_folder_master_cast(folder_id) if folder_id else []
+        characters = list(master_cast) if master_cast else []
+
+        if ai_direct and blocks:
+            # Load voices
+            if engine == "kokoro":
+                try:
+                    with open(BASE_DIR / "core" / "voices_metadata.json", "r", encoding="utf-8") as f:
+                        k_raw = json.load(f)
+                        voices = k_raw if isinstance(k_raw, list) else [{"id": k, **v} for k, v in k_raw.items()]
+                except Exception:
+                    voices = []
+            else:
+                try:
+                    with open(BASE_DIR / "core" / "fish_voices_metadata.json", "r", encoding="utf-8") as f:
+                        voices = json.load(f)
+                except Exception:
+                    voices = []
+
+            cfg = {}
+            cfg_p = BASE_DIR / "projects" / "config.json"
+            if cfg_p.exists():
+                try:
+                    with open(cfg_p, "r", encoding="utf-8") as f:
+                        cfg = json.load(f)
+                except Exception:
+                    pass
+
+            ai_dir = AIDirector()
+            if ai_model and ("llama" in str(ai_model).lower() or "mixtral" in str(ai_model).lower() or "qwen" in str(ai_model).lower() or "gpt-oss" in str(ai_model).lower() or "groq" in str(ai_model).lower()):
+                ai_provider = "groq"
+                api_key = cfg.get("groq_api_key") or os.environ.get("GROQ_API_KEY", "")
+                chosen_model = ai_model if any(m in str(ai_model) for m in ["gpt-oss", "qwen"]) else "openai/gpt-oss-120b"
+            elif ai_model and ("gpt-4" in str(ai_model).lower() or "gpt-3.5" in str(ai_model).lower() or "o1" in str(ai_model).lower() or "o3" in str(ai_model).lower()):
+                ai_provider = "openai"
+                api_key = cfg.get("openai_api_key") or os.environ.get("OPENAI_API_KEY", "")
+                chosen_model = ai_model
+            elif ai_model and "gemini" in str(ai_model).lower():
+                ai_provider = "gemini"
+                api_key = cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
+                chosen_model = ai_model
+            else:
+                ai_provider = cfg.get("default_llm_provider", "gemini")
+                if ai_provider == "groq" and cfg.get("groq_api_key"):
+                    api_key = cfg.get("groq_api_key")
+                    chosen_model = ai_model if any(m in str(ai_model) for m in ["gpt-oss", "qwen"]) else "openai/gpt-oss-120b"
+                elif ai_provider == "openai" and cfg.get("openai_api_key"):
+                    api_key = cfg.get("openai_api_key")
+                    chosen_model = "gpt-4o-mini"
+                else:
+                    ai_provider = "gemini"
+                    api_key = cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
+                    chosen_model = ai_model or "gemini-3.5-flash-lite"
+
+            prod_mode = "single" if cast_mode == "solo" else "multi"
+
+            direct_res = ai_dir.direct_story(
+                blocks=blocks,
+                voices=voices,
+                provider=ai_provider,
+                api_key=api_key,
+                model=chosen_model,
+                split_dialogue=split_quotes,
+                cast_voices=(cast_mode == "multi"),
+                add_emotions=acting_tags,
+                default_narrator_voice=chosen_voice,
+                progress_callback=progress_callback,
+                acting_intensity=acting_intensity,
+                analysis_temperature=analysis_temperature,
+                production_mode=prod_mode,
+                existing_characters=master_cast
+            )
+
+            if direct_res.get("ok"):
+                blocks = direct_res.get("blocks", blocks)
+                new_chars = direct_res.get("characters", [])
+                if new_chars:
+                    characters = new_chars
+                    # Automatically synchronize new characters to the Unified Master Cast
+                    if folder_id:
+                        self.add_characters_to_master_cast(folder_id, new_chars)
+            else:
+                print(f"[ProjectManager] AI direct warning: {direct_res.get('error')}. Retaining blocks with rule-based dialogue.")
+
+        if save_as_folder_default and folder_id:
+            self.save_folder_director_settings(folder_id, {
+                "cast_mode": cast_mode,
+                "ai_model": ai_model,
+                "split_quotes": split_quotes,
+                "acting_tags": acting_tags,
+                "acting_intensity": acting_intensity,
+                "analysis_temperature": analysis_temperature,
+                "default_voice": chosen_voice
+            })
+
+        # Update and save project
+        proj["blocks"] = blocks
+        proj["characters"] = characters
+        proj["is_stub"] = False
+        proj["word_count"] = ch_data.get("word_count", len(raw_text.split()))
+        proj["estimated_minutes"] = ch_data.get("estimated_minutes", round(len(raw_text.split()) / 150.0, 1))
+        proj["updated_at"] = time.time()
+        self.save_project(proj, project_id)
+
+        return {
+            "ok": True,
+            "project": proj,
+            "blocks_count": len(blocks),
+            "characters": characters,
+            "word_count": proj["word_count"],
+            "estimated_minutes": proj["estimated_minutes"]
+        }
+
+    def save_folder(self, folder_data: Dict, folder_id: Optional[str] = None) -> str:
+        import uuid
+        import time
+        fid = folder_id or folder_data.get("id")
+        if not fid:
+            fid = f"folder_{uuid.uuid4().hex[:8]}"
+            folder_data["id"] = fid
+
+        folder_data["updated_at"] = time.time()
+        fp = self.get_folder_path(fid)
+        if fp.exists() and "owner_id" not in folder_data:
+            try:
+                with open(fp, "r", encoding="utf-8") as exf:
+                    ex_d = json.load(exf)
+                    if ex_d.get("owner_id"):
+                        folder_data["owner_id"] = ex_d["owner_id"]
+            except Exception:
+                pass
+        with open(fp, "w", encoding="utf-8") as f:
+            json.dump(folder_data, f, indent=2, ensure_ascii=False)
+        return fid
+
+    def delete_folder(self, folder_id: str, delete_chapters: bool = False) -> bool:
+        folder = self.get_folder(folder_id)
+        if not folder:
+            return False
+
+        # If this is a parent series with subfolders, delete child subfolders recursively
+        for sf in folder.get("subfolders", []):
+            self.delete_folder(sf["id"], delete_chapters=delete_chapters)
+
+        for ch in folder.get("chapters", []):
+            p_data = self.get_project(ch["id"])
+            if not p_data:
+                continue
+            # If explicit delete_chapters requested OR if chapter is an unimported stub card, delete it completely
+            if delete_chapters or p_data.get("is_stub"):
+                self.delete_project(ch["id"])
+            else:
+                p_data.pop("folder_id", None)
+                p_data.pop("parent_series_id", None)
+                self.save_project(p_data, ch["id"])
+
+        fp = self.get_folder_path(folder_id)
+        if fp.exists():
+            fp.unlink()
+            return True
+        return False
+
+    def add_project_to_folder(self, folder_id: str, project_id: str, chapter_index: Optional[int] = None) -> bool:
+        fp = self.get_folder_path(folder_id)
+        if not fp.exists():
+            return False
+        with open(fp, "r", encoding="utf-8") as f:
+            f_data = json.load(f)
+
+        p_data = self.get_project(project_id)
+        if not p_data:
+            return False
+
+        p_data["folder_id"] = folder_id
+        self.save_project(p_data, project_id)
+
+        ch_order = f_data.get("chapter_order", [])
+        if project_id in ch_order:
+            ch_order.remove(project_id)
+
+        if chapter_index is not None and 0 <= chapter_index <= len(ch_order):
+            ch_order.insert(chapter_index, project_id)
+        else:
+            ch_order.append(project_id)
+        f_data["chapter_order"] = ch_order
+
+        # Merge project characters into folder Master Cast (dedup by name)
+        existing_chars = f_data.get("characters", [])
+        existing_names = {c["name"].strip().lower() for c in existing_chars if c.get("name")}
+        for pc in p_data.get("characters", []):
+            if pc.get("name") and pc["name"].strip().lower() not in existing_names:
+                existing_chars.append(dict(pc))
+                existing_names.add(pc["name"].strip().lower())
+        f_data["characters"] = existing_chars
+
+        self.save_folder(f_data, folder_id)
+        if chapter_index is None:
+            try:
+                self.sort_folder_chapters(folder_id)
+            except Exception:
+                pass
+        return True
+
+    def remove_project_from_folder(self, folder_id: str, project_id: str) -> bool:
+        fp = self.get_folder_path(folder_id)
+        if fp.exists():
+            with open(fp, "r", encoding="utf-8") as f:
+                f_data = json.load(f)
+            ch_order = f_data.get("chapter_order", [])
+            if project_id in ch_order:
+                ch_order.remove(project_id)
+                f_data["chapter_order"] = ch_order
+                self.save_folder(f_data, folder_id)
+
+        p_data = self.get_project(project_id)
+        if p_data:
+            p_data.pop("folder_id", None)
+            self.save_project(p_data, project_id)
+            return True
+        return False
+
+    def reorder_folder_chapters(self, folder_id: str, chapter_ids: List[str]) -> bool:
+        fp = self.get_folder_path(folder_id)
+        if not fp.exists():
+            return False
+        with open(fp, "r", encoding="utf-8") as f:
+            f_data = json.load(f)
+        f_data["chapter_order"] = chapter_ids
+        self.save_folder(f_data, folder_id)
+        return True
+
+    def update_folder_master_cast(self, folder_id: str, characters: List[Dict], sync_to_chapters: bool = True, mode: str = "replace") -> bool:
+        fp = self.get_folder_path(folder_id)
+        if not fp.exists():
+            return False
+        with open(fp, "r", encoding="utf-8") as f:
+            f_data = json.load(f)
+
+        if mode == "merge":
+            existing = f_data.get("characters") or f_data.get("master_cast") or []
+            existing_map = {c.get("name", "").strip().lower(): c for c in existing if c.get("name")}
+            for nc in characters:
+                k = nc.get("name", "").strip().lower()
+                if k in existing_map:
+                    existing_map[k].update(nc)
+                else:
+                    existing.append(dict(nc))
+            final_chars = existing
+        else:
+            final_chars = characters
+
+        f_data["characters"] = final_chars
+        f_data["master_cast"] = final_chars
+        self.save_folder(f_data, folder_id)
+
+        # Bubble up to parent folder if exists
+        parent_id = f_data.get("parent_id")
+        if parent_id:
+            p_fp = self.get_folder_path(parent_id)
+            if p_fp.exists():
+                try:
+                    with open(p_fp, "r", encoding="utf-8") as pf:
+                        p_data = json.load(pf)
+                    p_existing = p_data.get("characters") or p_data.get("master_cast") or []
+                    p_map = {c.get("name", "").strip().lower(): c for c in p_existing if c.get("name")}
+                    for nc in final_chars:
+                        k = nc.get("name", "").strip().lower()
+                        if k in p_map:
+                            p_map[k].update(nc)
+                        else:
+                            p_existing.append(dict(nc))
+                    p_data["characters"] = p_existing
+                    p_data["master_cast"] = p_existing
+                    self.save_folder(p_data, parent_id)
+                except Exception:
+                    pass
+
+        if sync_to_chapters:
+            ch_order = f_data.get("chapter_order", [])
+            cast_by_name = {c["name"].strip().lower(): c for c in final_chars if c.get("name")}
+            for cid in ch_order:
+                proj = self.get_project(cid)
+                if not proj:
+                    continue
+                p_chars = proj.get("characters", [])
+                p_names = {c["name"].strip().lower() for c in p_chars if c.get("name")}
+                for pc in p_chars:
+                    k = pc.get("name", "").strip().lower()
+                    if k in cast_by_name:
+                        mc = cast_by_name[k]
+                        if mc.get("assigned_voice_id"):
+                            pc["assigned_voice_id"] = mc["assigned_voice_id"]
+                        if mc.get("voice_id"):
+                            pc["voice_id"] = mc["voice_id"]
+                        if mc.get("persona"):
+                            pc["persona"] = mc["persona"]
+                        if "default_emotion_tag" in mc:
+                            pc["default_emotion_tag"] = mc["default_emotion_tag"]
+                        if mc.get("reference_audio"):
+                            pc["reference_audio"] = mc["reference_audio"]
+                        if mc.get("reference_text"):
+                            pc["reference_text"] = mc["reference_text"]
+                for mc in final_chars:
+                    k = mc.get("name", "").strip().lower()
+                    if k and k not in p_names:
+                        p_chars.append(dict(mc))
+                proj["characters"] = p_chars
+                self.save_project(proj, cid)
+        return True
+
+    def remove_character_from_master_cast(self, folder_id: str, char_id_or_name: str, remove_from_chapters: bool = False) -> bool:
+        fp = self.get_folder_path(folder_id)
+        if not fp.exists():
+            return False
+        with open(fp, "r", encoding="utf-8") as f:
+            f_data = json.load(f)
+
+        target = (char_id_or_name or "").strip().lower()
+        existing = f_data.get("characters") or f_data.get("master_cast") or []
+        new_chars = [c for c in existing if c.get("id") != char_id_or_name and c.get("name", "").strip().lower() != target]
+        f_data["characters"] = new_chars
+        f_data["master_cast"] = new_chars
+        self.save_folder(f_data, folder_id)
+
+        # Bubble up to parent folder if exists
+        parent_id = f_data.get("parent_id")
+        if parent_id:
+            p_fp = self.get_folder_path(parent_id)
+            if p_fp.exists():
+                try:
+                    with open(p_fp, "r", encoding="utf-8") as pf:
+                        p_data = json.load(pf)
+                    p_existing = p_data.get("characters") or p_data.get("master_cast") or []
+                    p_data["characters"] = [c for c in p_existing if c.get("id") != char_id_or_name and c.get("name", "").strip().lower() != target]
+                    p_data["master_cast"] = p_data["characters"]
+                    self.save_folder(p_data, parent_id)
+                except Exception:
+                    pass
+
+        if remove_from_chapters:
+            ch_order = f_data.get("chapter_order", [])
+            for cid in ch_order:
+                proj = self.get_project(cid)
+                if not proj:
+                    continue
+                p_chars = proj.get("characters", [])
+                p_new = [c for c in p_chars if c.get("id") != char_id_or_name and c.get("name", "").strip().lower() != target]
+                if len(p_new) != len(p_chars):
+                    proj["characters"] = p_new
+                    self.save_project(proj, cid)
+        return True
+
+    @staticmethod
+    def parse_chapter_info(title: str, explicit_num=None) -> Dict[str, Any]:
+        """
+        Parses title for chapter numbers, roman numerals, word numbers, or front/back matter keywords.
+        Returns a dict with 'rank', 'is_front_matter', 'is_back_matter', 'chapter_label', and 'parsed_number'.
+        """
+        WORD_NUMS = {
+            "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+            "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+            "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20
+        }
+        ROMAN_NUMS = {
+            "i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
+            "viii": 8, "ix": 9, "x": 10, "xi": 11, "xii": 12, "xiii": 13,
+            "xiv": 14, "xv": 15, "xvi": 16, "xvii": 17, "xviii": 18, "xix": 19, "xx": 20
+        }
+        FRONT_MATTER_SCORES = {
+            "cover": -50, "title": -40, "copyright": -30, "dedication": -25,
+            "acknowledgments": -20, "acknowledgement": -20, "foreword": -15,
+            "preface": -10, "prologue": -5, "introduction": -4, "intro": -4
+        }
+        BACK_MATTER_SCORES = {
+            "epilogue": 10010, "afterword": 10020, "conclusion": 10030,
+            "appendix": 10040, "glossary": 10050, "index": 10060, "about the author": 10070
+        }
+
+        t = (title or "").lower()
+
+        # 1. Front matter
+        for kw, score in FRONT_MATTER_SCORES.items():
+            if re.search(r'\b' + re.escape(kw) + r'\b', t):
+                lbl = "Legal" if kw == "copyright" else kw.capitalize()
+                return {
+                    "rank": score,
+                    "is_front_matter": True,
+                    "is_back_matter": False,
+                    "chapter_label": lbl,
+                    "parsed_number": None
+                }
+
+        # 2. Back matter
+        for kw, score in BACK_MATTER_SCORES.items():
+            if re.search(r'\b' + re.escape(kw) + r'\b', t):
+                return {
+                    "rank": score,
+                    "is_front_matter": False,
+                    "is_back_matter": True,
+                    "chapter_label": kw.capitalize(),
+                    "parsed_number": None
+                }
+
+        # 3. "Chapter X", "Lesson X", "Act X", "Ch X", "Part X"
+        m = re.search(r'\b(?:chapter|lesson|act|ch|part|episode|ep)\.?\s*([a-z0-9]+)', t)
+        if m:
+            token = m.group(1).lower()
+            num = None
+            if token.isdigit():
+                num = int(token)
+            elif token in WORD_NUMS:
+                num = WORD_NUMS[token]
+            elif token in ROMAN_NUMS:
+                num = ROMAN_NUMS[token]
+            if num is not None:
+                return {
+                    "rank": num,
+                    "is_front_matter": False,
+                    "is_back_matter": False,
+                    "chapter_label": f"Ch. {num}",
+                    "parsed_number": num
+                }
+
+        # 4. Standalone number in title
+        m2 = re.search(r'\b(\d+)\b', t)
+        if m2:
+            num = int(m2.group(1))
+            return {
+                "rank": num,
+                "is_front_matter": False,
+                "is_back_matter": False,
+                "chapter_label": f"Ch. {num}",
+                "parsed_number": num
+            }
+
+        # 5. Explicit fallback
+        if explicit_num is not None and isinstance(explicit_num, (int, float)):
+            num = int(explicit_num)
+            return {
+                "rank": num,
+                "is_front_matter": False,
+                "is_back_matter": False,
+                "chapter_label": f"Ch. {num}",
+                "parsed_number": num
+            }
+
+        return {
+            "rank": 500,
+            "is_front_matter": False,
+            "is_back_matter": False,
+            "chapter_label": "Story",
+            "parsed_number": None
+        }
+
+    def sort_folder_chapters(self, folder_id: str) -> List[str]:
+        """
+        Sorts all chapters in a folder in natural book order (Front Matter -> Ch 1..N -> Back Matter).
+        Updates each project's chapter_number and the folder's chapter_order.
+        """
+        fp = self.get_folder_path(folder_id)
+        if not fp.exists():
+            return []
+        with open(fp, "r", encoding="utf-8") as f:
+            f_data = json.load(f)
+
+        all_projects = {p["id"]: p for p in self.list_projects()}
+        folder_projs = []
+        for pid, pdata in all_projects.items():
+            if pdata.get("folder_id") == folder_id:
+                folder_projs.append(pdata)
+
+        if not folder_projs:
+            return []
+
+        def _sort_key(p):
+            info = ProjectManager.parse_chapter_info(p.get("title", ""), p.get("chapter_number"))
+            return (info["rank"], p.get("created_at") or 0, p.get("title") or "")
+
+        sorted_projs = sorted(folder_projs, key=_sort_key)
+        new_order = []
+
+        numbered_count = 1
+        for p in sorted_projs:
+            pid = p["id"]
+            new_order.append(pid)
+            info = ProjectManager.parse_chapter_info(p.get("title", ""), p.get("chapter_number"))
+            full_p = self.get_project(pid)
+            if full_p:
+                if info.get("parsed_number") is not None:
+                    full_p["chapter_number"] = info["parsed_number"]
+                elif info.get("is_front_matter"):
+                    full_p["chapter_number"] = None
+                else:
+                    full_p["chapter_number"] = numbered_count
+                    numbered_count += 1
+                self.save_project(full_p, pid)
+
+        f_data["chapter_order"] = new_order
+        self.save_folder(f_data, folder_id)
+        return new_order
 

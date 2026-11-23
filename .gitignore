@@ -28,9 +28,22 @@ output/*.zip
 !output/samples/
 !output/samples/*.wav
 
+# User uploaded media & books
+data/
+data/**
+
 # Local user configuration & project data
 projects/config.json
 projects/proj_*.json
+projects/folders/
+projects/folders/**
+projects/*.db
+projects/*.db-shm
+projects/*.db-wal
+projects/sessions.json
+projects/users.json
+projects/tier.json
+projects/kaggle_session.json
 kaggle.json
 .env
 

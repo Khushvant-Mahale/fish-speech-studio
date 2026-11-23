@@ -24,10 +24,32 @@ import urllib.error
 import threading
 import subprocess
 import re
+import argparse
 from pathlib import Path
+
+# ==============================================================================
+# ⚙️ USER CONFIGURATION & CLI ARGUMENTS
+# Supports:
+#   --port <p>      : Custom port (default: 8080)
+#   --local         : Local GPU execution (skips Cloudflare tunnel & auto-shutdown)
+#   --idle-timeout  : Auto-shutdown idle timeout in minutes (0 to disable)
+# ==============================================================================
+parser = argparse.ArgumentParser(description="Fish Audio S2 Pro Worker")
+parser.add_argument("--port", type=int, default=8080, help="Port to listen on")
+parser.add_argument("--local", action="store_true", help="Run strictly on local loopback without Cloudflare tunnel")
+parser.add_argument("--idle-timeout", type=int, default=30, help="Inactivity timeout in minutes (0 to disable)")
+parsed_args, _ = parser.parse_known_args()
+
+IS_LOCAL = parsed_args.local or ("--local" in sys.argv)
+ASSIGNED_PORT = parsed_args.port
+if IS_LOCAL:
+    IDLE_TIMEOUT_MINUTES = 0  # Local PC workers run continuously without auto-shutdown
+else:
+    IDLE_TIMEOUT_MINUTES = parsed_args.idle_timeout
 
 print("=" * 76)
 print("🐟 Fish Audio S2 Pro (5B Dual-AR) — Complete 1-Click GPU Worker Setup")
+print(f"   (Idle Auto-Shutdown: {'DISABLED (runs continuously)' if IDLE_TIMEOUT_MINUTES <= 0 else f'{IDLE_TIMEOUT_MINUTES} minutes'})")
 print("=" * 76)
 
 # ----------------- 0. RESTORE CLEAN TORCHAUDIO IF PREVIOUSLY MODIFIED ----------------- #
@@ -259,8 +281,8 @@ for root, _, files in os.walk("fish-speech"):
 
                 if "def decode_vq_tokens(" in c and "torch.cuda.empty_cache()" not in c:
                     c = re.sub(
-                        r'def decode_vq_tokens\s*\(\s*self\s*,\s*tokens[^)]*\):',
-                        'def decode_vq_tokens(self, tokens):\n        import torch\n        if torch.cuda.is_available():\n            torch.cuda.empty_cache()',
+                        r'def decode_vq_tokens\s*\(\s*self\s*,([^)]*)\):',
+                        r'def decode_vq_tokens(self,\1):\n        import torch\n        if torch.cuda.is_available():\n            torch.cuda.empty_cache()',
                         c,
                         count=1
                     )
@@ -350,10 +372,9 @@ else:
     )
     print("    ✅ Download complete! S2 Pro weights saved to", TARGET_CKPT_DIR)
 
-# Optimize config.json max_seq_len for speech synthesis
-# MUST be 4096 minimum: Fish Speech warm-up check is `tokens > max_seq_len - 2048`
-# so max_seq_len=2048 → limit=0 → even 1 token fails. 4096 → limit=2048 (plenty for TTS).
-# 4096 frees ~4.3 GB VRAM vs original 32768, still fits in 14.56 GB T4.
+# Optimize config.json max_seq_len for speech synthesis on Tesla T4 (14.56 GB)
+# Setting max_seq_len to 2560 frees ~1.5 GB of pre-allocated KV-cache VRAM,
+# leaving plenty of headroom for the neural DAC vocoder (which needs ~100 MB).
 cfg_file = os.path.join(TARGET_CKPT_DIR, "config.json")
 if os.path.exists(cfg_file):
     try:
@@ -362,18 +383,18 @@ if os.path.exists(cfg_file):
             cdata = json.load(f)
         modified = False
         cur = cdata.get("max_seq_len", 0)
-        if cur != 4096:
-            cdata["max_seq_len"] = 4096
+        if cur != 2560:
+            cdata["max_seq_len"] = 2560
             modified = True
-        if "text_config" in cdata and cdata["text_config"].get("max_seq_len", 0) != 4096:
-            cdata["text_config"]["max_seq_len"] = 4096
+        if "text_config" in cdata and cdata["text_config"].get("max_seq_len", 0) != 2560:
+            cdata["text_config"]["max_seq_len"] = 2560
             modified = True
         if modified:
             with open(cfg_file, "w", encoding="utf-8") as f:
                 json.dump(cdata, f, indent=2)
-            print(f"    ⚡ Set config.json max_seq_len: {cur} -> 4096 (frees ~4.3 GB VRAM, keeps warm-up working)")
+            print(f"    ⚡ Set config.json max_seq_len: {cur} -> 2560 (frees ~1.5 GB VRAM for DAC audio vocoder)")
         else:
-            print("    ✅ config.json max_seq_len already set to 4096")
+            print("    ✅ config.json max_seq_len already set to 2560")
     except Exception as e:
         print(f"    Notice: {e}")
 
@@ -381,8 +402,9 @@ if os.path.exists(cfg_file):
 print("\n[4/4] Launching Real S2 Pro Neural GPU Engine & Cloudflare Tunnel...")
 
 # Terminate any previous dangling server or tunnel processes to guarantee 100% free VRAM & clean port
-subprocess.run(["pkill", "-9", "-f", "tools/api_server.py"], check=False)
-subprocess.run(["pkill", "-9", "-f", "cloudflared"], check=False)
+if sys.platform != "win32":
+    subprocess.run(["pkill", "-9", "-f", "tools/api_server.py"], check=False)
+    subprocess.run(["pkill", "-9", "-f", "cloudflared"], check=False)
 import gc
 gc.collect()
 try:
@@ -406,7 +428,10 @@ def get_free_port(start_port=8080):
                 continue
     return start_port
 
-PORT = get_free_port(8080)
+if ASSIGNED_PORT:
+    PORT = ASSIGNED_PORT
+else:
+    PORT = get_free_port(8080)
 print(f"    [*] Local Port assigned: {PORT}")
 
 cmd = [
@@ -446,7 +471,8 @@ def stream_logs(pipe):
         clean = line.strip()
         if clean:
             print("       " + clean, flush=True)
-            if any(k in clean for k in ["POST /v1/tts", "POST /synthesize", "GET /v1/models", "POST /"]):
+            # Reset inactivity timer on any incoming HTTP request (synthesis or health pings from studio)
+            if any(k in clean for k in ["POST ", "GET ", "HTTP/", "INFO:"]):
                 last_activity_time[0] = time.time()
             if any(k in clean for k in ["Application startup complete", "Uvicorn running on", "Started server process"]):
                 if "Application startup complete" in clean or "Uvicorn running on" in clean:
@@ -491,41 +517,53 @@ if not server_ready:
     while True:
         time.sleep(60)
 
-# Server is verified active and responding on local port! Now spawn Cloudflare tunnel
+# Server is verified active and responding on local port!
 print("    ✅ S2 Pro 5B Neural model loaded into GPU VRAM!")
-print("    🌐 Spawning encrypted Cloudflare HTTPS secure tunnel...")
 
-from pycloudflared import try_cloudflare
-tunnel = try_cloudflare(port=PORT)
-tunnel_url = getattr(tunnel, "tunnel", str(tunnel)).strip()
+if IS_LOCAL:
+    tunnel_url = f"http://127.0.0.1:{PORT}"
+    print(f"    ⚡ LOCAL GPU MODE: Direct local loopback active on {tunnel_url} (No tunnel needed)")
+else:
+    print("    🌐 Spawning encrypted Cloudflare HTTPS secure tunnel...")
+    from pycloudflared import try_cloudflare
+    tunnel = try_cloudflare(port=PORT)
+    tunnel_url = getattr(tunnel, "tunnel", str(tunnel)).strip()
 
 print("\n" + "=" * 76)
-print("  🎉 FISH AUDIO S2 PRO (5B DUAL-AR) NEURAL GPU WORKER IS ONLINE & READY!")
+print(f"  🎉 FISH AUDIO S2 PRO ({'LOCAL GPU' if IS_LOCAL else 'CLOUD GPU'}) WORKER IS ONLINE & READY!")
 print("=" * 76)
 print(f"  ⚡ GPU Hardware:    {gpu_name}")
 print(f"  ⚡ Neural Model:    fishaudio/s2-pro (5B Dual-AR, 11 GB Weights in VRAM)")
 print(f"  ⚡ Emotion Engine:  Native [whisper], [scream], [sinister], [panic], etc.")
-print(f"  🌐 TUNNEL URL:      {tunnel_url}")
+print(f"  🌐 {'LOCAL URL' if IS_LOCAL else 'TUNNEL URL'}:      {tunnel_url}")
 print("=" * 76)
-print("  📋 1-STEP CONNECTION:")
-print("  1. Copy the TUNNEL URL above right now.")
-print("  2. Open Studio (http://localhost:7865) -> Click 'Cloud GPU' in top bar.")
-print("  3. Paste into Tunnel URL -> Click '⚡ Test Connection' -> 'Save & Activate'.")
+if IS_LOCAL:
+    print("  📋 ZERO-SETUP LOCAL MODE: Studio connects automatically to http://127.0.0.1:" + str(PORT))
+else:
+    print("  📋 1-STEP CONNECTION:")
+    print("  1. Copy the TUNNEL URL above right now.")
+    print("  2. Open Studio (http://localhost:7865) -> Click 'Cloud GPU' in top bar.")
+    print("  3. Paste into Tunnel URL -> Click '⚡ Test Connection' -> 'Save & Activate'.")
 print("=" * 76 + "\n")
 print("[*] Worker is actively listening for voice synthesis requests. (Keep cell running!)\n")
 
 # Inactivity Watchdog to prevent burning free GPU quota if user closes studio or walks away
-INACTIVITY_TIMEOUT_SECONDS = 300  # 5 minutes of zero generation requests
+INACTIVITY_TIMEOUT_SECONDS = IDLE_TIMEOUT_MINUTES * 60
 last_activity_time[0] = time.time()
 
 def inactivity_watchdog():
+    if INACTIVITY_TIMEOUT_SECONDS <= 0:
+        print("[*] Inactivity Watchdog: DISABLED (worker runs continuously until you stop the cell).")
+        return
+
+    print(f"[*] Inactivity Watchdog: Active ({IDLE_TIMEOUT_MINUTES} minutes idle timeout). Reset on every Studio action.")
     while proc.poll() is None:
         time.sleep(30)
         idle_duration = time.time() - last_activity_time[0]
         if idle_duration > INACTIVITY_TIMEOUT_SECONDS:
             print("\n" + "=" * 76)
             print(f"  ⏱ INACTIVITY TIMEOUT DETECTED ({int(idle_duration / 60)} minutes idle)")
-            print("  🛑 Terminating Kaggle GPU worker to protect user's free weekly GPU quota!")
+            print("  🛑 Terminating GPU worker to protect user's free GPU quota!")
             print("=" * 76 + "\n", flush=True)
             try:
                 proc.terminate()

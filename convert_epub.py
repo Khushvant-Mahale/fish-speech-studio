@@ -97,10 +97,7 @@ def main():
     proj = create_studio_project(full_title, ch_data['text'], engine=args.studio, voice=args.voice)
     proj_id = proj.get("id")
 
-    if args.studio == "kokoro":
-        studio_url = f"{DEFAULT_STUDIO_URL}/kokoro/studio?project={proj_id}"
-    else:
-        studio_url = f"{DEFAULT_STUDIO_URL}/studio?project={proj_id}"
+    studio_url = f"{DEFAULT_STUDIO_URL}/studio?project={proj_id}"
 
     print(f"\n🎉 Project successfully created!")
     print(f"   Project ID: {proj_id}")

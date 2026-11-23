@@ -122,6 +122,10 @@ class KokoroEngine:
         if not clean_text:
             return {"error": "Empty text"}
 
+        # Validate voice_id: if foreign voice from Fish or Edge TTS, fallback to default Kokoro voice
+        if not voice_id or str(voice_id).startswith(("fish_", "custom_")) or "Neural" in str(voice_id):
+            voice_id = "af_bella"
+
         # Compute cache hash
         voice_tag = voice_id
         if blend_weights and voice_id not in self.preset_blends:
@@ -189,6 +193,30 @@ class KokoroEngine:
             except Exception as e:
                 print(f"[KokoroEngine] Instant DSP sculpt fallback ({e})")
 
+        base_cache_hash = cache_hash
+        # When force_refresh is requested, delete previous cached files for this exact text/voice signature
+        # and generate a fresh unique take hash so the browser receives a brand new file path
+        if force_refresh:
+            prev_files = [
+                CACHE_DIR / f"{base_cache_hash}.wav",
+                CACHE_DIR / f"raw_{base_cache_hash}.wav",
+                CACHE_DIR / f"raw_{raw_cache_hash}.wav"
+            ] + list(CACHE_DIR.glob(f"{base_cache_hash}_*.wav")) \
+              + list(CACHE_DIR.glob(f"raw_{base_cache_hash}_*.wav")) \
+              + list(CACHE_DIR.glob(f"raw_{raw_cache_hash}_*.wav")) \
+              + list(CACHE_DIR.glob(f"dsp_{base_cache_hash}*.wav"))
+            for p in prev_files:
+                try:
+                    if p.exists():
+                        p.unlink()
+                except Exception as del_err:
+                    print(f"[KokoroEngine] Could not delete previous cache file {p.name}: {del_err}")
+
+            import uuid
+            take_id = uuid.uuid4().hex[:8]
+            cache_hash = f"{base_cache_hash}_{take_id}"
+            cache_file = CACHE_DIR / f"{cache_hash}.wav"
+
         # Check remote GPU worker if configured
         if self.remote_url:
             try:
@@ -223,16 +251,18 @@ class KokoroEngine:
                     audio_bytes = response.read()
                     if audio_bytes and len(audio_bytes) > 100:
                         # 1. Save raw untouched neural voice for instant non-destructive DSP re-sculpting
+                        raw_hash_file = CACHE_DIR / f"raw_{cache_hash}.wav"
                         try:
-                            with open(raw_cache_file, "wb") as f_raw:
+                            with open(raw_hash_file, "wb") as f_raw:
                                 f_raw.write(audio_bytes)
                         except Exception:
                             pass
-                        try:
-                            with open(CACHE_DIR / f"raw_{cache_hash}.wav", "wb") as f_raw_hash:
-                                f_raw_hash.write(audio_bytes)
-                        except Exception:
-                            pass
+                        if not force_refresh and raw_cache_file != raw_hash_file:
+                            try:
+                                with open(raw_cache_file, "wb") as f_raw:
+                                    f_raw.write(audio_bytes)
+                            except Exception:
+                                pass
 
                         # 2. Check if DSP settings are neutral
                         is_neutral = (
@@ -309,8 +339,10 @@ class KokoroEngine:
 
         # Cache raw neural speech before gain and DSP for future instant re-sculpting (<0.1s)
         try:
-            sf.write(str(raw_cache_file), raw_samples, self.sample_rate)
-            sf.write(str(CACHE_DIR / f"raw_{cache_hash}.wav"), raw_samples, self.sample_rate)
+            raw_hash_file = CACHE_DIR / f"raw_{cache_hash}.wav"
+            sf.write(str(raw_hash_file), raw_samples, self.sample_rate)
+            if not force_refresh and raw_cache_file != raw_hash_file:
+                sf.write(str(raw_cache_file), raw_samples, self.sample_rate)
         except Exception:
             pass
 
@@ -345,6 +377,11 @@ class KokoroEngine:
 
         # Save to cache
         sf.write(str(cache_file), processed_samples, self.sample_rate)
+        if force_refresh:
+            try:
+                sf.write(str(CACHE_DIR / f"{base_cache_hash}.wav"), processed_samples, self.sample_rate)
+            except Exception:
+                pass
         duration = len(processed_samples) / self.sample_rate
 
         return {

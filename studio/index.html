@@ -6,9 +6,93 @@
   <title>Fish Audio S2 Pro Studio — Cinematic Voice Drama</title>
   <link rel="icon" type="image/svg+xml" href="/studio/favicon.svg">
   <link rel="alternate icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/studio/css/studio.css?v=554">
+  <link rel="stylesheet" href="/studio/css/studio.css?v=650">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
+
+  <!-- ================= VIEW 0: FRONT-DOOR LOGIN GATE ================= -->
+  <div id="view-auth-gate" style="display: none; min-height: 100vh; width: 100%; background: #0b0f17; flex-direction: column; justify-content: center; align-items: center; padding: 40px 20px; box-sizing: border-box; position: relative;">
+    <div style="width: 100%; max-width: 400px; display: flex; flex-direction: column;">
+      
+      <!-- Top Brand -->
+      <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 28px;">
+        <span style="display: inline-flex; gap: 3px; align-items: center; height: 26px;">
+          <span style="width: 4px; height: 14px; background: #3b82f6; border-radius: 2px;"></span>
+          <span style="width: 4px; height: 26px; background: #60a5fa; border-radius: 2px;"></span>
+          <span style="width: 4px; height: 18px; background: #34d399; border-radius: 2px;"></span>
+          <span style="width: 4px; height: 10px; background: #3b82f6; border-radius: 2px;"></span>
+        </span>
+        <span style="font-size: 20px; font-weight: 800; letter-spacing: -0.5px; color: #f8fafc;">Fish Speech Studio</span>
+      </div>
+
+      <!-- Title -->
+      <h1 id="gate-title" style="font-size: 24px; font-weight: 700; color: #ffffff; text-align: center; margin: 0 0 24px 0; letter-spacing: -0.5px;">Welcome back</h1>
+
+      <!-- Google Official One-Tap & Sign-In Container -->
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px;">
+        <div id="google-btn-container" style="width: 100%; display: flex; justify-content: center;"></div>
+        <button type="button" id="btn-gate-google" onclick="handleGoogleSignIn()" style="display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 11px 16px; border-radius: 8px; background: #ffffff; color: #1e293b; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
+          <svg width="18" height="18" viewBox="0 0 24 24" style="flex-shrink: 0;">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span>Sign in with Google</span>
+        </button>
+      </div>
+
+      <!-- Divider -->
+      <div style="display: flex; align-items: center; margin-bottom: 20px; color: #64748b; font-size: 12px;">
+        <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+        <span style="padding: 0 12px; font-weight: 500;">or continue with email</span>
+        <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+      </div>
+
+      <!-- Auth Form -->
+      <form id="gate-auth-form" onsubmit="event.preventDefault(); handleGateSubmit();" style="display: flex; flex-direction: column;">
+        
+        <!-- Name Field (Register Only) -->
+        <div id="gate-name-wrap" style="display: none; margin-bottom: 14px;">
+          <label style="display: block; font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">Full Name</label>
+          <input type="text" id="gate-input-name" placeholder="Author Name" style="width: 100%; box-sizing: border-box; padding: 11px 14px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 14px; outline: none; transition: border-color 0.2s;">
+        </div>
+
+        <!-- Email Field -->
+        <div style="margin-bottom: 14px;">
+          <label style="display: block; font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">Email</label>
+          <input type="email" id="gate-input-email" required placeholder="name@example.com" style="width: 100%; box-sizing: border-box; padding: 11px 14px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 14px; outline: none; transition: border-color 0.2s;">
+        </div>
+
+        <!-- Password Field -->
+        <div style="margin-bottom: 18px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 13px; font-weight: 600; color: #cbd5e1;">Password</label>
+          </div>
+          <div style="position: relative;">
+            <input type="password" id="gate-input-password" required minlength="6" placeholder="••••••••" style="width: 100%; box-sizing: border-box; padding: 11px 40px 11px 14px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 14px; outline: none; transition: border-color 0.2s;">
+            <button type="button" onclick="toggleGatePasswordVisibility()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px; padding: 0;">👁️</button>
+          </div>
+        </div>
+
+        <!-- Error Message Box -->
+        <div id="gate-auth-error" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; padding: 10px 14px; border-radius: 8px; font-size: 12.5px; margin-bottom: 16px; line-height: 1.4;"></div>
+
+        <!-- Primary Submit Button -->
+        <button type="submit" id="gate-auth-submit-btn" style="width: 100%; padding: 12px 16px; border-radius: 8px; background: #3b82f6; color: #ffffff; font-size: 14px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
+          Sign In
+        </button>
+      </form>
+
+      <!-- Toggle Mode Link -->
+      <div style="margin-top: 18px; text-align: center; font-size: 13px; color: #94a3b8;">
+        <span id="gate-toggle-prompt">Don't have an account?</span>
+        <a href="javascript:void(0)" id="gate-auth-toggle-link" onclick="toggleGateAuthMode()" style="color: #60a5fa; font-weight: 600; text-decoration: underline; margin-left: 4px;">Sign up</a>
+      </div>
+
+    </div>
+  </div>
 
   <!-- ================= VIEW 1: PROJECTS DASHBOARD ================= -->
   <div id="view-dashboard">
@@ -18,14 +102,35 @@
         <span class="brand-title" id="dashboard-brand-title">S2 Pro Studio</span>
       </div>
       <div style="display: flex; align-items: center; gap: 12px;">
-        <button class="btn btn-secondary" onclick="window.location.href='/kokoro'" style="background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.45); color: #a5b4fc; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;" title="Switch to Kokoro Story Studio">
-          ⚡ Switch to Kokoro Studio
-        </button>
-        <button class="engine-badge-btn" id="btn-dashboard-engine-status" onclick="openColabModal()" title="Configure Cloud GPU (Google Colab / Kaggle) or Fish API">
+        <button class="engine-badge-btn" id="btn-dashboard-engine-status" onclick="openColabModal()" title="View Audio Plan & Voice Quota">
           <span class="engine-dot"></span>
-          <span class="engine-label" id="dashboard-engine-label">🐟 Fish Audio S2 Pro</span>
-          <span class="engine-config-tag">⚙️</span>
+          <span class="engine-label" id="dashboard-engine-label">⭐ Author Plan</span>
+          <span class="engine-config-tag" id="dashboard-quota-tag">100K words</span>
         </button>
+
+        <!-- User Profile Pill & Dropdown -->
+        <div style="position: relative;" id="user-header-wrap">
+          <button class="btn btn-secondary" id="btn-user-auth" onclick="toggleUserDropdown()" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 12px; border-radius: 8px; border-color: rgba(255,255,255,0.15);">
+            <span id="nav-user-avatar" style="font-size: 14px;">👤</span>
+            <span id="nav-user-label" style="font-weight: 600;">Sign In</span>
+          </button>
+          
+          <div id="user-dropdown-menu" style="display: none; position: absolute; right: 0; top: 110%; width: 230px; background: #0f172a; border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; box-shadow: 0 15px 40px rgba(0,0,0,0.7); z-index: 1000; padding: 12px; flex-direction: column; gap: 6px;">
+            <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px; margin-bottom: 4px;">
+              <div id="dropdown-user-name" style="font-weight: 700; font-size: 13px; color: #fff;">Local Admin</div>
+              <div id="dropdown-user-email" style="font-size: 11px; color: #94a3b8; word-break: break-all;">admin@localhost</div>
+              <div style="margin-top: 6px;">
+                <span id="dropdown-user-tier" class="badge-mini" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 700;">AUTHOR PLAN</span>
+              </div>
+            </div>
+            <button class="btn btn-ghost" onclick="openColabModal(); toggleUserDropdown(false);" style="justify-content: flex-start; width: 100%; font-size: 12px; padding: 6px 8px; border-radius: 6px;">
+              ⭐ Upgrade / Audio Plans
+            </button>
+            <button class="btn btn-ghost" id="btn-dropdown-logout" onclick="handleLogout()" style="justify-content: flex-start; width: 100%; font-size: 12px; padding: 6px 8px; color: #f87171; border-radius: 6px;">
+              🚪 Sign Out
+            </button>
+          </div>
+        </div>
         <button class="btn btn-secondary" id="btn-dashboard-library-top" onclick="openVoiceDrawer()" title="Explore and manage custom voices and celebrity narrators">📚 Voice Library</button>
         <button class="btn btn-secondary" id="btn-dashboard-import-top" onclick="document.getElementById('dashboard-file-input').click()" title="Import text (.txt, .md), project (.json), or ebook (.epub)">📥 Import File</button>
         <button class="btn btn-primary" id="btn-create-project-top" onclick="openNewProjectModal()">＋ New Story Project</button>
@@ -76,6 +181,7 @@
           </div>
           <div class="hero-buttons-row">
             <button class="btn btn-primary" onclick="openNewProjectModal()">＋ New Story Project</button>
+            <button class="btn btn-secondary" onclick="openNewFolderModal()" title="Create multi-chapter audiobook, series or novel folder with unified Master Cast" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2)); border-color: rgba(59, 130, 246, 0.5); color: #93c5fd; font-weight: 600;">📁 New Series / Book</button>
             <button class="btn btn-secondary" onclick="openVoiceDrawer()" title="Explore and manage Voice Library">📚 Voice Library</button>
             <button class="btn btn-secondary" onclick="document.getElementById('dashboard-file-input').click()">📥 Import File (.txt, .md, .json, .epub)</button>
             <button class="btn btn-ghost" onclick="loadSampleStoryIntoProject()" title="Quick test drive with 'The Endless Eclipse' sample manuscript">📖 Load Sample Story</button>
@@ -122,6 +228,36 @@
         </div>
       </div>
 
+      <!-- BREADCRUMB BAR (When inside a series / book folder) -->
+      <div id="dashboard-breadcrumb" class="folder-breadcrumb-bar" style="display: none;"></div>
+
+      <!-- FOLDER HERO HEADER (When inside a series / book folder) -->
+      <div id="dashboard-folder-hero" style="display: none; margin-bottom: 22px;"></div>
+
+      <!-- FOLDERS / SERIES COLLECTIONS SECTION -->
+      <div id="dashboard-folders-section" style="display: none; margin-bottom: 24px;">
+        <div class="dashboard-section-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 16px;">📚</span>
+            <span style="font-weight: 700; font-size: 14px; color: var(--text-main);">Audiobook &amp; Series Collections</span>
+            <span class="badge" id="folders-count-badge" style="font-size: 11px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);">0</span>
+          </div>
+          <button class="btn btn-ghost" onclick="openNewFolderModal()" style="font-size: 11.5px; padding: 3px 8px; color: #93c5fd;">＋ New Series</button>
+        </div>
+        <div class="dashboard-folders-grid" id="dashboard-folders-grid">
+          <!-- Folder cards rendered here -->
+        </div>
+      </div>
+
+      <!-- STANDALONE / INDIVIDUAL STORIES HEADER -->
+      <div class="dashboard-section-header" id="dashboard-stories-header" style="display: none; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 16px;">📄</span>
+          <span style="font-weight: 700; font-size: 14px; color: var(--text-main);" id="dashboard-stories-title">Standalone Stories</span>
+          <span class="badge" id="stories-count-badge" style="font-size: 11px; background: rgba(255, 255, 255, 0.08); color: var(--text-muted);">0</span>
+        </div>
+      </div>
+
       <div class="projects-grid" id="projects-grid">
         <!-- Project cards rendered dynamically by JS -->
       </div>
@@ -137,27 +273,28 @@
         <button class="btn-back" id="btn-back-to-dashboard" onclick="switchToView('dashboard')">
           ← Projects
         </button>
-        <button class="btn btn-ghost" onclick="window.location.href='/kokoro'" style="font-size: 11.5px; padding: 4px 8px; color: #a5b4fc; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Switch to Kokoro Story Studio">
-          ⚡ Kokoro Studio
-        </button>
         <input type="text" class="project-title-input" id="project-title" value="The Endless Eclipse">
       </div>
 
       <div class="nav-center">
-        <button class="engine-badge-btn" id="btn-engine-status" onclick="openColabModal()" title="Configure Cloud GPU (Google Colab / Kaggle) or Fish API">
+        <button class="engine-badge-btn" id="btn-engine-status" onclick="openColabModal()" title="View Audio Plan & Voice Quota">
           <span class="engine-dot"></span>
-          <span class="engine-label" id="studio-engine-label">🐟 Fish S2 Pro Engine</span>
-          <span class="engine-config-tag">⚙️</span>
+          <span class="engine-label" id="studio-engine-label">⭐ Author Plan</span>
+          <span class="engine-config-tag" id="studio-quota-tag">100K words</span>
         </button>
       </div>
 
       <div class="nav-right">
+        <!-- User Account Profile Button -->
+        <button class="btn btn-secondary" onclick="toggleUserDropdown()" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; font-size: 11.5px; border-radius: 6px; border-color: rgba(255,255,255,0.15);" title="My Account & Audio Plan">
+          <span class="nav-user-avatar-tag">👤</span>
+          <span class="nav-user-label-tag">Account</span>
+        </button>
         <div style="display: flex; align-items: center; gap: 6px;">
 
           <button class="btn batch-btn" id="btn-batch-generate" onclick="toggleBatchRender()" title="Render all sentences into audio cache">⚡ Render All</button>
         </div>
         <button class="btn btn-secondary" id="btn-import-story" onclick="openImportModal()">📄 Import Text</button>
-        <button class="btn btn-secondary" id="btn-copy-to-kokoro" onclick="handleCopyCurrentProjectToOther('kokoro')" style="background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.45); color: #a5b4fc; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Duplicate and copy this story project to Kokoro Studio">⚡ Copy to Kokoro</button>
         
         <!-- UNIFIED EXPORT DROPDOWN -->
         <div class="export-dropdown-wrapper" id="export-dropdown-wrapper">
@@ -247,6 +384,10 @@
           <span>FX</span>
         </button>
         <div class="rail-nav-divider"></div>
+        <button class="rail-btn" id="rail-tab-agent" onclick="toggleAIAgentPanel()" title="AI Director Agent Chat">
+          🤖
+          <span>Agent</span>
+        </button>
         <button class="rail-btn" id="rail-voices-btn" onclick="openVoiceDrawer()" title="Voice Catalogue & Library">
           📚
           <span>Library</span>
@@ -278,11 +419,11 @@
           </button>
         </div>
 
-        <!-- Character Link & Custom Status Banner (Persistent across tabs) -->
-        <div id="inspector-character-link-banner" style="display: none; margin: 8px 12px 2px 12px;"></div>
-
         <!-- TAB PANE 1: AUDIO & PACING -->
         <div class="inspector-tab-pane active" id="inspector-tab-pane-audio">
+          <!-- Character Link & Custom Status Banner -->
+          <div id="inspector-character-link-banner" style="display: none; margin: 8px 12px 4px 12px;"></div>
+
           <!-- S2 PRO EMOTION & ACTING -->
           <div class="inspector-section" id="inspector-emotion-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -307,6 +448,10 @@
                 <button type="button" onclick="clearBlockEmotionTag()" style="background: none; border: none; font-size: 10px; color: var(--text-muted); cursor: pointer;">✕ Clear</button>
               </div>
               <input type="text" id="input-emotion-tag" class="search-input" placeholder="e.g. [whispering in terror, voice cracking]" oninput="handleEmotionTagInput(this.value)" style="font-size: 11.5px; padding: 6px 8px; width: 100%;">
+              <div style="display: flex; gap: 6px; margin-top: 5px;">
+                <button type="button" class="btn btn-secondary" onclick="handleEmbedEmotionTagIntoText()" style="flex: 1; font-size: 10.5px; padding: 3px 6px; border-radius: 4px; color: var(--text-muted);" title="Place this tag directly inline inside the sentence text">📝 Embed in Text</button>
+                <button type="button" class="btn btn-secondary" onclick="handleExtractEmotionTagFromText()" style="flex: 1; font-size: 10.5px; padding: 3px 6px; border-radius: 4px; color: var(--text-muted);" title="Extract inline [tag] from sentence text to the green feature pill">🏷️ Extract to Pill</button>
+              </div>
             </div>
 
             <!-- Temperature Slider -->
@@ -428,101 +573,173 @@
 
         <!-- TAB PANE 2: CAST & VOICES -->
         <div class="inspector-tab-pane" id="inspector-tab-pane-cast">
-          <!-- Active Voice Card -->
-          <div class="inspector-section">
+
+          <!-- TTS ENGINE SELECTION (Model Selector Style, Image 3) -->
+          <div class="inspector-section" style="margin-top: 0; background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; position: relative;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <span class="section-label" id="inspector-voice-section-label">Active Voice</span>
-              <span id="default-voice-indicator" style="font-size: 11px; font-weight: 600; color: var(--accent);"></span>
+              <span class="section-label" style="font-size: 11px; font-weight: 700; color: var(--text-subtle);">TTS Engine</span>
+              <span id="cast-engine-tier-tag" class="badge-mini" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 10px;">Drama 3</span>
+            </div>
+
+            <!-- Trigger Button -->
+            <button type="button" id="btn-engine-model-picker" class="engine-picker-btn" onclick="toggleEngineModelDropdown()" title="Choose Text-to-Speech Engine">
+              <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                <span id="selected-engine-icon" style="font-size: 14px;">🌟</span>
+                <div style="display: flex; flex-direction: column; text-align: left; min-width: 0;">
+                  <span id="selected-engine-name" style="font-size: 12px; font-weight: 600; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Fish Speech (Cinema Drama 3)</span>
+                  <span id="selected-engine-sub" style="font-size: 10px; color: var(--text-muted);">Emotion acting • Voice cloning</span>
+                </div>
+              </div>
+              <span style="font-size: 11px; color: var(--text-muted); margin-left: 6px;">▾</span>
+            </button>
+
+            <!-- Custom Model-Style Floating Dropdown (Image 3) -->
+            <div id="engine-model-dropdown" class="engine-model-menu" style="display: none;">
+              <div class="engine-model-menu-header">TTS Engine</div>
+
+              <!-- Option: Fish Speech -->
+              <div class="engine-model-item active" data-engine="fish_s2" onclick="selectEngineOption('fish_s2')">
+                <div class="engine-model-item-main">
+                  <div class="engine-model-item-top">
+                    <span class="engine-model-item-name">🌟 Fish Speech</span>
+                    <span class="engine-model-pill pill-fish">Drama 3</span>
+                  </div>
+                  <div class="engine-model-item-desc">Cinema emotion acting [whisper, scream] &amp; voice cloning</div>
+                </div>
+                <span class="engine-model-check" id="check-engine-fish_s2">✓</span>
+              </div>
+
+              <!-- Option: Kokoro 82M -->
+              <div class="engine-model-item" data-engine="kokoro" onclick="selectEngineOption('kokoro')">
+                <div class="engine-model-item-main">
+                  <div class="engine-model-item-top">
+                    <span class="engine-model-item-name">⚡ Kokoro 82M</span>
+                    <span class="engine-model-pill pill-kokoro">On-Device WebGPU</span>
+                  </div>
+                  <div class="engine-model-item-desc">Renders 100% locally on your CPU/GPU • 0s queue • Free</div>
+                </div>
+                <span class="engine-model-check" id="check-engine-kokoro" style="display: none;">✓</span>
+              </div>
+
+              <!-- Option: Edge TTS -->
+              <div class="engine-model-item" data-engine="edge_tts" onclick="selectEngineOption('edge_tts')">
+                <div class="engine-model-item-main">
+                  <div class="engine-model-item-top">
+                    <span class="engine-model-item-name">🌐 Microsoft Edge TTS</span>
+                    <span class="engine-model-pill pill-edge">300+ Voices</span>
+                  </div>
+                  <div class="engine-model-item-desc">Natural voices across 80+ languages • Free cloud</div>
+                </div>
+                <span class="engine-model-check" id="check-engine-edge_tts" style="display: none;">✓</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACTIVE VOICE (Quick Sentence-Level Voice Control at Top) -->
+          <div class="inspector-section" style="margin-top: 0; background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 12px 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span class="section-label" id="inspector-voice-section-label" style="font-size: 11px; font-weight: 700; color: var(--text-subtle);">Active Voice</span>
+              <span id="default-voice-indicator" style="font-size: 10.5px; font-weight: 600; color: var(--accent);"></span>
             </div>
             
-            <div class="voice-card-trigger" id="inspector-voice-card" title="Click to choose a different voice">
+            <div class="voice-card-trigger" id="inspector-voice-card" onclick="openVoiceDrawer()" title="Click to choose a different voice from the library">
               <div class="voice-avatar-badge" id="inspector-voice-avatar" style="background-color: #ea580c">FO</div>
               <div class="voice-meta-col">
-                <span class="voice-name" id="inspector-voice-name">Gritty Thriller (Fenrir + Onyx)</span>
-                <span class="voice-sub" id="inspector-voice-sub">Deep Baritone • Horror/Mystery</span>
+                <span class="voice-name" id="inspector-voice-name">Stanley (Dry Narrator)</span>
+                <span class="voice-sub" id="inspector-voice-sub">British Storyteller</span>
               </div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-              <button class="action-pill-btn" id="btn-make-default-voice" onclick="handleMakeDefaultVoice()" style="width: 100%; justify-content: center; font-size: 11.5px; border-radius: 6px; padding: 6px 10px;" title="Set this voice as the default narrator for story text">
-                ★ Make Default Story Narrator
+              <button type="button" class="btn btn-primary" id="btn-apply-to-overridden-cast" onclick="handleApplyVoiceToOverriddenCast()" style="width: 100%; font-size: 11px; justify-content: center; padding: 6px 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; font-weight: 600; display: none;" title="Apply this voice to the cast character it was overridden on">
+                🎭 Apply to Narrator
               </button>
-              <button type="button" class="btn btn-primary btn-apply-both-to-selected" onclick="handleApplyVoiceAndSettingsToSelected()" style="width: 100%; font-size: 11.5px; justify-content: center; padding: 7px 10px;" title="Apply active voice AND all audio/pacing/filter settings to selected sentence(s)">
-                ✨ Apply Voice & Settings to Selected
+              <button type="button" class="btn btn-ghost" id="btn-revert-to-overridden-cast" onclick="handleRevertToOverriddenCast()" style="width: 100%; font-size: 11px; justify-content: center; padding: 5px 8px; border: 1px solid rgba(255, 255, 255, 0.12); color: #94a3b8; display: none;" title="Revert this sentence back to its original cast character">
+                ↺ Revert to Narrator
               </button>
-              <button type="button" class="btn btn-secondary" id="btn-apply-voice-to-selected" onclick="handleApplyVoiceToSelected()" style="width: 100%; font-size: 11px; justify-content: center; padding: 5px 8px;" title="Apply only the voice actor (from last clicked sentence) to selected sentence(s)">
-                🎭 Apply Voice Only
+              <button type="button" class="btn btn-secondary" id="btn-apply-voice-to-selected" onclick="handleApplyVoiceToSelected()" style="width: 100%; font-size: 11px; justify-content: center; padding: 5px 8px; border-color: rgba(255, 255, 255, 0.1);" title="Apply only the voice actor (without changing pacing/FX) to selected sentence(s)">
+                🎭 Apply Voice to Selected
               </button>
             </div>
           </div>
 
-          <!-- Zero-Shot Voice Reference Uploader Section (Fish S2 Pro) -->
-          <div class="inspector-section" id="inspector-zero-shot-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <span class="section-label">🎙️ Voice Reference Audio</span>
-              <span style="font-size: 10px; color: #10b981; font-weight: 600;">Zero-Shot</span>
+          <!-- Active Character Filter Banner (shown when user filters blocks by character) -->
+          <div id="inspector-char-filter-banner" style="display: none; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 8px; padding: 8px 12px; margin-top: 4px; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #93c5fd;">
+              <span>🔍</span>
+              <span id="inspector-char-filter-text">Filtered by Character</span>
             </div>
-            <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-bottom: 8px;">
-              Upload a 3–10s audio clip of any voice actor to clone their voice timbre instantly.
-            </div>
-            
-            <div class="ref-upload-card" id="ref-voice-card" onclick="document.getElementById('ref-voice-file-input').click()">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 20px;">📁</span>
-                <div style="overflow: hidden; flex: 1;">
-                  <div id="ref-voice-filename" style="font-size: 12px; font-weight: 600; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">Upload Reference Audio (.wav, .mp3)</div>
-                  <div id="ref-voice-meta" style="font-size: 10.5px; color: var(--text-muted);">No reference clip assigned</div>
-                </div>
-                <button type="button" class="icon-btn" id="btn-play-ref-voice" onclick="handlePlayReferenceVoice(event)" style="display: none; padding: 4px;" title="Play reference clip">▶</button>
-              </div>
-            </div>
-            <div style="display: flex; gap: 6px; margin-top: 6px;">
-              <button type="button" class="action-pill-btn secondary" onclick="openReferenceLibraryModal()" style="flex: 1; font-size: 11px; padding: 5px 8px; justify-content: center; display: flex; align-items: center; gap: 4px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-main); cursor: pointer;" title="Browse previously uploaded reference clips">
-                <span>📚 Choose from Library</span>
-              </button>
-              <button type="button" class="action-pill-btn secondary" onclick="document.getElementById('ref-voice-file-input').click()" style="flex: 1; font-size: 11px; padding: 5px 8px; justify-content: center; display: flex; align-items: center; gap: 4px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-main); cursor: pointer;" title="Upload a new audio file">
-                <span>⬆️ Upload New</span>
-              </button>
-            </div>
-            <input type="file" id="ref-voice-file-input" accept=".wav,.mp3,.ogg,.flac,.m4a" style="display: none;" onchange="handleReferenceVoiceFileUpload(event)">
-            
-            <!-- Reference Audio Transcript input -->
-            <div class="control-group" style="margin-top: 8px;">
-              <div class="control-label-row">
-                <span title="The exact sentence spoken in the reference audio (improves phoneme mapping)">Reference Transcript</span>
-              </div>
-              <input type="text" id="input-ref-transcript" class="search-input" placeholder="e.g. Keep your flashlight down, they're outside." oninput="handleRefTranscriptInput(this.value)" style="font-size: 11px; padding: 5px 8px; width: 100%;">
-            </div>
-
-            <!-- Prompt-to-Voice Designer Button -->
-            <button type="button" class="action-pill-btn primary" onclick="openVoiceDesignerModal()" style="width: 100%; margin-top: 10px; padding: 8px 10px; font-size: 11.5px; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; font-weight: 600; cursor: pointer; border-radius: var(--radius-sm); color: #fff; box-shadow: 0 2px 6px rgba(99, 102, 241, 0.25);">
-              <span>✨ Design Voice from Prompt</span>
-            </button>
+            <button type="button" class="btn btn-ghost" onclick="clearCharacterFilter()" style="padding: 2px 6px; font-size: 11px; color: #60a5fa;" title="Show all chapter blocks">✕ Show All</button>
           </div>
 
-          <!-- Saved Character Voices Section -->
-          <div class="inspector-section" id="inspector-characters-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <span class="section-label">Character Voices</span>
-                <span id="characters-count-badge" class="badge-mini" style="font-size: 10px;">0</span>
+          <!-- Characters Cast Section (Hero of the Cast Tab) -->
+          <div class="inspector-section" id="inspector-characters-section" style="border: none; padding: 0; background: transparent; margin-top: 8px; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 6px; flex-shrink: 0;">
+              <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                <span style="font-size: 12.5px; font-weight: 700; color: #fff; white-space: nowrap;">🎭 Chapter Cast</span>
+                <span id="characters-count-badge" class="badge-mini" style="font-size: 10px; background: rgba(139, 92, 246, 0.25); color: #c4b5fd; padding: 2px 7px; border-radius: 999px; font-weight: 700;">0</span>
               </div>
-              <div style="display: flex; align-items: center; gap: 5px;">
-                <button type="button" class="action-pill-btn secondary" id="btn-save-cast-to-library" onclick="handleSaveActiveToLibrary()" style="padding: 4px 7px; font-size: 11px; color: #34d399; border-color: rgba(16,185,129,0.35); background: rgba(16,185,129,0.12);" title="Save current voice & reference audio permanently to Global Voice Library">
-                  📚 Save to Library
+              <div style="display: flex; align-items: center; gap: 5px; flex-shrink: 0;">
+                <button type="button" class="action-pill-btn primary" onclick="handleOpenSaveCharacterModal()" style="padding: 4px 8px; font-size: 11px; background: linear-gradient(135deg, #8b5cf6, #6366f1); border: none; white-space: nowrap;" title="Create a new character in this chapter & universe">
+                  ＋ New
                 </button>
-                <button type="button" class="action-pill-btn secondary" id="btn-import-cast" onclick="handleOpenImportCastModal()" style="padding: 4px 7px; font-size: 11px;" title="Import character cast from another project">
+                <button type="button" class="action-pill-btn secondary" id="btn-import-cast" onclick="handleOpenImportCastModal()" style="padding: 4px 7px; font-size: 11px; white-space: nowrap;" title="Import characters from another collection or standalone story">
                   📥 Import
                 </button>
-                <button type="button" class="action-pill-btn primary" id="btn-save-as-character" onclick="handleOpenSaveCharacterModal()" style="padding: 4px 8px; font-size: 11px;" title="Save current voice actor and all custom tone & DSP settings as a reusable Character">
-                  💾 Save Current
-                </button>
               </div>
             </div>
 
-            <div id="saved-characters-list" class="saved-characters-list">
-              <!-- Dynamically populated character cards -->
+            <!-- Dynamic Character Cards List -->
+            <div id="saved-characters-list" class="saved-characters-list" style="display: flex; flex-direction: column; gap: 8px; width: 100%; box-sizing: border-box;">
+              <!-- Dynamically populated character cards with block counts, filters, voice switchers -->
             </div>
           </div>
+
+          <!-- Collapsible Zero-Shot Voice Reference Audio (Accordion) -->
+          <details class="inspector-section" id="inspector-zero-shot-section" style="margin-top: 10px; background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 8px 12px;">
+            <summary style="font-size: 11px; font-weight: 600; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: space-between; user-select: none;">
+              <span style="display: flex; align-items: center; gap: 6px;">🎙️ Voice Cloning &amp; Zero-Shot Audio</span>
+              <span style="font-size: 9.5px; color: #10b981; font-weight: 600; border: 1px solid rgba(16, 185, 129, 0.3); padding: 1px 5px; border-radius: 4px;">Zero-Shot</span>
+            </summary>
+            
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+              <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+                Upload a 3–10s audio clip of any voice actor to clone their voice timbre instantly.
+              </div>
+              
+              <div class="ref-upload-card" id="ref-voice-card" onclick="document.getElementById('ref-voice-file-input').click()">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 20px;">📁</span>
+                  <div style="overflow: hidden; flex: 1;">
+                    <div id="ref-voice-filename" style="font-size: 12px; font-weight: 600; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">Upload Reference Audio (.wav, .mp3)</div>
+                    <div id="ref-voice-meta" style="font-size: 10.5px; color: var(--text-muted);">No reference clip assigned</div>
+                  </div>
+                  <button type="button" class="icon-btn" id="btn-play-ref-voice" onclick="handlePlayReferenceVoice(event)" style="display: none; padding: 4px;" title="Play reference clip">▶</button>
+                </div>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="action-pill-btn secondary" onclick="openReferenceLibraryModal()" style="flex: 1; font-size: 11px; padding: 5px 8px; justify-content: center; display: flex; align-items: center; gap: 4px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-main); cursor: pointer;" title="Browse previously uploaded reference clips">
+                  <span>📚 Choose from Library</span>
+                </button>
+                <button type="button" class="action-pill-btn secondary" onclick="document.getElementById('ref-voice-file-input').click()" style="flex: 1; font-size: 11px; padding: 5px 8px; justify-content: center; display: flex; align-items: center; gap: 4px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-main); cursor: pointer;" title="Upload a new audio file">
+                  <span>⬆️ Upload New</span>
+                </button>
+              </div>
+              <input type="file" id="ref-voice-file-input" accept=".wav,.mp3,.ogg,.flac,.m4a" style="display: none;" onchange="handleReferenceVoiceFileUpload(event)">
+              
+              <!-- Reference Audio Transcript input -->
+              <div class="control-group">
+                <div class="control-label-row">
+                  <span style="font-size: 11px;" title="The exact sentence spoken in the reference audio (improves phoneme mapping)">Reference Transcript</span>
+                </div>
+                <input type="text" id="input-ref-transcript" class="search-input" placeholder="e.g. Keep your flashlight down, they're outside." oninput="handleRefTranscriptInput(this.value)" style="font-size: 11px; padding: 5px 8px; width: 100%;">
+              </div>
+
+              <!-- Prompt-to-Voice Designer Button -->
+              <button type="button" class="action-pill-btn primary" onclick="openVoiceDesignerModal()" style="width: 100%; padding: 7px 10px; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; font-weight: 600; cursor: pointer; border-radius: var(--radius-sm); color: #fff;">
+                <span>✨ Design Voice from Prompt</span>
+              </button>
+            </div>
+          </details>
         </div>
 
         <!-- TAB PANE 3: ACOUSTIC FX FILTERS -->
@@ -614,12 +831,10 @@
               </button>
             </div>
           </div>
-          <div class="action-bar-right" id="bulk-action-buttons">
-            <button class="action-pill-btn" id="btn-auto-direct" onclick="openAIDirectorModal()" title="Auto-detect characters, attribute dialogue quotes, cast voices from Voice Library, and inject acting tags using Gemini / Groq / OpenAI LLM" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(59, 130, 246, 0.25)); border-color: rgba(139, 92, 246, 0.6); color: #c4b5fd; font-weight: 700;">
-              🤖 Auto-Direct with AI
-            </button>
-            <button class="action-pill-btn" id="btn-ai-setup" onclick="openAIDirectorModal(true)" title="Configure Google Gemini, Groq, or OpenAI API key for Auto-Directing" style="border-color: rgba(255, 255, 255, 0.15); color: var(--text-muted); font-size: 11.5px; padding: 4px 8px;">
-              ⚙️ API Setup
+          <!-- Story Utilities (Default mode: count <= 1) -->
+          <div class="action-bar-right" id="story-utility-buttons">
+            <button class="action-pill-btn primary" id="btn-ai-agent-toggle" onclick="toggleAIAgentPanel()" title="Open AI Director Agent chat to direct, cast, split/merge sentences, and adjust audio in English" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.35), rgba(6, 182, 212, 0.35)); border-color: rgba(139, 92, 246, 0.7); color: #e0e7ff; font-weight: 700; box-shadow: 0 0 12px rgba(139, 92, 246, 0.25);">
+              ✨ AI Director Agent
             </button>
             <button class="action-pill-btn" id="btn-merge-short" onclick="handleMergeShortBlocks()" title="Merge ultra-small consecutive sentences of the same narrator (e.g. 'No network. No emergency lines.') into single blocks">
               🔗 Merge Short
@@ -627,26 +842,27 @@
             <button class="action-pill-btn" id="btn-auto-split" onclick="handleAutoSplitAll()" title="Auto-split paragraphs at [pause] pacing markers and sentences for dramatic pauses and 5x faster rendering">
               ✂️ Auto-Split Sentences
             </button>
-            <button class="action-pill-btn" id="btn-clean-pauses" onclick="handleCleanPauses()" title="Remove useless [pause] tags before scene cuts/cards and convert them to Card Spacing (eliminates 1-sec dead silence)">
-              🧹 Clean [pause]
-            </button>
-            <button class="action-pill-btn primary" id="btn-bulk-change-voice" onclick="openVoiceDrawer()" title="Change voice for selected sentences" style="display: none;">
+          </div>
+
+          <!-- Bulk Selection Actions (Multi-select mode: count > 1) -->
+          <div class="action-bar-right" id="bulk-selection-buttons" style="display: none;">
+            <button class="action-pill-btn primary" id="btn-bulk-change-voice" onclick="openVoiceDrawer()" title="Change voice for selected sentences">
               👥 Voice
             </button>
-            <button class="action-pill-btn" id="btn-bulk-merge" onclick="handleBulkMergeSelected()" title="Merge selected sentences into one single sentence block" style="display: none;">
-              🔗 Merge Selected
-            </button>
-            <button class="action-pill-btn" id="btn-bulk-render" onclick="handleBulkRender()" title="Render only selected sentences sequentially" style="display: none;">
+            <button class="action-pill-btn" id="btn-bulk-render" onclick="handleBulkRender()" title="Render only selected sentences sequentially" style="border-color: rgba(245, 158, 11, 0.5); color: #fcd34d;">
               ⚡ Render
             </button>
-            <button class="action-pill-btn" id="btn-bulk-export" onclick="exportSelectedAudio()" title="Export selected audio (single sentence as WAV, multiple as ZIP)" style="display: none;">
-              📦 Export
+            <button class="action-pill-btn" id="btn-bulk-merge" onclick="handleBulkMergeSelected()" title="Merge selected sentences into one single sentence block">
+              🔗 Merge Selected
             </button>
-            <button class="action-pill-btn" id="btn-bulk-custom-toggle" onclick="toggleBlockCustomEdited()" title="Toggle whether selected sentences are marked custom-edited or synced with their character" style="display: none;">
-              🔄 Custom / Synced
+            <button class="action-pill-btn" id="btn-bulk-custom-toggle" onclick="toggleBlockCustomEdited()" title="Toggle whether selected sentences are marked custom-edited or synced with their character">
+              🔄 Custom / Sync
             </button>
-            <button class="action-pill-btn danger" id="btn-bulk-delete" onclick="handleBulkDelete()" title="Delete selected sentences" style="display: none;">
+            <button class="action-pill-btn danger" id="btn-bulk-delete" onclick="handleBulkDelete()" title="Delete selected sentences">
               🗑️ Delete
+            </button>
+            <button class="action-pill-btn" id="btn-clear-selection" onclick="clearBlockSelection()" title="Deselect all (Return to single edit mode)" style="border-color: rgba(255, 255, 255, 0.15); color: var(--text-muted); font-size: 11.5px; padding: 4px 8px;">
+              ✕ Deselect
             </button>
           </div>
         </div>
@@ -699,6 +915,106 @@
           <button type="button" class="add-block-btn add-heading-btn" id="btn-add-heading" onclick="addNewSceneHeading()" title="Add a non-spoken Scene or Chapter divider heading (e.g. Scene 2, Chapter 1)">🎬 Add Scene Heading</button>
         </div>
       </main>
+
+      <!-- RIGHT AI DIRECTOR AGENT PANEL -->
+      <aside class="ai-agent-panel collapsed" id="ai-agent-panel">
+        <!-- Panel Header -->
+        <div class="agent-panel-header">
+          <div class="agent-header-title-row">
+            <div class="agent-title-cluster">
+              <span class="agent-icon-sparkle">✨</span>
+              <span class="agent-title-text">AI Director Agent</span>
+              <span class="agent-status-pill" id="agent-status-pill">Ready</span>
+            </div>
+            <div class="agent-header-actions">
+              <button type="button" class="agent-icon-btn" onclick="toggleAIAgentSessionsDrawer()" id="btn-agent-sessions" title="Chat History & Sessions (Browse Past Chats)">📜</button>
+              <button type="button" class="agent-icon-btn" onclick="startNewAIAgentSession()" title="Start New Conversation (+)">➕</button>
+              <button type="button" class="agent-icon-btn" onclick="toggleAIAgentWidth()" id="btn-agent-expand" title="Toggle Wider Panel">◫</button>
+              <button type="button" class="agent-icon-btn close-btn" onclick="toggleAIAgentPanel(false)" title="Close AI Director Agent">✕</button>
+            </div>
+          </div>
+          
+          <!-- Sub-bar: Model selector & Project stats -->
+          <div class="agent-header-subbar">
+            <button type="button" class="agent-model-btn" onclick="openAgentSettingsModal()" title="Change Model / API Keys">
+              <span class="agent-model-icon">🤖</span>
+              <span id="agent-model-name-label">Gemini 2.5 Flash-Lite</span>
+              <span class="agent-settings-gear">⚙️</span>
+            </button>
+            <div class="agent-project-meta" id="agent-project-meta">
+              <span id="agent-meta-sentences">0 Sentences</span> • <span id="agent-meta-cast">0 Cast</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Sessions & History Slide Drawer -->
+        <div class="agent-sessions-drawer" id="agent-sessions-drawer" style="display: none;">
+          <div class="agent-sessions-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 14px;">📜</span>
+              <span style="font-size: 12.5px; font-weight: 700; color: #f8fafc;">Chat History & Sessions</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button type="button" class="btn btn-primary" onclick="startNewAIAgentSession()" style="font-size: 11px; padding: 3px 8px; border-radius: 4px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; font-weight: 600;">+ New Chat</button>
+              <button type="button" class="agent-icon-btn close-btn" onclick="toggleAIAgentSessionsDrawer(false)" title="Close Sessions" style="font-size: 12px; padding: 2px 6px;">✕</button>
+            </div>
+          </div>
+          <div class="agent-sessions-list" id="agent-sessions-list">
+            <!-- Dynamic session items -->
+          </div>
+        </div>
+
+        <!-- Quick Suggestions Section (Shown initially or above messages) -->
+        <div class="agent-starters-section" id="agent-starters-section">
+          <div class="agent-starters-title">QUICK DIRECTOR ACTIONS</div>
+          <div class="agent-starters-grid">
+            <button type="button" class="agent-starter-chip" onclick="applyAIAgentStarter('Auto-detect characters, attribute dialogue quotes, cast matching voices from library, and inject acting tags across the whole chapter.')">
+              🎭 Cast & Direct All
+            </button>
+            <button type="button" class="agent-starter-chip" onclick="applyAIAgentStarter('Inject expressive Fish Speech acting tags like [whispering in terror] or [screaming] to all character quotes.')">
+              ⚡ Add Emotion Tags
+            </button>
+            <button type="button" class="agent-starter-chip" onclick="applyAIAgentStarter('Merge all small consecutive sentences of the narrator into clean paragraphs.')">
+              🔗 Consolidate Short Lines
+            </button>
+            <button type="button" class="agent-starter-chip" onclick="applyAIAgentStarter('Clean redundant pauses, set narrator pacing speed to 1.10x and trailing breath gap to 0.2s.')">
+              ✨ Pacing & Breath Polish
+            </button>
+          </div>
+        </div>
+
+        <!-- Messages Feed -->
+        <div class="agent-messages-container" id="agent-messages-container">
+          <div class="agent-empty-welcome" id="agent-empty-welcome">
+            <div class="welcome-icon">🎬</div>
+            <div class="welcome-title">Your AI Story Director</div>
+            <div class="welcome-sub">Ask me to cast voices, split dialogue, edit sentences, adjust pacing, or polish acting tags in plain English.</div>
+          </div>
+        </div>
+
+        <!-- Selection Banner (appears when sentences are selected in Studio) -->
+        <div class="agent-selection-context-bar" id="agent-selection-context-bar" style="display: none;">
+          <div class="selection-context-left">
+            <span class="selection-pin-icon">🎯</span>
+            <span id="agent-selection-context-text">Sentence #2 selected</span>
+          </div>
+          <button type="button" class="selection-context-detach" onclick="clearBlockSelection()" title="Clear selection">✕</button>
+        </div>
+
+        <!-- Chat Input Footer -->
+        <div class="agent-input-footer">
+          <div class="agent-input-wrapper">
+            <textarea id="ai-agent-input" class="ai-agent-input" placeholder="Direct story, edit sentences, cast voices, or adjust tone in English..." rows="1" onkeydown="handleAIAgentInputKeydown(event)" oninput="autoResizeAgentInput(this)"></textarea>
+            <button type="button" id="btn-ai-agent-send" class="btn-ai-agent-send" onclick="handleSendAIAgentMessage()" title="Send instruction (Enter)">
+              ↑
+            </button>
+          </div>
+          <div class="agent-input-subtext">
+            <span>Press Enter to send, Shift+Enter for new line</span>
+            <span class="agent-auto-dsp-pill" title="Pacing & EQ changes execute instantly on CPU (<20ms)">⚡ Instant DSP</span>
+          </div>
+        </div>
+      </aside>
     </div>
 
     <!-- BOTTOM TIMELINE -->
@@ -744,17 +1060,26 @@
 
         <!-- SCOPE NAVIGATION TABS -->
         <div class="drawer-tabs-nav" id="drawer-tabs-nav">
-          <button type="button" class="drawer-tab-btn active" id="tab-nav-fish" onclick="switchDrawerMode('fish')">
-            🌐 Fish Audio Discovery (2M+)
+          <button type="button" class="drawer-tab-btn" id="tab-nav-edge" onclick="switchDrawerMode('edge')" title="Microsoft Edge 318 Neural Voices across 80+ languages">
+            🌐 Edge TTS (318)
           </button>
-          <button type="button" class="drawer-tab-btn" id="tab-nav-browse" onclick="switchDrawerMode('browse')">
-            💾 My Saved Library
+          <button type="button" class="drawer-tab-btn" id="tab-nav-kokoro" onclick="switchDrawerMode('kokoro')" title="Kokoro 82M On-Device WebGPU Voices">
+            ⚡ Kokoro 82M (44)
           </button>
-          <button type="button" class="drawer-tab-btn" id="tab-nav-create" onclick="switchDrawerMode('create')">
+          <button type="button" class="drawer-tab-btn" id="tab-nav-fish-speech" onclick="switchDrawerMode('fish_speech')" title="Fish Speech Drama 3 Built-in Voices (30)">
+            🌟 Fish Speech (30)
+          </button>
+          <button type="button" class="drawer-tab-btn active" id="tab-nav-fish" onclick="switchDrawerMode('fish')" title="Fish Audio 2M+ Community AI Models">
+            ☁️ Fish Audio (2M+)
+          </button>
+          <button type="button" class="drawer-tab-btn" id="tab-nav-browse" onclick="switchDrawerMode('browse')" title="My Custom & Saved Voices">
+            💾 Saved Library
+          </button>
+          <button type="button" class="drawer-tab-btn" id="tab-nav-cast" onclick="switchDrawerMode('cast')" title="Chapter Character Voices">
+            🎭 Chapter Cast
+          </button>
+          <button type="button" class="drawer-tab-btn" id="tab-nav-create" onclick="switchDrawerMode('create')" title="Clone or Forge New AI Voice">
             ✨ Create Voice
-          </button>
-          <button type="button" class="drawer-tab-btn" id="tab-nav-cast" onclick="switchDrawerMode('cast')">
-            🎭 Project Cast
           </button>
         </div>
 
@@ -873,10 +1198,6 @@
         <!-- Filter Pills -->
         <div class="filter-pills-row" id="drawer-filter-pills">
           <button class="filter-pill active" data-filter="all" onclick="setDrawerFilter('all')">All Voices</button>
-          <button class="filter-pill" data-filter="famous" onclick="setDrawerFilter('famous')">🌟 Famous Voices</button>
-          <button class="filter-pill" data-filter="library" onclick="setDrawerFilter('library')">📚 My Library</button>
-          <button class="filter-pill" data-filter="characters" id="pill-filter-characters" onclick="setDrawerFilter('characters')">🎭 My Cast <span id="drawer-characters-badge" class="badge-mini" style="display:none; margin-left: 4px;">0</span></button>
-          <button class="filter-pill" data-filter="mystery" onclick="setDrawerFilter('mystery')">🔥 Narrative & Drama</button>
           <button class="filter-pill" data-filter="female" onclick="setDrawerFilter('female')">Female</button>
           <button class="filter-pill" data-filter="male" onclick="setDrawerFilter('male')">Male</button>
           <button class="filter-pill" data-filter="american" onclick="setDrawerFilter('american')">American</button>
@@ -1107,8 +1428,8 @@
 
   <!-- ================= EPUB AUDIOBOOK IMPORTER MODAL ================= -->
   <div class="drawer-backdrop" id="epub-import-modal">
-    <div class="drawer-window" style="width: 620px;">
-      <div class="drawer-header" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.05));">
+    <div class="drawer-window" style="width: 640px; max-width: 95vw; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden;">
+      <div class="drawer-header" style="flex-shrink: 0; background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.05));">
         <div style="display: flex; align-items: center; gap: 10px;">
           <span style="font-size: 24px;">📚</span>
           <div>
@@ -1119,7 +1440,7 @@
         <button class="icon-btn" onclick="closeEpubModal()" style="font-size: 18px;">✕</button>
       </div>
 
-      <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; min-height: 0;">
         <!-- Book volume selection (if multi-volume) -->
         <div id="epub-book-picker-row">
           <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Select Book / Volume</label>
@@ -1153,6 +1474,15 @@
           </select>
         </div>
 
+        <!-- Destination Series / Book Folder -->
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Series / Book Folder</label>
+          <select id="epub-folder-select" class="search-input" style="width: 100%; padding: 10px; background: var(--bg-card); color: var(--text-main);">
+            <option value="">📁 None (Standalone Project)</option>
+            <option value="__new__">✨ + Create New Series Folder...</option>
+          </select>
+        </div>
+
         <!-- Audiobook Production & Casting Mode -->
         <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -1178,32 +1508,77 @@
               <div>
                 <div style="font-weight: 700; font-size: 12.5px; color: #fff;">🎙️ Single Narrator</div>
                 <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px; line-height: 1.35;">
-                  Classic solo audiobook. Chosen narrator reads whole chapter in paragraph blocks.
+                  Classic solo audiobook. Chosen narrator reads whole chapter, with spoken "" split into beats &amp; acting tags.
                 </div>
               </div>
             </label>
           </div>
 
-          <!-- Multi-Cast Options (visible when Multi-Cast is selected) -->
-          <div id="epub-multi-options" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; gap: 8px;">
+          <!-- AI Director Options (Active for both Multi-Cast and Single Narrator) -->
+          <div id="epub-multi-options" style="margin-top: 10px; padding: 12px; background: rgba(139, 92, 246, 0.06); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 8px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span id="epub-ai-options-heading" style="font-size: 11.5px; font-weight: 700; color: #c4b5fd; display: flex; align-items: center; gap: 6px;">
+                🎭 AI Script Direction &amp; Acting Beats
+              </span>
+              <span id="epub-ai-options-subtitle" style="font-size: 11px; color: var(--text-muted);">
+                Multi-Voice Cast &amp; Dialogue Split
+              </span>
+            </div>
+
             <div style="display: flex; gap: 10px; align-items: center;">
               <div style="flex: 1;">
-                <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 3px;">AI Director Model</label>
+                <label for="epub-ai-model" style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 3px;">AI Director Model</label>
                 <select id="epub-ai-model" class="search-input" style="width: 100%; padding: 6px 8px; font-size: 11.5px; background: var(--bg-card); color: #fff;">
                   <option value="gemini-3.5-flash-lite" selected>gemini-3.5-flash-lite (Ultra Fast &amp; Free)</option>
                   <option value="gemini-flash-lite-latest">gemini-flash-lite-latest (Fastest)</option>
                   <option value="gemini-3.5-flash">gemini-3.5-flash (Standard)</option>
-                  <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
-                  <option value="gemini-3.8-flash">gemini-3.8-flash (Frontier)</option>
+                  <option value="openai/gpt-oss-120b">Groq: openai/gpt-oss-120b (120B High IQ)</option>
+                  <option value="openai/gpt-oss-20b">Groq: openai/gpt-oss-20b (Ultra Fast)</option>
+                  <option value="qwen/qwen3.8-27b">Groq: qwen/qwen3.8-27b (Accurate)</option>
                 </select>
               </div>
               <div style="flex: 1; padding-top: 16px; display: flex; gap: 12px;">
-                <label style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); cursor: pointer;">
-                  <input type="checkbox" id="epub-split-dialogue" checked style="accent-color: #8b5cf6;"> Split Dialogue
+                <label style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); cursor: pointer;" title="Split spoken dialogue inside quotes into distinct blocks">
+                  <input type="checkbox" id="epub-split-dialogue" checked style="accent-color: #8b5cf6;"> Split Spoken ""
                 </label>
-                <label style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); cursor: pointer;">
+                <label style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); cursor: pointer;" title="Inject natural bracketed emotion, delivery, and action tags">
                   <input type="checkbox" id="epub-acting-tags" checked style="accent-color: #8b5cf6;"> Fish Acting Tags
                 </label>
+              </div>
+            </div>
+
+            <!-- Acting Intensity & Analysis Depth Controls -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label for="epub-tag-intensity" style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 3px;">Tag Density / Intensity</label>
+                <select id="epub-tag-intensity" class="search-input" style="width: 100%; padding: 6px 8px; font-size: 11.5px; background: var(--bg-card); color: #fff;">
+                  <option value="subtle">Subtle (Key dialogue peaks &amp; shouts)</option>
+                  <option value="balanced" selected>Balanced / Expressive (Recommended)</option>
+                  <option value="cinematic">Deep Cinematic / High-Acting (Rich tags)</option>
+                </select>
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                  <label for="epub-analysis-temp" style="font-size: 11px; font-weight: 600; color: var(--text-muted);">AI Analysis Depth (Temp)</label>
+                  <span id="val-epub-analysis-temp" style="font-size: 11px; font-weight: 700; color: #a78bfa; font-family: monospace;">0.60</span>
+                </div>
+                <input type="range" id="epub-analysis-temp" min="0.10" max="0.95" step="0.05" value="0.60" style="width: 100%; accent-color: #8b5cf6;" oninput="document.getElementById('val-epub-analysis-temp').textContent = Number(this.value).toFixed(2)">
+              </div>
+            </div>
+
+            <!-- Split big blocks & Tag Placement -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 4px; border-top: 1px solid rgba(255, 255, 255, 0.06); align-items: center;">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #e2e8f0; cursor: pointer;" title="Split speeches at emotion shifts so each beat gets its exact tag">
+                <input type="checkbox" id="epub-split-emotional-beats" checked style="accent-color: #8b5cf6;">
+                <span>Split big blocks at emotion shifts</span>
+              </label>
+              <div>
+                <label for="epub-tag-placement" style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 3px;">Tag Output Format</label>
+                <select id="epub-tag-placement" class="search-input" style="width: 100%; padding: 5px 8px; font-size: 11.5px; background: var(--bg-card); color: #fff;">
+                  <option value="pill" selected>🏷️ Green Tag Pill (Studio Feature)</option>
+                  <option value="inline">📝 Inline In Text ([angry, yell]‘...’)</option>
+                  <option value="both">✨ Both (Pill &amp; Inline Text)</option>
+                </select>
               </div>
             </div>
           </div>
@@ -1247,18 +1622,23 @@
 
   <!-- ================= NEW PROJECT MODAL ================= -->
   <div class="drawer-backdrop" id="new-project-modal">
-    <div class="drawer-window" style="width: 580px;">
-      <div class="drawer-header">
+    <div class="drawer-window" style="width: 680px; max-width: 95vw; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden;">
+      <div class="drawer-header" style="flex-shrink: 0;">
         <span class="drawer-title">Create New Story Project</span>
         <button class="icon-btn" id="new-project-close-btn" onclick="closeNewProjectModal()" style="font-size: 18px;">✕</button>
       </div>
-      <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; min-height: 0;">
         <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Project Title</label>
         <input type="text" id="new-project-title-input" class="search-input" placeholder="e.g. Episode 2: The Radio Tower">
 
         <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Primary Story Voice (Default Narrator)</label>
         <select id="new-project-voice-select" class="search-input" style="padding: 10px; background: var(--bg-card); color: var(--text-main);">
           <!-- Populated dynamically -->
+        </select>
+
+        <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Series / Book Folder (Optional)</label>
+        <select id="new-project-folder-select" class="search-input" style="padding: 10px; background: var(--bg-card); color: var(--text-main);">
+          <option value="">📁 None (Standalone Story)</option>
         </select>
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
@@ -1277,10 +1657,36 @@
           <span id="new-project-file-name">📄 filename.txt</span>
           <button type="button" class="icon-btn" onclick="clearNewProjectFile()" style="font-size: 12px; color: var(--text-muted); padding: 2px 6px;">✕</button>
         </div>
-        <textarea id="new-project-text-input" rows="7" style="width: 100%; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); padding: 12px; border-radius: var(--radius-md); font-family: inherit; font-size: 13.5px; resize: none; transition: border-color 0.2s;" placeholder="Paste raw story text here, drop a file, or click 'Choose File' / 'Load Sample Story'..."></textarea>
+        <textarea id="new-project-text-input" rows="8" style="width: 100%; min-height: 140px; background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); padding: 12px; border-radius: var(--radius-md); font-family: inherit; font-size: 13.5px; resize: vertical; transition: border-color 0.2s;" placeholder="Paste raw story text here, drop a file, or click 'Choose File' / 'Load Sample Story'..."></textarea>
 
-        <!-- New Project Casting Mode -->
-        <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px;">
+        <!-- Ingestion & Directing Mode: AI Director vs Manual -->
+        <div>
+          <label style="font-size: 12px; font-weight: 700; color: #fff; display: block; margin-bottom: 6px;">Direction Method</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <label id="lbl-proj-mode-ai" class="mode-select-card" style="display: flex; align-items: flex-start; gap: 8px; padding: 10px; border-radius: 8px; border: 1.5px solid #8b5cf6; background: rgba(139, 92, 246, 0.12); cursor: pointer; transition: all 0.2s;">
+              <input type="radio" name="new-project-director-mode" id="new-project-mode-ai" value="ai" checked onchange="handleNewProjectDirectorModeChange('ai')" style="margin-top: 2px; accent-color: #8b5cf6;">
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #fff;">🎭 AI Script Director</div>
+                <div style="font-size: 10.5px; color: var(--text-muted); margin-top: 2px; line-height: 1.35;">
+                  Auto-detects multi-voice cast, maps library voices &amp; generates acting tags.
+                </div>
+              </div>
+            </label>
+
+            <label id="lbl-proj-mode-manual" class="mode-select-card" style="display: flex; align-items: flex-start; gap: 8px; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.03); cursor: pointer; transition: all 0.2s;">
+              <input type="radio" name="new-project-director-mode" id="new-project-mode-manual" value="manual" onchange="handleNewProjectDirectorModeChange('manual')" style="margin-top: 2px; accent-color: #8b5cf6;">
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #fff;">⚡ Manual (Fast Split)</div>
+                <div style="font-size: 10.5px; color: var(--text-muted); margin-top: 2px; line-height: 1.35;">
+                  Instant sentence split, direct characters &amp; voices manually in studio.
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- New Project Casting Mode & AI Settings Container -->
+        <div id="new-project-ai-settings-container" style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
             <label style="font-size: 12px; font-weight: 700; color: #fff; margin: 0;">Story Production &amp; Casting Mode</label>
             <span style="font-size: 11px; padding: 2px 7px; border-radius: 4px; background: rgba(139, 92, 246, 0.15); color: #c4b5fd; border: 1px solid rgba(139, 92, 246, 0.3);">
@@ -1304,10 +1710,80 @@
               <div>
                 <div style="font-weight: 700; font-size: 12px; color: #fff;">🎙️ Single Narrator</div>
                 <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px; line-height: 1.35;">
-                  Classic solo narrator for the entire story.
+                  Solo voice actor for the entire story, with spoken "" split into beats &amp; acting tags.
                 </div>
               </div>
             </label>
+          </div>
+
+          <!-- AI Director Options & Acting Direction for New Project -->
+          <div id="new-proj-ai-director-options" style="margin-top: 10px; padding: 12px; background: rgba(139, 92, 246, 0.06); border: 1px solid rgba(139, 92, 246, 0.2); border-radius: 8px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span id="new-proj-ai-options-heading" style="font-size: 11.5px; font-weight: 700; color: #c4b5fd; display: flex; align-items: center; gap: 6px;">
+                🎭 AI Script Direction &amp; Acting Beats
+              </span>
+              <span id="new-proj-ai-options-subtitle" style="font-size: 11px; color: var(--text-muted);">
+                Multi-Voice Cast &amp; Dialogue Split
+              </span>
+            </div>
+
+            <!-- Model row & checkboxes -->
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <div style="flex: 1;">
+                <label for="new-proj-ai-model" style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 3px;">AI Director Model</label>
+                <select id="new-proj-ai-model" class="search-input" style="width: 100%; padding: 6px 8px; font-size: 11.5px; background: var(--bg-card); color: #fff;">
+                  <option value="gemini-3.5-flash-lite" selected>gemini-3.5-flash-lite (Ultra Fast &amp; Free)</option>
+                  <option value="gemini-flash-lite-latest">gemini-flash-lite-latest (Fastest)</option>
+                  <option value="gemini-3.5-flash">gemini-3.5-flash (Standard)</option>
+                  <option value="openai/gpt-oss-120b">Groq: openai/gpt-oss-120b (120B High IQ)</option>
+                  <option value="openai/gpt-oss-20b">Groq: openai/gpt-oss-20b (Ultra Fast)</option>
+                  <option value="qwen/qwen3.8-27b">Groq: qwen/qwen3.8-27b (Accurate)</option>
+                </select>
+              </div>
+              <div style="flex: 1; padding-top: 16px; display: flex; gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); cursor: pointer;" title="Split spoken dialogue inside quotes into distinct blocks">
+                  <input type="checkbox" id="new-proj-split-dialogue" checked style="accent-color: #8b5cf6;"> Split Spoken ""
+                </label>
+                <label style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); cursor: pointer;" title="Add natural bracketed emotion, delivery, and action tags">
+                  <input type="checkbox" id="new-proj-acting-tags" checked style="accent-color: #8b5cf6;"> Fish Acting Tags
+                </label>
+              </div>
+            </div>
+
+            <!-- Tag Intensity & Analysis Depth (Temp) -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label for="new-proj-tag-intensity" style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 3px;">Tag Density / Intensity</label>
+                <select id="new-proj-tag-intensity" class="search-input" style="width: 100%; padding: 6px 8px; font-size: 11.5px; background: var(--bg-card); color: #fff;">
+                  <option value="subtle">Subtle (Key dialogue peaks &amp; shouts)</option>
+                  <option value="balanced" selected>Balanced / Expressive (Recommended)</option>
+                  <option value="cinematic">Deep Cinematic / High-Acting (Rich tags)</option>
+                </select>
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                  <label for="new-proj-analysis-temp" style="font-size: 11px; font-weight: 600; color: var(--text-muted);">AI Analysis Depth (Temp)</label>
+                  <span id="val-new-proj-analysis-temp" style="font-size: 11px; font-weight: 700; color: #a78bfa; font-family: monospace;">0.60</span>
+                </div>
+                <input type="range" id="new-proj-analysis-temp" min="0.10" max="0.95" step="0.05" value="0.60" style="width: 100%; accent-color: #8b5cf6;" oninput="document.getElementById('val-new-proj-analysis-temp').textContent = Number(this.value).toFixed(2)">
+              </div>
+            </div>
+
+            <!-- Split big blocks & Tag Placement -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 4px; border-top: 1px solid rgba(255, 255, 255, 0.06); align-items: center;">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #e2e8f0; cursor: pointer;" title="Split speeches at emotion shifts so each beat gets its exact tag">
+                <input type="checkbox" id="new-proj-split-emotional-beats" checked style="accent-color: #8b5cf6;">
+                <span>Split big blocks at emotion shifts</span>
+              </label>
+              <div>
+                <label for="new-proj-tag-placement" style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 3px;">Tag Output Format</label>
+                <select id="new-proj-tag-placement" class="search-input" style="width: 100%; padding: 5px 8px; font-size: 11.5px; background: var(--bg-card); color: #fff;">
+                  <option value="pill" selected>🏷️ Green Tag Pill (Studio Feature)</option>
+                  <option value="inline">📝 Inline In Text ([angry, yell]‘...’)</option>
+                  <option value="both">✨ Both (Pill &amp; Inline Text)</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1329,9 +1805,12 @@
           <div id="new-proj-progress-characters" style="display: none; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.08);"></div>
         </div>
 
-        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px;">
-          <button class="btn btn-secondary" onclick="closeNewProjectModal()">Cancel</button>
-          <button class="btn btn-primary" id="btn-create-project-submit" onclick="handleCreateProjectSubmit()" style="background: linear-gradient(135deg, #8b5cf6, #10b981); color: #fff; font-weight: 700; border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);">
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px;">
+          <button type="button" class="btn btn-secondary" onclick="closeNewProjectModal()">Cancel</button>
+          <button type="button" class="btn btn-ghost" id="btn-create-project-fast-split" onclick="handleCreateProjectManualFastSplit()" style="border: 1px solid rgba(255,255,255,0.14); color: #93c5fd; font-size: 12px; font-weight: 600;" title="Skip AI Director and immediately create project with split sentences">
+            ⚡ Fast Split (No AI)
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-create-project-submit" onclick="handleCreateProjectSubmit()" style="background: linear-gradient(135deg, #8b5cf6, #10b981); color: #fff; font-weight: 700; border: none; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);">
             🎭 Create &amp; AI Direct Studio
           </button>
         </div>
@@ -1436,16 +1915,44 @@
               <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Model Variant</label>
               <select id="ai-director-model-select" class="search-input" style="width: 100%; padding: 6px 10px; font-size: 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color: #fff;">
                 <option value="gemini-3.5-flash-lite" selected>gemini-3.5-flash-lite (Recommended: Ultra Fast &amp; Free)</option>
-                <option value="gemini-flash-lite-latest">gemini-flash-lite-latest (Fastest)</option>
-                <option value="gemini-3.5-flash">gemini-3.5-flash (Standard)</option>
-                <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (High Speed)</option>
-                <option value="gemini-3.8-flash">gemini-3.8-flash (Latest Frontier Flash)</option>
+                <option value="gemini-2.5-flash">gemini-2.5-flash (Balanced)</option>
+                <option value="gemini-3.5-flash">gemini-3.5-flash (Deep Reasoning)</option>
+                <option value="gemini-flash-latest">gemini-flash-latest</option>
               </select>
             </div>
             <div style="display: flex; align-items: center; gap: 6px; padding-top: 16px;">
               <input type="checkbox" id="ai-director-save-key" checked style="accent-color: #8b5cf6;">
               <label for="ai-director-save-key" style="font-size: 11.5px; color: var(--text-muted); cursor: pointer;">Remember Key</label>
             </div>
+          </div>
+        </div>
+
+        <!-- Production Mode: Multi-Cast Drama vs Solo Narrator -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label style="font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Production Mode</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;" id="ai-director-mode-cards">
+            <label id="lbl-ai-mode-multi" style="display: flex; align-items: flex-start; gap: 10px; background: rgba(139, 92, 246, 0.12); border: 1.5px solid #8b5cf6; padding: 12px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+              <input type="radio" name="ai-director-mode" id="ai-director-mode-multi" value="multi" checked onchange="handleAIDirectorModeChange('multi')" style="margin-top: 3px; accent-color: #8b5cf6;">
+              <div>
+                <strong style="font-size: 13px; color: #fff; display: flex; align-items: center; gap: 6px;">
+                  🎭 Multi-Cast Drama
+                </strong>
+                <span style="font-size: 11px; color: var(--text-muted); line-height: 1.35; display: block; margin-top: 3px;">
+                  Full audio drama. Discovers every character, attributes dialogue quotes, assigns distinct library voices, and tags emotions.
+                </span>
+              </div>
+            </label>
+            <label id="lbl-ai-mode-single" style="display: flex; align-items: flex-start; gap: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease;">
+              <input type="radio" name="ai-director-mode" id="ai-director-mode-single" value="single" onchange="handleAIDirectorModeChange('single')" style="margin-top: 3px; accent-color: #8b5cf6;">
+              <div>
+                <strong style="font-size: 13px; color: #fff; display: flex; align-items: center; gap: 6px;">
+                  🎙️ Solo Narrator
+                </strong>
+                <span style="font-size: 11px; color: var(--text-muted); line-height: 1.35; display: block; margin-top: 3px;">
+                  Classic audiobook. Single narrator reads entire story, but dialogue quotes receive rich expressive acting tags ([whisper], [angry]).
+                </span>
+              </div>
+            </label>
           </div>
         </div>
 
@@ -1467,6 +1974,57 @@
             <input type="checkbox" id="ai-opt-preserve" checked disabled style="accent-color: #8b5cf6;">
             <span>100% exact text preservation</span>
           </label>
+        </div>
+
+        <!-- Acting Direction & Analysis Depth Controls -->
+        <div style="background: rgba(139, 92, 246, 0.07); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 12px; font-weight: 700; color: #c4b5fd; display: flex; align-items: center; gap: 6px;">
+              🎭 Acting Direction &amp; Tag Depth
+            </span>
+            <span style="font-size: 11px; color: var(--text-muted);">Fish Speech S2 Pro [emotion, delivery, action]</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label for="ai-tag-intensity" style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;" title="How frequently and intensely the AI analyzes context and applies acting/delivery tags">
+                Tag Density / Intensity
+              </label>
+              <select id="ai-tag-intensity" class="search-input" style="width: 100%; padding: 7px 10px; font-size: 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color: #fff;">
+                <option value="subtle">Subtle / High Drama (Only intense peaks &amp; shouts)</option>
+                <option value="balanced" selected>Balanced / Expressive (Recommended: dialogue &amp; reactions)</option>
+                <option value="cinematic">Deep Cinematic / High-Acting (Rich tags on all lines)</option>
+              </select>
+            </div>
+
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label for="ai-analysis-temp" style="font-size: 11px; font-weight: 600; color: var(--text-muted);" title="Higher temperature enables deeper analysis of character psychology, subtext, tension, and vocal coloration">
+                  AI Analysis Depth (Temp)
+                </label>
+                <span id="val-ai-analysis-temp" style="font-size: 11px; font-weight: 700; color: #a78bfa; font-family: monospace;">0.60</span>
+              </div>
+              <input type="range" id="ai-analysis-temp" min="0.10" max="0.95" step="0.05" value="0.60" style="width: 100%; accent-color: #8b5cf6;" oninput="document.getElementById('val-ai-analysis-temp').textContent = Number(this.value).toFixed(2)">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-top: 4px; border-top: 1px solid rgba(255, 255, 255, 0.06);">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #e2e8f0; cursor: pointer;" title="If a speech is long or shifts emotion/action mid-sentence, split into consecutive blocks so each beat gets its exact tag">
+              <input type="checkbox" id="ai-opt-split-emotional-beats" checked style="accent-color: #8b5cf6;">
+              <span>Split big blocks at emotion shifts &amp; actions</span>
+            </label>
+
+            <div>
+              <label for="ai-tag-placement" style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;" title="Choose how acting tags are formatted in your project">
+                Tag Output Format
+              </label>
+              <select id="ai-tag-placement" class="search-input" style="width: 100%; padding: 6px 10px; font-size: 11.5px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color: #fff;">
+                <option value="pill" selected>🏷️ Green Tag Pill (Studio Feature)</option>
+                <option value="inline">📝 Inline In Text ([angry, yell]‘...’)</option>
+                <option value="both">✨ Both (Green Pill + Inline Text)</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <!-- Action Buttons -->
@@ -1525,47 +2083,207 @@
 
   <!-- ================= CLOUD GPU / COLAB MODAL ================= -->
   <div class="drawer-backdrop" id="colab-modal">
-    <div class="drawer-window" style="width: 660px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.85);">
-      <div class="drawer-header" style="flex-shrink: 0; border-bottom: 1px solid var(--border-color); background: var(--bg-surface); z-index: 10;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <span style="font-size: 20px;">🚀</span>
+    <div class="drawer-window" style="width: 1100px; max-width: 96vw; max-height: 94vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 70px rgba(0,0,0,0.85); border-radius: 18px; background: #0b0f19;">
+      <div class="drawer-header" style="flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,0.08); background: #0f172a; z-index: 10; padding: 16px 24px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 22px;">⭐</span>
           <div>
-            <div class="drawer-title">Cloud GPU Acceleration</div>
-            <div style="font-size: 12px; color: var(--text-muted);">Offload synthesis to Google Colab or Kaggle (Tesla T4 GPU ~0.2s generation)</div>
+            <div class="drawer-title" style="font-size: 19px; font-weight: 800; letter-spacing: -0.3px;">Upgrade your plan</div>
+            <div style="font-size: 12.5px; color: #94a3b8;">Choose the perfect plan for your audiobooks, fiction, and character casting</div>
           </div>
         </div>
         <button class="icon-btn" id="colab-close-btn" onclick="closeColabModal()" style="font-size: 18px;">✕</button>
       </div>
-      <div id="colab-modal-scroll-body" style="padding: 22px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; min-height: 0;">
+      <div id="colab-modal-scroll-body" style="padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; min-height: 0;">
         
-        <!-- Active Status Banner -->
-        <div id="colab-status-banner" class="colab-status-banner offline">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <span class="status-indicator-dot" id="banner-dot"></span>
+        <!-- Active Plan & Word Quota Card -->
+        <div id="saas-plan-banner" style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.9)); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span id="plan-badge-icon" style="font-size: 20px;">⭐</span>
+              <div>
+                <span id="plan-badge-title" style="font-size: 14.5px; font-weight: 700; color: #fff;">Author Plan</span>
+                <span id="plan-tier-pill" class="badge-mini" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 700; margin-left: 6px;">ACTIVE</span>
+              </div>
+            </div>
+            <span id="plan-quota-text" style="font-size: 12px; color: #94a3b8; font-weight: 600;">100,000 / 100,000 words remaining</span>
+          </div>
+          <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden;">
+            <div id="plan-quota-bar" style="height: 100%; width: 100%; background: linear-gradient(90deg, #10b981, #3b82f6); border-radius: 999px; transition: width 0.3s ease;"></div>
+          </div>
+        </div>
+
+        <!-- ChatGPT-Style 3-Card Pricing Grid -->
+        <div class="chatgpt-pricing-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+          
+          <!-- Card 1: Free -->
+          <div class="chatgpt-pricing-card" id="tier-card-free" style="background: rgba(18, 24, 38, 0.7); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 22px 18px; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s;">
             <div>
-              <div style="font-weight: 600; font-size: 14px;" id="banner-title">Current Mode: Local CPU Engine</div>
-              <div style="font-size: 12px; color: var(--text-muted);" id="banner-desc">Generating on laptop CPU (~14s per sentence). Connect Cloud GPU for 100x speed!</div>
+              <div style="font-size: 17px; font-weight: 800; color: #fff;">Free</div>
+              <div style="font-size: 14.5px; font-weight: 700; color: #e2e8f0; margin-top: 4px;">Try Fish Speech</div>
+              <div style="font-size: 11.5px; color: #94a3b8; margin-top: 3px; min-height: 32px;">Basic narration &amp; test takes.</div>
+
+              <div style="margin: 16px 0 6px 0;">
+                <button class="chatgpt-plan-cta-btn" id="btn-cta-free" onclick="handleSelectPlan('free')" style="width: 100%; padding: 10px 14px; border-radius: 999px; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s; background: rgba(255,255,255,0.08); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15);">
+                  Your current plan
+                </button>
+                <div style="font-size: 10.5px; color: #64748b; text-align: center; margin-top: 6px;">Free forever. No card required.</div>
+              </div>
+
+              <div style="margin: 14px 0 16px 0; display: flex; align-items: baseline; gap: 4px;">
+                <span style="font-size: 26px; font-weight: 800; color: #f8fafc;">$0</span>
+                <span style="font-size: 12px; color: #94a3b8;">/ month</span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 10px; font-size: 12px; color: #cbd5e1; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 14px;">
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #60a5fa; font-size: 13px;">⚡</span>
+                  <span><strong>Unlimited Fast Voices</strong> (Kokoro CPU)</span>
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #34d399; font-size: 13px;">🌟</span>
+                  <span><strong>5 Cinema Drama 3 preview takes</strong></span>
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #94a3b8; font-size: 13px;">🎭</span>
+                  <span>Multi-character cast &amp; script editor</span>
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #94a3b8; font-size: 13px;">🎧</span>
+                  <span>Instant WAV preview &amp; chapter export</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Creator -->
+          <div class="chatgpt-pricing-card" id="tier-card-creator" style="background: rgba(18, 24, 38, 0.7); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 22px 18px; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s;">
+            <div>
+              <div style="font-size: 17px; font-weight: 800; color: #fff;">Creator</div>
+              <div style="font-size: 14.5px; font-weight: 700; color: #e2e8f0; margin-top: 4px;">Expanded Access</div>
+              <div style="font-size: 11.5px; color: #94a3b8; margin-top: 3px; min-height: 32px;">Episodic audiobooks &amp; podcasts.</div>
+
+              <div style="margin: 16px 0 6px 0;">
+                <button class="chatgpt-plan-cta-btn" id="btn-cta-creator" onclick="handleSelectPlan('creator')" style="width: 100%; padding: 10px 14px; border-radius: 999px; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.2s; background: #ffffff; color: #000000; border: none;">
+                  Upgrade to Creator
+                </button>
+                <div style="font-size: 10.5px; color: #64748b; text-align: center; margin-top: 6px;">No commitment. Cancel anytime.</div>
+              </div>
+
+              <div style="margin: 14px 0 16px 0; display: flex; align-items: baseline; gap: 4px;">
+                <span style="font-size: 26px; font-weight: 800; color: #38bdf8;">$14</span>
+                <span style="font-size: 12px; color: #94a3b8;">/ month</span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 10px; font-size: 12px; color: #cbd5e1; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 14px;">
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #38bdf8; font-size: 13px;">🌟</span>
+                  <span><strong>35,000 words / month</strong> (~45 chapters)</span>
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #38bdf8; font-size: 13px;">🎭</span>
+                  <span><strong>Cinema Drama 3 acting</strong> (whispers, laughs)</span>
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #60a5fa; font-size: 13px;">⚡</span>
+                  <span><strong>Unlimited Fast Voices</strong> (Kokoro CPU)</span>
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #94a3b8; font-size: 13px;">🚀</span>
+                  <span>Priority cloud queue (~0.3s/sent)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Author (RECOMMENDED) -->
+          <div class="chatgpt-pricing-card" id="tier-card-author" style="background: linear-gradient(180deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%); border: 2px solid #3b82f6; border-radius: 16px; padding: 22px 18px; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s; box-shadow: 0 0 35px rgba(59, 130, 246, 0.25); position: relative;">
+            <div style="position: absolute; top: -11px; right: 14px; background: rgba(59, 130, 246, 0.25); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.5); font-size: 10px; font-weight: 800; padding: 2px 10px; border-radius: 999px; letter-spacing: 0.5px;">RECOMMENDED</div>
+            <div>
+              <div style="font-size: 17px; font-weight: 800; color: #fff;">Author</div>
+              <div style="font-size: 14.5px; font-weight: 700; color: #60a5fa; margin-top: 4px;">Cinema-Grade Masterpiece</div>
+              <div style="font-size: 11.5px; color: #94a3b8; margin-top: 3px; min-height: 32px;">For full-length novels &amp; book series.</div>
+
+              <div style="margin: 16px 0 6px 0;">
+                <button class="chatgpt-plan-cta-btn" id="btn-cta-author" onclick="handleSelectPlan('author')" style="width: 100%; padding: 10px 14px; border-radius: 999px; font-weight: 800; font-size: 13px; cursor: pointer; transition: all 0.2s; background: #3b82f6; color: #ffffff; border: none; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);">
+                  ✨ Upgrade to Author
+                </button>
+                <div style="font-size: 10.5px; color: #64748b; text-align: center; margin-top: 6px;">No commitment. Cancel anytime.</div>
+              </div>
+
+              <div style="margin: 14px 0 16px 0; display: flex; align-items: baseline; gap: 4px;">
+                <span style="font-size: 26px; font-weight: 800; color: #34d399;">$29</span>
+                <span style="font-size: 12px; color: #94a3b8;">/ month</span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 10px; font-size: 12px; color: #cbd5e1; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 14px;">
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #34d399; font-size: 13px;">⭐</span>
+                  <span><strong>100,000 words / month</strong> (~full novel)</span>
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #34d399; font-size: 13px;">🌟</span>
+                  <span><strong>Cinema Drama 3 flagship models</strong> (priority)</span>
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #60a5fa; font-size: 13px;">⚡</span>
+                  <span><strong>Unlimited Fast Voices</strong> (Kokoro CPU)</span>
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #34d399; font-size: 13px;">⚡</span>
+                  <span><strong>3x concurrent parallel rendering</strong></span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Top-Level Acceleration Section Switcher -->
-        <div class="cloud-mode-selector">
-          <button type="button" class="cloud-mode-btn active" id="sec-btn-gpu" onclick="switchCloudSection('gpu')">
-            <span class="mode-btn-icon">⚡</span>
-            <div class="mode-btn-content">
-              <span class="mode-btn-title">Cloud &amp; Local GPU</span>
-              <span class="mode-btn-sub">Kaggle Free &bull; Google Colab &bull; Custom GPU</span>
+        <!-- Dedicated Clean BYOK / Custom Compute Bar -->
+        <div style="margin-top: 16px; background: rgba(18, 24, 38, 0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 13px 18px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(234, 179, 8, 0.15); display: flex; align-items: center; justify-content: center; font-size: 17px;">🔑</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: #f8fafc;">Have your own Fish API Key or GPU?</div>
+              <div style="font-size: 11.5px; color: #94a3b8;">Connect Kaggle T4, Colab, Local RTX GPU, or Personal API Key for $0 platform cost.</div>
             </div>
-          </button>
-          <button type="button" class="cloud-mode-btn" id="sec-btn-api" onclick="switchCloudSection('api')">
-            <span class="mode-btn-icon">🔑</span>
-            <div class="mode-btn-content">
-              <span class="mode-btn-title">Cloud Model APIs</span>
-              <span class="mode-btn-sub">Fish Audio Pro API &bull; Zero Coldstart</span>
-            </div>
+          </div>
+          <button type="button" class="btn btn-secondary" onclick="toggleCustomComputeAccordion()" style="padding: 8px 16px; border-radius: 999px; font-weight: 700; font-size: 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18); color: #f1f5f9; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;">
+            <span>⚙️</span>
+            <span>Configure BYOK / Custom Compute</span>
+            <span id="custom-compute-arrow" style="font-size: 10px; margin-left: 2px;">▼</span>
           </button>
         </div>
+
+        <div id="custom-compute-drawer" style="display: none; margin-top: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; background: rgba(0,0,0,0.35);">
+
+            <!-- Active Status Banner -->
+            <div id="colab-status-banner" class="colab-status-banner offline" style="margin-bottom: 12px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <span class="status-indicator-dot" id="banner-dot"></span>
+                <div>
+                  <div style="font-weight: 600; font-size: 13.5px;" id="banner-title">Current Mode: Managed Platform Cloud</div>
+                  <div style="font-size: 11.5px; color: var(--text-muted);" id="banner-desc">Generating via managed Drama 3 cloud API.</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Top-Level Acceleration Section Switcher -->
+            <div class="cloud-mode-selector">
+              <button type="button" class="cloud-mode-btn active" id="sec-btn-gpu" onclick="switchCloudSection('gpu')">
+                <span class="mode-btn-icon">⚡</span>
+                <div class="mode-btn-content">
+                  <span class="mode-btn-title">Cloud &amp; Local GPU</span>
+                  <span class="mode-btn-sub">Kaggle Free &bull; Google Colab &bull; Custom GPU</span>
+                </div>
+              </button>
+              <button type="button" class="cloud-mode-btn" id="sec-btn-api" onclick="switchCloudSection('api')">
+                <span class="mode-btn-icon">🔑</span>
+                <div class="mode-btn-content">
+                  <span class="mode-btn-title">Personal BYOK Key</span>
+                  <span class="mode-btn-sub">Your personal Fish Audio API Key</span>
+                </div>
+              </button>
+            </div>
 
         <!-- ================= SECTION 1: CLOUD & LOCAL GPU ================= -->
         <div id="cloud-section-gpu" class="cloud-section-content active">
@@ -1886,21 +2604,99 @@
 
           <!-- SUBTAB 3: CUSTOM WORKER / LOCAL GPU -->
           <div class="cloud-tab-content" id="tab-content-custom">
-            <div class="colab-workflow-card">
-              <div style="font-size: 12.5px; color: #cbd5e1; line-height: 1.45;">
-                <strong>Run on your own GPU:</strong> Connect a local desktop or laptop with an NVIDIA GPU (RTX 3060/3080/4090), RunPod pod, or Vast.ai instance.
+            
+            <!-- Local GPU Hardware Detection & 1-Click Auto-Launcher -->
+            <div class="colab-workflow-card" id="local-gpu-card" style="border: 1px solid rgba(59, 130, 246, 0.28); background: rgba(15, 23, 42, 0.75); padding: 14px 16px;">
+              
+              <!-- Hardware Header -->
+              <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 24px;" id="local-gpu-icon">🖥️</span>
+                  <div>
+                    <div style="font-size: 13.5px; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 8px;">
+                      <span id="local-gpu-name">Detecting PC GPU...</span>
+                      <span class="status-pill" id="local-gpu-vram-badge" style="font-size: 11px; padding: 2px 7px; border-radius: 4px; background: rgba(255,255,255,0.08); color: #cbd5e1;">-- GB VRAM</span>
+                    </div>
+                    <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;" id="local-gpu-desc">
+                      Checking local graphics hardware and CUDA acceleration...
+                    </div>
+                  </div>
+                </div>
+                <div id="local-gpu-badge-container">
+                  <span class="badge" id="local-gpu-compat-badge" style="font-size: 11px; padding: 4px 8px; border-radius: 12px; background: rgba(148, 163, 184, 0.15); color: #94a3b8;">Scanning...</span>
+                </div>
               </div>
-              <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #94a3b8; margin-top: 4px; line-height: 1.45;">
-                <div>&bull; <strong>Local NVIDIA GPU:</strong> Run <code>python colab_worker.py --port 8080</code> and connect via <code>http://localhost:8080</code></div>
-                <div style="margin-top: 3px;">&bull; <strong>RunPod / Remote Server:</strong> Run with Cloudflare tunnel and paste your <code>https://...trycloudflare.com</code> URL.</div>
+
+              <!-- Capable Actions Container (shown when NVIDIA >= 11GB) -->
+              <div id="local-gpu-capable-section" style="display: none; margin-top: 12px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <button class="btn btn-primary" id="btn-local-gpu-launch" onclick="handleLaunchLocalGpuWorker()" style="font-size: 12.5px; padding: 8px 16px; font-weight: 600;">
+                      ⚡ Launch Local GPU Worker
+                    </button>
+                    <button class="btn btn-ghost" id="btn-local-gpu-stop" onclick="handleStopLocalGpuWorker()" style="display: none; color: var(--danger); font-size: 12.5px;">
+                      🛑 Stop Worker
+                    </button>
+                  </div>
+                  <label style="display: flex; align-items: center; gap: 7px; font-size: 12px; color: #cbd5e1; cursor: pointer;">
+                    <input type="checkbox" id="local-gpu-auto-launch-checkbox" onchange="handleToggleLocalGpuAutoLaunch(this.checked)" style="cursor: pointer;">
+                    <span>Auto-start on Studio launch</span>
+                  </label>
+                </div>
+
+                <!-- Live Status & Logs toggle -->
+                <div id="local-gpu-status-box" style="margin-top: 10px; font-size: 12px; color: #94a3b8; display: flex; align-items: center; justify-content: space-between;">
+                  <span id="local-gpu-status-text">Status: Offline</span>
+                  <a href="#" onclick="toggleLocalGpuLogs(event)" id="local-gpu-log-toggle" style="color: var(--accent); font-size: 11.5px; text-decoration: none;">View Logs ▾</a>
+                </div>
+
+                <!-- Live Log Window -->
+                <div id="local-gpu-log-panel" style="display: none; margin-top: 8px; background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 8px 10px; font-family: monospace; font-size: 11px; max-height: 140px; overflow-y: auto; color: #a7f3d0; white-space: pre-wrap;"></div>
               </div>
-              <div style="display: flex; gap: 8px; margin-top: 8px;">
-                <input type="text" id="custom-gpu-url-input" class="search-input" placeholder="http://localhost:8080 or https://your-tunnel.trycloudflare.com" style="flex: 1; font-size: 12.5px;" oninput="syncCustomUrlToColabUrl(this.value)">
-                <button class="btn btn-secondary" id="btn-test-custom-gpu" onclick="handleTestCustomGpu()" style="white-space: nowrap;">⚡ Test Connection</button>
-                <button class="btn btn-ghost" onclick="handleClearCustomGpuInput()" title="Clear URL" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
+
+              <!-- Incompatible / Low VRAM Guidance (shown when non-NVIDIA or VRAM < 11GB) -->
+              <div id="local-gpu-incompatible-section" style="display: none; margin-top: 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 6px; padding: 10px 12px; font-size: 12px; line-height: 1.45;">
+                <div style="font-weight: 600; color: #fca5a5; display: flex; align-items: center; gap: 6px;">
+                  <span>⚠️</span>
+                  <span id="local-gpu-warning-title">Local GPU Insufficient for Fish Audio S2 Pro</span>
+                </div>
+                <div style="color: #cbd5e1; margin-top: 4px;" id="local-gpu-warning-msg">
+                  Fish Audio S2 Pro requires a dedicated NVIDIA CUDA GPU with at least 12 GB VRAM. Attempting to run locally on this card will cause Out-Of-Memory errors.
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+                  <button class="btn btn-secondary" onclick="switchCloudSection('api')" style="font-size: 11.5px; padding: 5px 12px;">
+                    🐟 Switch to Official Cloud API (Instant)
+                  </button>
+                  <button class="btn btn-ghost" onclick="switchCloudTab('kaggle')" style="font-size: 11.5px; padding: 5px 12px; color: #67e8f9;">
+                    🚀 1-Click Kaggle GPU (Free 30h)
+                  </button>
+                </div>
               </div>
-              <div id="custom-gpu-test-result" style="font-size: 12px; min-height: 18px; margin-top: 4px;"></div>
             </div>
+
+            <!-- Manual Custom Connection Option (Collapsible) -->
+            <div class="colab-workflow-card" style="margin-top: 10px; padding: 12px 14px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="toggleCustomManualUrl()">
+                <div style="font-size: 12px; font-weight: 600; color: #94a3b8; display: flex; align-items: center; gap: 6px;">
+                  <span>⚙️</span>
+                  <span>Advanced: Manual Custom Worker URL</span>
+                </div>
+                <span id="custom-manual-arrow" style="font-size: 11px; color: #64748b;">▸ Show</span>
+              </div>
+              
+              <div id="custom-manual-container" style="display: none; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;">
+                <div style="font-size: 11.5px; color: #94a3b8; line-height: 1.4; margin-bottom: 6px;">
+                  Connect to a custom worker port, RunPod pod, or Vast.ai instance:
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <input type="text" id="custom-gpu-url-input" class="search-input" placeholder="http://127.0.0.1:8080 or https://your-tunnel.trycloudflare.com" style="flex: 1; font-size: 12.5px;" oninput="syncCustomUrlToColabUrl(this.value)">
+                  <button class="btn btn-secondary" id="btn-test-custom-gpu" onclick="handleTestCustomGpu()" style="white-space: nowrap;">⚡ Test Connection</button>
+                  <button class="btn btn-ghost" onclick="handleClearCustomGpuInput()" title="Clear URL" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
+                </div>
+                <div id="custom-gpu-test-result" style="font-size: 12px; min-height: 18px; margin-top: 4px;"></div>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -1971,6 +2767,8 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
 
         <!-- Action Buttons -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.07);">
@@ -2004,8 +2802,33 @@
 
         <!-- Voice Actor Selection -->
         <div>
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Voice Actor</label>
-          <select id="char-modal-voice-select" class="search-input" style="padding: 8px 10px; font-size: 13px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: var(--radius-sm); width: 100%;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0;">Voice Actor</label>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="action-pill-btn secondary" onclick="openVoiceDrawerForCharacter('fish')" style="font-size: 11px; padding: 3px 8px; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Explore 2M+ AI voices from Fish Audio">
+                <span>📚 Browse Library (2M+)</span>
+              </button>
+              <button type="button" class="action-pill-btn secondary" onclick="openVoiceDrawerForCharacter('create')" style="font-size: 11px; padding: 3px 8px; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Clone or design a custom character voice">
+                <span>✨ Create Voice</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Clickable Voice Actor Card -->
+          <div id="char-modal-voice-card" onclick="openVoiceDrawerForCharacter('fish')" style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-card); border: 1.5px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--primary)'; this.style.background='rgba(99, 102, 241, 0.05)';" onmouseout="this.style.borderColor='var(--border-color)'; this.style.background='var(--bg-card)';" title="Click to browse and choose or create a voice">
+            <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+              <span style="font-size: 20px;">🎙️</span>
+              <div style="display: flex; flex-direction: column; overflow: hidden;">
+                <span id="char-modal-selected-voice-title" style="font-size: 13.5px; font-weight: 600; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">Roblox Adom Voice</span>
+                <span id="char-modal-selected-voice-meta" style="font-size: 11px; color: var(--text-muted);">Male • American (Cloned)</span>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+              <span style="font-size: 11px; color: var(--primary); font-weight: 600; background: rgba(99, 102, 241, 0.12); padding: 4px 9px; border-radius: 4px; border: 1px solid rgba(99, 102, 241, 0.25);">Choose / Create ▾</span>
+            </div>
+          </div>
+
+          <select id="char-modal-voice-select" style="display: none;" onchange="updateCharModalVoiceDetails(this.value)">
             <!-- Dynamically populated with Fish Audio voices -->
           </select>
         </div>
@@ -2116,9 +2939,12 @@
           <button type="button" class="btn btn-primary" id="btn-save-character-confirm" onclick="confirmSaveCharacter()">💾 Save Character</button>
         </div>
       </div>
+    </div>
+  </div>
+
   <!-- ================= IMPORT CHARACTER CAST MODAL ================= -->
   <div class="drawer-backdrop" id="import-cast-modal" style="display: none;">
-    <div class="drawer-window" style="width: 480px; max-width: 95vw; max-height: 85vh; overflow-y: auto;">
+    <div class="drawer-window" style="width: 500px; max-width: 95vw; max-height: 85vh; overflow-y: auto;">
       <div class="drawer-header" style="position: sticky; top: 0; background: var(--bg-surface); z-index: 10;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 18px;">🎭</span>
@@ -2128,132 +2954,680 @@
       </div>
       <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
         <div style="font-size: 12px; color: var(--text-muted); line-height: 1.45;">
-          Copy saved character voices and settings from another story project into this project.
+          Copy saved character voices and settings from another collection or standalone story into this chapter.
         </div>
 
+        <!-- SOURCE TYPE SELECTION (Collection vs Standalone) -->
         <div>
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Source Story Project</label>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Import Source Type</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <label class="mode-select-card" id="lbl-import-source-collection" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; border: 1.5px solid #8b5cf6; background: rgba(139, 92, 246, 0.12); cursor: pointer; transition: all 0.2s;">
+              <input type="radio" name="import-source-type" id="import-source-type-collection" value="collection" checked onchange="handleImportSourceTypeChange('collection')" style="accent-color: #8b5cf6;">
+              <span style="font-size: 12px; font-weight: 700; color: #fff;">📚 Series / Collection</span>
+            </label>
+            <label class="mode-select-card" id="lbl-import-source-standalone" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255, 255, 255, 0.03); cursor: pointer; transition: all 0.2s;">
+              <input type="radio" name="import-source-type" id="import-source-type-standalone" value="standalone" onchange="handleImportSourceTypeChange('standalone')" style="accent-color: #8b5cf6;">
+              <span style="font-size: 12px; font-weight: 700; color: #fff;">📄 Standalone Story</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- SOURCE SELECTION DROPDOWN -->
+        <div>
+          <label id="import-source-select-label" style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Select Series / Book Collection</label>
           <select id="import-cast-source-select" class="search-input" style="padding: 8px 10px; font-size: 13px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: var(--radius-sm); width: 100%;" onchange="handleImportSourceProjectChange()">
             <!-- Populated dynamically -->
           </select>
         </div>
 
+        <!-- CHARACTERS LIST WITH CHECKBOXES & SELECT ALL -->
         <div id="import-cast-preview-container">
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Characters to Import</label>
-          <div id="import-cast-preview-list" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px; max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin: 0;">Select Characters to Import</label>
+            <div style="display: flex; gap: 8px; font-size: 11px;">
+              <a href="javascript:void(0)" onclick="toggleAllImportCastCheckboxes(true)" style="color: #60a5fa; text-decoration: none; font-weight: 600;">Select All</a>
+              <span style="color: rgba(255,255,255,0.2);">|</span>
+              <a href="javascript:void(0)" onclick="toggleAllImportCastCheckboxes(false)" style="color: var(--text-muted); text-decoration: none;">Deselect All</a>
+            </div>
+          </div>
+          <div id="import-cast-preview-list" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px; max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
             <!-- Previews -->
           </div>
         </div>
 
         <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-main); margin-top: 4px;">
           <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-            <input type="radio" name="import-cast-mode" value="append" checked>
+            <input type="radio" name="import-cast-mode" value="append" checked style="accent-color: #8b5cf6;">
             <span>Append to existing cast</span>
           </label>
           <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
-            <input type="radio" name="import-cast-mode" value="replace">
+            <input type="radio" name="import-cast-mode" value="replace" style="accent-color: #8b5cf6;">
             <span>Replace current cast</span>
           </label>
         </div>
 
-        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 14px;">
           <button type="button" class="btn btn-secondary" onclick="closeImportCastModal()">Cancel</button>
-          <button type="button" class="btn btn-primary" id="btn-confirm-import-cast" onclick="confirmImportCast()">📥 Import Cast</button>
+          <button type="button" class="btn btn-primary" id="btn-confirm-import-cast" onclick="confirmImportCast()" style="background: linear-gradient(135deg, #8b5cf6, #10b981); border: none; font-weight: 700;">📥 Import Selected Cast</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Neural Voice Designer Modal (Prompt-to-Voice) -->
-  <div id="voice-designer-modal" class="modal-overlay">
-    <div class="modal-card" style="max-width: 540px; border-radius: var(--radius-md); background: var(--bg-card); border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding: 14px 20px;">
+  <!-- ================= REMOVE / DELETE CHARACTER MODAL ================= -->
+  <div class="drawer-backdrop" id="remove-character-modal" style="display: none; align-items: center; justify-content: center; z-index: 1050;">
+    <div class="drawer-window" style="width: 480px; max-width: 95vw; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1);">
+      <div class="drawer-header" style="border-bottom: 1px solid var(--border-color); padding: 16px 20px;">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 18px;">✨</span>
-          <h3 style="font-size: 15px; font-weight: 600; margin: 0; color: var(--text-main);">Neural Voice Designer</h3>
+          <span style="font-size: 20px;">🎭</span>
+          <span class="drawer-title" id="remove-char-modal-title">Remove Character</span>
         </div>
-        <button class="icon-btn" onclick="closeVoiceDesignerModal()" style="font-size: 18px;">✕</button>
+        <button class="icon-btn" onclick="closeRemoveCharacterModal()" style="font-size: 18px;">✕</button>
       </div>
+      
+      <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+        <!-- Character Summary Card -->
+        <div style="display: flex; align-items: center; gap: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 12px;">
+          <div id="remove-char-avatar" class="voice-avatar-badge" style="width: 40px; height: 40px; font-size: 14px; font-weight: 700; background: #ea580c; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff;">NM</div>
+          <div style="display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0;">
+            <div id="remove-char-name" style="font-size: 14px; font-weight: 700; color: #fff;">Nelson Mandela</div>
+            <div id="remove-char-voice" style="font-size: 12px; color: var(--text-muted);">Morgan Freeman • Iconic Deep Baritone</div>
+            <div id="remove-char-usage" style="font-size: 11px; color: #f59e0b;">Assigned to 3 sentences in this chapter</div>
+          </div>
+        </div>
 
-      <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="font-size: 12.5px; color: var(--text-muted); line-height: 1.5;">
+          This chapter is part of <strong id="remove-char-series-name" style="color: #93c5fd;">Series Collection</strong>. Where would you like to remove this character from?
+        </div>
+
+        <!-- Action Choice Buttons -->
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <!-- Option 1: Remove from chapter only -->
+          <button type="button" class="btn" onclick="executeRemoveCharacterFromChapterOnly()" style="display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 12px 14px; background: rgba(59, 130, 246, 0.12); border: 1.5px solid rgba(59, 130, 246, 0.4); border-radius: 8px; text-align: left; cursor: pointer; transition: all 0.2s;">
+            <div style="font-size: 13px; font-weight: 700; color: #93c5fd; display: flex; align-items: center; gap: 6px;">
+              <span>📖</span> Remove from This Chapter Only
+            </div>
+            <div style="font-size: 11.5px; color: var(--text-muted);">
+              Removes from this chapter's cast list. Preserves character in the Series Master Cast for other chapters.
+            </div>
+          </button>
+
+          <!-- Option 2: Delete from Unified Master Cast & Series -->
+          <button type="button" class="btn" onclick="executeDeleteCharacterFromEntireSeries()" style="display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 12px 14px; background: rgba(239, 68, 68, 0.1); border: 1.5px solid rgba(239, 68, 68, 0.4); border-radius: 8px; text-align: left; cursor: pointer; transition: all 0.2s;">
+            <div style="font-size: 13px; font-weight: 700; color: #f87171; display: flex; align-items: center; gap: 6px;">
+              <span>🗑️</span> Delete from Entire Series &amp; Unified Cast
+            </div>
+            <div style="font-size: 11.5px; color: var(--text-muted);">
+              Completely deletes character from the Series Universe Master Cast and all chapters.
+            </div>
+          </button>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; margin-top: 4px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+          <button type="button" class="btn btn-secondary" onclick="closeRemoveCharacterModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CREATE SERIES / BOOK FOLDER MODAL ================= -->
+  <div class="drawer-backdrop" id="create-folder-modal" style="display: none;">
+    <div class="drawer-window" style="width: 620px; max-width: 95vw; max-height: calc(100vh - 40px); display: flex; flex-direction: column; overflow: hidden;">
+      <div class="drawer-header" style="flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">📁</span>
+          <span class="drawer-title" id="folder-modal-title">New Audiobook / Series Folder</span>
+        </div>
+        <button class="icon-btn" onclick="closeCreateFolderModal()" style="font-size: 18px;">✕</button>
+      </div>
+      <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px; flex: 1; overflow-y: auto; min-height: 0;">
         <div style="font-size: 12px; color: var(--text-muted); line-height: 1.45;">
-          Describe any character persona, timbre, age, or accent. Our neural voice forge will synthesize a custom reference audio asset for zero-shot cloning.
+          Organize multiple book chapters or episodic audio dramas under a unified collection with a shared Universe Master Character Cast.
         </div>
 
-        <div>
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Character Name</label>
-          <input type="text" id="designer-char-name" class="search-input" placeholder="e.g. Detective Vance" style="padding: 8px 10px; font-size: 13px; background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-color); border-radius: var(--radius-sm); width: 100%;">
-        </div>
-
-        <div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Voice Description Prompt</label>
-            <span style="font-size: 10.5px; color: var(--text-muted);">Natural Language</span>
+        <!-- EBOOK AUTO-IMPORT OPTION -->
+        <div style="background: rgba(30, 41, 59, 0.7); border: 1px dashed rgba(59, 130, 246, 0.4); border-radius: 10px; padding: 12px 14px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 16px;">📚</span>
+              <span style="font-size: 12px; font-weight: 700; color: #93c5fd;">Build from eBook / Multi-Volume Boxset (.epub)</span>
+            </div>
+            <button type="button" class="btn btn-ghost" id="folder-ebook-clear-btn" onclick="clearFolderEbookSelection()" style="display: none; font-size: 11px; padding: 2px 8px; color: #f87171;">✕ Remove</button>
           </div>
-          <textarea id="designer-voice-prompt" class="search-input" rows="3" placeholder="e.g. A 55-year-old raspy noir detective, gravelly baritone, cynical American tone speaking slowly in a rainy alleyway" style="padding: 10px; font-size: 12.5px; line-height: 1.4; background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-color); border-radius: var(--radius-sm); width: 100%; resize: vertical;"></textarea>
+          
+          <input type="file" id="folder-ebook-file-input" accept=".epub" style="display: none;" onchange="handleFolderEbookSelected(this)">
+          
+          <div id="folder-ebook-dropzone" onclick="document.getElementById('folder-ebook-file-input').click()" ondragover="event.preventDefault(); this.style.borderColor='#3b82f6'; this.style.background='rgba(59, 130, 246, 0.15)'" ondragleave="this.style.borderColor='rgba(255, 255, 255, 0.08)'; this.style.background='rgba(15, 23, 42, 0.6)'" ondrop="handleFolderEbookDrop(event)" style="cursor: pointer; text-align: center; padding: 14px; background: rgba(15, 23, 42, 0.6); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08); transition: all 0.2s ease;">
+            <div id="folder-ebook-drop-text" style="font-size: 12px; color: var(--text-muted);">
+              <span style="color: #60a5fa; font-weight: 600;">Click to select</span> or drag &amp; drop an EPUB eBook here (e.g. Harry Potter 1-7, multi-part novels)
+            </div>
+          </div>
 
-          <!-- Quick Preset Inspiration Chips -->
-          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
-            <button type="button" class="action-pill-btn secondary" style="font-size: 10.5px; padding: 3px 8px;" onclick="applyDesignerPreset('55-year-old raspy noir detective, gravelly baritone, cynical American tone', 'Detective Vance')">🕵️ Noir Detective</button>
-            <button type="button" class="action-pill-btn secondary" style="font-size: 10.5px; padding: 3px 8px;" onclick="applyDesignerPreset('Deep, ominous cinematic movie trailer narrator with chilling resonant bass', 'Epic Narrator')">🎙️ Trailer Narrator</button>
-            <button type="button" class="action-pill-btn secondary" style="font-size: 10.5px; padding: 3px 8px;" onclick="applyDesignerPreset('Breathless terrified young female survivor, urgent whisper, voice trembling with tears', 'Fearful Heroine')">😱 Thriller Heroine</button>
-            <button type="button" class="action-pill-btn secondary" style="font-size: 10.5px; padding: 3px 8px;" onclick="applyDesignerPreset('Weathered 70-year-old ancient sage, gravelly British whisper, scholarly tone', 'Ancient Scholar')">🧙 Ancient Sage</button>
-            <button type="button" class="action-pill-btn secondary" style="font-size: 10.5px; padding: 3px 8px;" onclick="applyDesignerPreset('Cold, guttural otherworldly shadow monster, sinister raspy demonic cadence', 'Shadow Entity')">👁️ Shadow Monster</button>
+          <!-- EBOOK STRUCTURE PREVIEW (Appears after inspecting) -->
+          <div id="folder-ebook-preview" style="display: none; margin-top: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+              <span id="folder-ebook-stats-badge" style="font-size: 12px; color: #a7f3d0; font-weight: 600;"></span>
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 11px;">
+                <button type="button" class="btn btn-secondary" onclick="filterFluffEbookChapters()" style="font-size: 11px; padding: 2px 8px; background: rgba(245, 158, 11, 0.18); border: 1px solid rgba(245, 158, 11, 0.45); color: #fcd34d; font-weight: 700; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;" title="Automatically uncheck Copyright, Dedication, Acknowledgments, and other front-matter fluff">
+                  <span>🧹</span> Chapters Only (Skip Fluff)
+                </button>
+                <a href="javascript:void(0)" onclick="toggleAllEbookChapters(true)" style="color: #60a5fa; text-decoration: none;">Select All</a>
+                <span style="opacity: 0.3;">|</span>
+                <a href="javascript:void(0)" onclick="toggleAllEbookChapters(false)" style="color: var(--text-muted); text-decoration: none;">Deselect All</a>
+              </div>
+            </div>
+            <div id="folder-ebook-volumes-list" style="max-height: 270px; overflow-y: auto; background: rgba(0,0,0,0.25); border-radius: 6px; padding: 8px 10px; font-size: 11.5px; color: var(--text-muted); display: flex; flex-direction: column; gap: 8px;"></div>
+            <div style="font-size: 11px; color: #94a3b8; margin-top: 6px; line-height: 1.4;">
+              ⚡ <em>Instant Card Mode:</em> Lightweight chapter cards will be generated immediately. Full manuscript blocks and character casting can be directed on-demand whenever you open each chapter in Studio.
+            </div>
           </div>
         </div>
 
         <div>
-          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Reference Speech Sample Line</label>
-          <input type="text" id="designer-sample-text" class="search-input" value="In the deepest shadows of the abandoned corridor, something began to move." style="padding: 7px 10px; font-size: 12px; background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-color); border-radius: var(--radius-sm); width: 100%;">
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Series / Book Title *</label>
+          <input type="text" id="new-folder-title-input" class="search-input" placeholder="e.g. Rich Dad Poor Dad, Dune, Harry Potter" style="width: 100%; padding: 10px; font-size: 13.5px; background: var(--bg-card); color: var(--text-main);">
+        </div>
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Author / Creator</label>
+          <input type="text" id="new-folder-author-input" class="search-input" placeholder="e.g. Robert Kiyosaki" style="width: 100%; padding: 10px; font-size: 13px; background: var(--bg-card); color: var(--text-main);">
+        </div>
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Description / Premise</label>
+          <textarea id="new-folder-desc-input" rows="3" class="search-input" placeholder="Brief summary of the series or narrative world..." style="width: 100%; padding: 10px; font-size: 12.5px; background: var(--bg-card); color: var(--text-main); resize: none;"></textarea>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border-color); background: var(--bg-surface); flex-shrink: 0;">
+        <button type="button" class="btn btn-secondary" onclick="closeCreateFolderModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btn-save-folder-submit" onclick="handleCreateFolderSubmit()" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); border: none; font-weight: 700;">📁 Create Series Folder</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= STUB CHAPTER DIRECT MODAL ================= -->
+  <div class="drawer-backdrop" id="stub-chapter-direct-modal" style="display: none; z-index: 10000;">
+    <div class="drawer-window" style="position: relative; width: 640px; max-width: 95vw; max-height: calc(100vh - 40px); background: #0f172a; border: 1px solid rgba(59, 130, 246, 0.4); box-shadow: 0 25px 60px rgba(0,0,0,0.85); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden;">
+      
+      <!-- Directing Progress Overlay (Shown when user clicks Direct or Fast Split) -->
+      <div id="stub-direct-overlay" style="display: none; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.96); backdrop-filter: blur(12px); z-index: 50; flex-direction: column; align-items: center; justify-content: center; padding: 32px 28px; text-align: center;">
+        <div style="width: 76px; height: 76px; border-radius: 50%; background: radial-gradient(circle, rgba(139, 92, 246, 0.4), rgba(59, 130, 246, 0.15)); border: 2px solid rgba(139, 92, 246, 0.6); display: flex; align-items: center; justify-content: center; font-size: 34px; margin-bottom: 16px; box-shadow: 0 0 35px rgba(139, 92, 246, 0.4); animation: pulse 2s infinite ease-in-out;">
+          <span id="stub-overlay-icon">🪄</span>
+        </div>
+        
+        <h3 id="stub-overlay-title" style="margin: 0 0 6px 0; font-size: 19px; font-weight: 800; color: #fff; letter-spacing: -0.3px;">AI Script Director</h3>
+        <p id="stub-overlay-subtitle" style="margin: 0 0 20px 0; font-size: 13px; color: #93c5fd; max-width: 440px; line-height: 1.5;">Analyzing manuscript subtext &amp; casting character voices...</p>
+
+        <!-- Progress bar container -->
+        <div style="width: 100%; max-width: 440px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 999px; height: 10px; padding: 2px; margin-bottom: 10px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">
+          <div id="stub-overlay-bar" style="width: 15%; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #3b82f6, #8b5cf6, #10b981); transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 0 14px rgba(59, 130, 246, 0.6);"></div>
         </div>
 
-        <!-- Audio Audition Player Container (Visible after generation) -->
-        <div id="designer-audio-container" style="display: none; background: var(--bg-base); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; flex-direction: column; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; width: 100%; max-width: 440px; font-size: 11.5px; color: var(--text-muted); margin-bottom: 18px;">
+          <span id="stub-overlay-step" style="font-weight: 600; color: #cbd5e1;">Step 1 of 4: Extracting text</span>
+          <span id="stub-overlay-pct" style="font-weight: 800; color: #a78bfa;">15%</span>
+        </div>
+
+        <!-- Live Step Indicators -->
+        <div id="stub-overlay-steps" style="display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 440px; text-align: left; font-size: 12px; background: rgba(0,0,0,0.35); padding: 14px 18px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.06);">
+          <div id="stub-step-1" style="display: flex; align-items: center; gap: 10px; color: #93c5fd; font-weight: 600;">
+            <span class="step-icon">🔍</span> <span>Extracting manuscript paragraphs &amp; dialogue</span>
+          </div>
+          <div id="stub-step-2" style="display: flex; align-items: center; gap: 10px; color: #64748b;">
+            <span class="step-icon">🤖</span> <span>AI Director analyzing dialogue quotes &amp; emotional beats</span>
+          </div>
+          <div id="stub-step-3" style="display: flex; align-items: center; gap: 10px; color: #64748b;">
+            <span class="step-icon">🎭</span> <span>Matching voices with Universe Master Cast</span>
+          </div>
+          <div id="stub-step-4" style="display: flex; align-items: center; gap: 10px; color: #64748b;">
+            <span class="step-icon">✨</span> <span>Building speech cards &amp; emotion acting markers</span>
+          </div>
+        </div>
+
+        <!-- Error box in overlay (if failed) -->
+        <div id="stub-overlay-error" style="display: none; flex-direction: column; gap: 10px; width: 100%; max-width: 440px; margin-top: 14px; padding: 14px 16px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 8px; text-align: left;">
+          <div style="font-size: 12px; font-weight: 700; color: #fca5a5; display: flex; align-items: flex-start; gap: 8px;">
+            <span style="font-size: 16px;">⚠️</span> <span id="stub-overlay-error-msg" style="word-break: break-word;">Error details</span>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <button type="button" class="btn btn-secondary" onclick="retryStubDirectModal()" style="font-size: 11.5px; padding: 6px 12px;">🔄 Try Again</button>
+            <button type="button" class="btn btn-primary" onclick="handleStubFastSplit()" style="font-size: 11.5px; padding: 6px 12px; background: #3b82f6;">⚡ Use Fast Split (Instant)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-header" style="flex-shrink: 0; background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95)); padding: 16px 22px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">📖</span>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;" id="stub-modal-title">Direct Chapter</h3>
+            <div style="font-size: 12px; color: #93c5fd; margin-top: 2px;" id="stub-modal-subtitle">eBook Chapter Ingestion</div>
+          </div>
+        </div>
+        <button class="icon-btn" onclick="closeStubDirectModal()" style="font-size: 18px;">✕</button>
+      </div>
+
+      <div style="padding: 20px 22px; display: flex; flex-direction: column; gap: 16px; flex: 1; overflow-y: auto; min-height: 0;">
+        <!-- Meta info pill -->
+        <div style="display: flex; gap: 12px; padding: 10px 14px; background: rgba(30, 41, 59, 0.6); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.05); font-size: 12px; color: var(--text-muted); align-items: center;">
+          <span>📝 <strong id="stub-modal-words" style="color: #fff;">0</strong> words</span>
+          <span>•</span>
+          <span>⏱️ Est. <strong id="stub-modal-duration" style="color: #60a5fa;">0m</strong> audio</span>
+          <span>•</span>
+          <span>Series: <strong id="stub-modal-series" style="color: #c4b5fd;">Audiobook</strong></span>
+        </div>
+
+        <!-- Unified Universe Cast Section -->
+        <div style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 10px; padding: 12px 14px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 12px; font-weight: 700; color: #c4b5fd;">🎭 Universe Unified Character Cast</span>
+            <span style="font-size: 11px; color: var(--text-muted);" id="stub-modal-cast-count">0 characters</span>
+          </div>
+          <div id="stub-modal-cast-preview" style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 85px; overflow-y: auto;">
+            <!-- Rendered badges of existing characters -->
+          </div>
+          <div style="font-size: 11px; color: #94a3b8; margin-top: 8px; line-height: 1.4;">
+            ✨ Dialogue spoken by existing characters will use their established voice. Any new characters discovered in this chapter will automatically join the Universe Master Cast!
+          </div>
+        </div>
+
+        <!-- Series Default Preset Banner -->
+        <div id="stub-preset-banner" style="display: none; background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 10px; padding: 12px 14px; flex-direction: column; gap: 8px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-size: 11.5px; font-weight: 600; color: #10b981;">✅ Voice Generated Successfully</span>
-            <span id="designer-voice-timbre-tag" style="font-size: 10.5px; color: var(--text-muted);"></span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 16px;">⚙️</span>
+              <span style="font-size: 12.5px; font-weight: 700; color: #93c5fd;">Series Director Defaults Active</span>
+            </div>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #60a5fa; cursor: pointer;">
+              <input type="checkbox" id="stub-use-series-defaults" checked onchange="toggleStubDefaultsMode(this.checked)" style="accent-color: #3b82f6;">
+              <span>Use Series Defaults</span>
+            </label>
           </div>
-          <audio id="designer-audio-player" controls style="width: 100%; height: 36px;"></audio>
+          <div id="stub-preset-summary" style="font-size: 11.5px; color: var(--text-muted); line-height: 1.4;"></div>
         </div>
 
-        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 14px;">
-          <button type="button" class="btn btn-secondary" onclick="closeVoiceDesignerModal()">Cancel</button>
-          <button type="button" class="btn btn-secondary" id="btn-forge-voice" onclick="handleForgeVoicePreview()" style="display: flex; align-items: center; gap: 6px; background: var(--bg-base); border: 1px solid var(--border-color);">
-            <span>⚡ Forge Voice Preview</span>
-          </button>
-          <button type="button" class="btn btn-primary" id="btn-save-designed-voice" onclick="handleSaveDesignedVoice()" disabled style="background: linear-gradient(135deg, #10b981, #059669); border: none;">
-            <span>✅ Save & Use Voice</span>
+        <div id="stub-options-container" style="display: flex; flex-direction: column; gap: 14px;">
+          <!-- Direction Method: AI Director vs Manual -->
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 12px; font-weight: 700; color: var(--text-muted);">Direction Method:</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <label class="mode-select-card" id="lbl-stub-method-ai" style="display: flex; align-items: flex-start; gap: 8px; background: rgba(139, 92, 246, 0.14); border: 1.5px solid #8b5cf6; padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                <input type="radio" name="stub-ingest-method" id="stub-ingest-method-ai" value="ai" checked onchange="handleStubMethodChange('ai')" style="margin-top: 3px; accent-color: #8b5cf6;">
+                <div>
+                  <strong style="font-size: 12.5px; color: #fff; display: block;">🪄 AI Script Director</strong>
+                  <span style="font-size: 11px; color: var(--text-muted);">Auto-cast characters, split dialogue quotes &amp; inject vocal acting tags.</span>
+                </div>
+              </label>
+              <label class="mode-select-card" id="lbl-stub-method-manual" style="display: flex; align-items: flex-start; gap: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                <input type="radio" name="stub-ingest-method" id="stub-ingest-method-manual" value="manual" onchange="handleStubMethodChange('manual')" style="margin-top: 3px; accent-color: #8b5cf6;">
+                <div>
+                  <strong style="font-size: 12.5px; color: #fff; display: block;">✍️ Manual Direction</strong>
+                  <span style="font-size: 11px; color: var(--text-muted);">Instant paragraphs &amp; sentence chunking with no AI. Assign voices manually in studio.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Directing / Casting Options -->
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-size: 12px; font-weight: 700; color: var(--text-muted);">Production Mode:</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <label style="display: flex; align-items: flex-start; gap: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(59, 130, 246, 0.4); padding: 10px; border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="stub-cast-mode" value="multi" checked style="margin-top: 3px;">
+                <div>
+                  <strong style="font-size: 12.5px; color: #fff; display: block;">🎭 Multi-Cast Drama</strong>
+                  <span style="font-size: 11px; color: var(--text-muted);">Distinct voices per character with narrative quotes separated.</span>
+                </div>
+              </label>
+              <label style="display: flex; align-items: flex-start; gap: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="stub-cast-mode" value="solo" style="margin-top: 3px;">
+                <div>
+                  <strong style="font-size: 12.5px; color: #fff; display: block;">🎙️ Solo Narrator</strong>
+                  <span style="font-size: 11px; color: var(--text-muted);">Single voice reads entire chapter with expressive acting tags.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- AI-Specific Fields Container -->
+          <div id="stub-ai-fields" style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Acting Intensity & Narrator Voice -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label style="font-size: 11.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">Acting Tag Intensity / Beats:</label>
+                <select id="stub-acting-intensity" class="search-input" style="width: 100%; padding: 8px 10px; font-size: 12px; background: var(--bg-card); color: var(--text-main);">
+                  <option value="subtle">Subtle / High Drama (Only emotional peaks &amp; shouts)</option>
+                  <option value="balanced" selected>Balanced / Expressive (Recommended: dialogue &amp; reactions)</option>
+                  <option value="cinematic">Deep Cinematic / High-Acting (Rich tags on all narrative beats)</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size: 11.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">Default Narrator Voice:</label>
+                <select id="stub-narrator-voice" class="search-input" style="width: 100%; padding: 8px 10px; font-size: 12px; background: var(--bg-card); color: var(--text-main);">
+                  <!-- Populated dynamically with voices -->
+                </select>
+              </div>
+            </div>
+
+            <!-- AI Analysis Depth (Acting Temperature) -->
+            <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="font-size: 11.5px; font-weight: 600; color: var(--text-muted);">AI Analysis Depth (Acting Temperature):</label>
+                <span id="stub-acting-temp-display" style="font-size: 12px; font-weight: 700; color: #a78bfa;">0.70 (Deep Subtext &amp; Tension)</span>
+              </div>
+              <input type="range" id="stub-acting-temperature" min="0.2" max="1.0" step="0.05" value="0.70" oninput="updateStubTempDisplay(this.value)" style="width: 100%; accent-color: #8b5cf6;">
+            </div>
+
+            <!-- AI Model Selector -->
+            <div>
+              <label style="font-size: 11.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">AI Director Engine / Model:</label>
+              <select id="stub-ai-model-select" class="search-input" style="width: 100%; padding: 8px 10px; font-size: 12px; background: var(--bg-card); color: var(--text-main);">
+                <option value="gemini-3.5-flash-lite" selected>gemini-3.5-flash-lite (Ultra Fast &amp; Free - Recommended)</option>
+                <option value="gemini-2.5-flash">gemini-2.5-flash (Balanced)</option>
+                <option value="gemini-3.5-flash">gemini-3.5-flash (Frontier Quality)</option>
+                <option value="openai/gpt-oss-120b">Groq: openai/gpt-oss-120b (120B High IQ)</option>
+                <option value="openai/gpt-oss-20b">Groq: openai/gpt-oss-20b (Ultra Fast)</option>
+                <option value="qwen/qwen3.8-27b">Groq: qwen/qwen3.8-27b (Accurate)</option>
+                <option value="fast_split">⚡ Fast Split (No AI - Instant Paragraphs &amp; Quotes)</option>
+              </select>
+            </div>
+
+            <!-- AI Director & Acting Tags Checkboxes -->
+            <div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted);">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="stub-split-quotes" checked>
+                <span>Split Spoken Dialogue Quotes</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="stub-acting-tags" checked>
+                <span>Add Emotion &amp; Acting Tags ([whisper], [sigh])</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Save as Default for Series -->
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #a7f3d0; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 10px 12px; cursor: pointer;">
+            <input type="checkbox" id="stub-save-as-default" checked style="accent-color: #10b981;">
+            <span><strong>💾 Save as Series Defaults:</strong> Apply these exact director &amp; acting beat settings to all future chapters in this series</span>
+          </label>
+        </div>
+
+        <!-- Progress status spinner (hidden by default) -->
+        <div id="stub-direct-progress" style="display: none; padding: 14px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 8px; text-align: center;">
+          <div style="font-size: 13px; font-weight: 700; color: #93c5fd; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+            <span id="stub-direct-progress-msg">Directing chapter &amp; casting dialogue...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action buttons fixed in footer -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 22px; border-top: 1px solid rgba(255, 255, 255, 0.08); background: #0b1120; flex-shrink: 0;">
+        <button type="button" class="btn btn-secondary" onclick="closeStubDirectModal()">Cancel / Back</button>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="handleStubFastSplit()" style="font-size: 12px;">⚡ Fast Split (No AI)</button>
+          <button type="button" class="btn btn-primary" id="btn-stub-direct-submit" onclick="handleStubDirectSubmit()" style="background: linear-gradient(135deg, #10b981, #059669); border: none; font-weight: 700; font-size: 12.5px; padding: 8px 18px;">
+            🚀 Generate Blocks &amp; Direct Chapter
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- REFERENCE VOICE LIBRARY MODAL -->
-  <div id="ref-library-modal" class="modal-overlay">
-    <div class="modal-card" style="max-width: 520px; width: 90%;">
-      <div class="modal-header">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 18px;">📚</span>
-          <span class="modal-title">Reference Voice Library</span>
+  <!-- ================= SERIES / PROJECT SETTINGS MODAL ================= -->
+  <div class="drawer-backdrop" id="series-settings-modal" style="display: none; z-index: 10000;">
+    <div class="drawer-window" style="width: 620px; max-width: 95vw; max-height: calc(100vh - 40px); background: #0f172a; border: 1px solid rgba(139, 92, 246, 0.4); box-shadow: 0 25px 60px rgba(0,0,0,0.85); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden;">
+      <div class="drawer-header" style="flex-shrink: 0; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95)); padding: 16px 22px; border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 22px;">⚙️</span>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;" id="series-settings-modal-title">Series &amp; Project Settings</h3>
+            <div style="font-size: 12px; color: #c4b5fd; margin-top: 2px;">Audiobook defaults &amp; AI Script Director preferences</div>
+          </div>
         </div>
-        <button class="icon-btn" onclick="closeReferenceLibraryModal()" style="font-size: 18px;">✕</button>
+        <button class="icon-btn" onclick="closeSeriesSettingsModal()" style="font-size: 18px;">✕</button>
       </div>
-      <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
-        <div style="font-size: 12px; color: var(--text-muted); line-height: 1.4;">
-          Select any previously uploaded reference audio clip to instantly use its timbre for voice cloning without re-uploading.
+
+      <div style="padding: 20px 22px; display: flex; flex-direction: column; gap: 14px; flex: 1; overflow-y: auto; min-height: 0;">
+        <input type="hidden" id="series-settings-folder-id">
+
+        <!-- Metadata Section -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">Series / Book Title *</label>
+            <input type="text" id="series-settings-title" class="search-input" style="width: 100%; padding: 8px 10px; font-size: 13px; background: var(--bg-card); color: #fff;">
+          </div>
+          <div>
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">Author / Creator</label>
+            <input type="text" id="series-settings-author" class="search-input" style="width: 100%; padding: 8px 10px; font-size: 13px; background: var(--bg-card); color: #fff;">
+          </div>
         </div>
-        <div id="ref-library-list" style="max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
-          <div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading saved voice clips...</div>
+
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">Description / Premise</label>
+          <textarea id="series-settings-desc" rows="2" class="search-input" style="width: 100%; padding: 8px 10px; font-size: 12px; background: var(--bg-card); color: #fff; resize: none;"></textarea>
         </div>
-        <div style="display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border-color); padding-top: 12px;">
-          <button type="button" class="btn btn-secondary" onclick="closeReferenceLibraryModal()">Close</button>
+
+        <!-- AI Director & Acting Preferences Divider -->
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <span style="font-size: 15px;">🎬</span>
+          <span style="font-size: 12.5px; font-weight: 700; color: #93c5fd;">AI Script Director &amp; Acting Beats Defaults</span>
         </div>
+
+        <!-- Default Production Mode -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label style="font-size: 11.5px; font-weight: 600; color: var(--text-muted);">Default Production Mode:</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <label style="display: flex; align-items: flex-start; gap: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(59, 130, 246, 0.4); padding: 9px 12px; border-radius: 8px; cursor: pointer;">
+              <input type="radio" name="series-settings-cast-mode" value="multi" checked style="margin-top: 2px;">
+              <div>
+                <strong style="font-size: 12px; color: #fff; display: block;">🎭 Multi-Cast Drama</strong>
+                <span style="font-size: 11px; color: var(--text-muted);">Distinct voices per character with narrative quotes separated.</span>
+              </div>
+            </label>
+            <label style="display: flex; align-items: flex-start; gap: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); padding: 9px 12px; border-radius: 8px; cursor: pointer;">
+              <input type="radio" name="series-settings-cast-mode" value="solo" style="margin-top: 2px;">
+              <div>
+                <strong style="font-size: 12px; color: #fff; display: block;">🎙️ Solo Narrator</strong>
+                <span style="font-size: 11px; color: var(--text-muted);">Single voice reads entire chapter with expressive acting tags.</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Default Narrator & AI Model -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-size: 11.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">Default Narrator Voice:</label>
+            <select id="series-settings-narrator-voice" class="search-input" style="width: 100%; padding: 8px 10px; font-size: 12px; background: var(--bg-card); color: var(--text-main);">
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 11.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">AI Director Engine / Model:</label>
+            <select id="series-settings-ai-model" class="search-input" style="width: 100%; padding: 8px 10px; font-size: 12px; background: var(--bg-card); color: var(--text-main);">
+              <option value="gemini-3.5-flash-lite" selected>gemini-3.5-flash-lite (Ultra Fast &amp; Free - Recommended)</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash (Balanced)</option>
+              <option value="gemini-3.5-flash">gemini-3.5-flash (Frontier Quality)</option>
+              <option value="openai/gpt-oss-120b">Groq: openai/gpt-oss-120b (120B High IQ)</option>
+              <option value="openai/gpt-oss-20b">Groq: openai/gpt-oss-20b (Ultra Fast)</option>
+              <option value="qwen/qwen3.8-27b">Groq: qwen/qwen3.8-27b (Accurate)</option>
+              <option value="fast_split">⚡ Fast Split (No AI)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Acting Intensity & Temperature -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-size: 11.5px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px;">Acting Tag Intensity / Beats:</label>
+            <select id="series-settings-acting-intensity" class="search-input" style="width: 100%; padding: 8px 10px; font-size: 12px; background: var(--bg-card); color: var(--text-main);">
+              <option value="subtle">Subtle / High Drama (Only emotional peaks &amp; shouts)</option>
+              <option value="balanced" selected>Balanced / Expressive (Recommended: dialogue &amp; reactions)</option>
+              <option value="cinematic">Deep Cinematic / High-Acting (Rich tags on all narrative beats)</option>
+            </select>
+          </div>
+          <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label style="font-size: 11px; font-weight: 600; color: var(--text-muted);">Acting Temperature:</label>
+              <span id="series-settings-temp-display" style="font-size: 11.5px; font-weight: 700; color: #a78bfa;">0.70</span>
+            </div>
+            <input type="range" id="series-settings-temperature" min="0.2" max="1.0" step="0.05" value="0.70" oninput="document.getElementById('series-settings-temp-display').textContent = parseFloat(this.value).toFixed(2)" style="width: 100%; accent-color: #8b5cf6;">
+          </div>
+        </div>
+
+        <!-- Split quotes & acting tags checkboxes -->
+        <div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted);">
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" id="series-settings-split-quotes" checked>
+            <span>Split Spoken Dialogue Quotes into Separate Blocks</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" id="series-settings-acting-tags" checked>
+            <span>Add Emotion &amp; Acting Tags ([whisper], [sigh], etc.)</span>
+          </label>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid rgba(255, 255, 255, 0.08); background: #0b1120; flex-shrink: 0;">
+        <button type="button" class="btn btn-secondary" onclick="closeSeriesSettingsModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="handleSaveSeriesSettingsSubmit()" style="background: linear-gradient(135deg, #8b5cf6, #3b82f6); border: none; font-weight: 700; font-size: 12.5px; padding: 8px 20px;">
+          💾 Save Series Preferences
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= UNIVERSE MASTER CAST DIRECTORY MODAL ================= -->
+  <div class="drawer-backdrop" id="master-cast-modal" style="display: none;">
+    <div class="drawer-window" style="width: 780px; max-width: 96vw; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+      <div class="drawer-header" style="flex-shrink: 0; background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.08));">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">🎭</span>
+          <div>
+            <div class="drawer-title" id="master-cast-modal-title">Universe Master Cast Directory</div>
+            <div id="master-cast-modal-subtitle" style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">Shared across all chapters in this series. Changes sync across the entire book.</div>
+          </div>
+        </div>
+        <button class="icon-btn" onclick="closeMasterCastModal()" style="font-size: 18px;">✕</button>
+      </div>
+
+      <div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; min-height: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 12.5px; color: var(--text-muted);" id="master-cast-count-label">0 Characters in Master Cast</span>
+          <button type="button" class="action-pill-btn primary" onclick="handleAddMasterCastCharacter()" style="font-size: 12px; padding: 5px 12px;">＋ Add Character</button>
+        </div>
+
+        <div id="master-cast-table-container" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Character cards rendered here dynamically -->
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-top: 1px solid var(--border-color); background: var(--bg-surface); flex-shrink: 0;">
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); cursor: pointer;" title="Propagate any voice or persona changes to every chapter in this folder">
+          <input type="checkbox" id="master-cast-sync-checkbox" checked style="accent-color: #8b5cf6;">
+          <span>Auto-sync voices &amp; personas to all chapters</span>
+        </label>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="closeMasterCastModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" id="btn-save-master-cast" onclick="saveMasterCastSubmit()" style="background: linear-gradient(135deg, #8b5cf6, #10b981); border: none; font-weight: 700;">💾 Save Master Cast</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MOVE PROJECT TO FOLDER MODAL ================= -->
+  <div class="drawer-backdrop" id="move-to-folder-modal" style="display: none;">
+    <div class="drawer-window" style="width: 480px; max-width: 95vw;">
+      <div class="drawer-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">📂</span>
+          <span class="drawer-title">Move Chapter to Series Folder</span>
+        </div>
+        <button class="icon-btn" onclick="closeMoveToFolderModal()" style="font-size: 18px;">✕</button>
+      </div>
+      <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div id="move-project-desc" style="font-size: 12.5px; color: var(--text-muted);">
+          Select destination series folder for this chapter:
+        </div>
+        <div>
+          <label style="font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">Destination Series / Book Folder</label>
+          <select id="move-destination-folder-select" class="search-input" style="width: 100%; padding: 10px; background: var(--bg-card); color: var(--text-main);">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+          <button type="button" class="btn btn-secondary" onclick="closeMoveToFolderModal()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="handleMoveToFolderSubmit()" style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); border: none; font-weight: 700;">Move Project</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= AI DIRECTOR AGENT SETTINGS MODAL ================= -->
+  <div class="drawer-backdrop" id="agent-settings-modal" style="display: none;" onclick="closeAgentSettingsModal(event)">
+    <div class="drawer-window" style="width: 480px; max-width: 95vw; margin: auto;" onclick="event.stopPropagation()">
+      <div class="drawer-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">⚙️</span>
+          <span class="drawer-title" style="font-size: 15px; font-weight: 700; color: #f1f5f9;">AI Director Model & API Settings</span>
+        </div>
+        <button type="button" class="icon-btn" onclick="closeAgentSettingsModal()" style="font-size: 16px;">✕</button>
+      </div>
+
+      <div style="padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;">
+        <!-- Provider selector -->
+        <div>
+          <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px;">SELECT LLM PROVIDER</label>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;" id="agent-provider-buttons">
+            <button type="button" class="btn btn-secondary agent-prov-btn active" data-prov="gemini" onclick="selectAgentProvider('gemini')">⭐ Gemini</button>
+            <button type="button" class="btn btn-secondary agent-prov-btn" data-prov="groq" onclick="selectAgentProvider('groq')">⚡ Groq</button>
+            <button type="button" class="btn btn-secondary agent-prov-btn" data-prov="openai" onclick="selectAgentProvider('openai')">🧠 OpenAI</button>
+            <button type="button" class="btn btn-secondary agent-prov-btn" data-prov="ollama" onclick="selectAgentProvider('ollama')">💻 Ollama</button>
+          </div>
+        </div>
+
+        <!-- API Key Input -->
+        <div id="agent-key-input-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);" id="agent-key-label">Google Gemini API Key</label>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" id="agent-key-link" style="font-size: 11px; color: #818cf8; text-decoration: underline;">Get Free Key ↗</a>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <input type="password" id="agent-api-key-input" class="input-text" placeholder="AIzaSy..." style="flex: 1; font-family: monospace; font-size: 12.5px;">
+            <button type="button" class="btn btn-secondary" onclick="toggleAgentKeyVisibility()" title="Show/Hide Key" style="padding: 4px 10px;">👁️</button>
+          </div>
+        </div>
+
+        <!-- Model Variant -->
+        <div>
+          <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px;">MODEL VARIANT</label>
+          <select id="agent-model-select" class="input-select" style="width: 100%;">
+            <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Ultra Fast & Free - Recommended)</option>
+            <option value="gemini-3.5-flash">gemini-3.5-flash (High IQ Creative Director)</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash (Balanced)</option>
+          </select>
+        </div>
+
+        <!-- Temperature -->
+        <div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <label style="font-size: 12px; font-weight: 600; color: var(--text-muted);">AI Creativity Depth (Temperature)</label>
+            <span id="val-agent-temp" style="font-size: 12px; font-weight: 700; color: #818cf8;">0.50</span>
+          </div>
+          <input type="range" id="slider-agent-temp" min="0.1" max="1.0" step="0.05" value="0.50" oninput="document.getElementById('val-agent-temp').textContent = parseFloat(this.value).toFixed(2);">
+        </div>
+      </div>
+
+      <div style="padding: 12px 20px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border-color);">
+        <button type="button" class="btn btn-secondary" onclick="closeAgentSettingsModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveAgentSettings()">💾 Save Settings</button>
       </div>
     </div>
   </div>
 
   <div id="studio-toast" class="studio-toast"></div>
-  <script src="/studio/js/app.js?v=554"></script>
+  <script type="module">
+    import * as KokoroClient from "/studio/js/kokoro-client.js";
+    window.KokoroClient = KokoroClient;
+  </script>
+  <script src="/studio/js/app.js?v=650"></script>
 </body>
 </html>

@@ -80,6 +80,50 @@ def parse_nav_xhtml_toc(nav_content: str, base_dir: str):
         pass
     return items
 
+def clean_chapter_title_from_entries(titles: List[str]) -> str:
+    """
+    Given a list of TOC titles pointing to the same document file,
+    synthesizes a clean, canonical chapter title (e.g. merging 'chapter 1' and 'why bother?'
+    into 'Chapter 1: Why Bother?', or keeping top-level section name like 'Resources').
+    """
+    if not titles:
+        return "Untitled Chapter"
+    if len(titles) == 1:
+        t = titles[0].strip()
+        return t.title() if t.islower() else t
+
+    # 1. Check for Chapter X + Subtitle
+    ch_num_idx = -1
+    for i, t in enumerate(titles):
+        if re.match(r'^(chapter|ch\b|lesson|scene|act)\s*(\d+|[ivxlcdm]+|[a-z]+)$', t.strip(), re.I):
+            ch_num_idx = i
+            break
+
+    if ch_num_idx != -1 and ch_num_idx + 1 < len(titles):
+        ch_prefix = titles[ch_num_idx].strip()
+        ch_sub = titles[ch_num_idx + 1].strip()
+
+        # Check if there was also a Part prefix before it in the same file
+        part_prefix = ""
+        if ch_num_idx >= 2 and re.match(r'^part\s*(\d+|[ivxlcdm]+|[a-z]+)$', titles[0].strip(), re.I):
+            p_num = titles[0].strip()
+            p_sub = titles[1].strip()
+            part_prefix = f"{p_num.title()}: {p_sub.title()} — "
+        elif ch_num_idx == 1 and re.match(r'^part\s*(\d+|[ivxlcdm]+|[a-z]+)$', titles[0].strip(), re.I):
+            part_prefix = f"{titles[0].strip().title()} — "
+
+        clean_sub = ch_sub.title() if ch_sub.islower() else ch_sub
+        return f"{part_prefix}{ch_prefix.title()}: {clean_sub}"
+
+    # 2. Check if first entry is Part X + Subtitle
+    if re.match(r'^part\s*(\d+|[ivxlcdm]+|[a-z]+)$', titles[0].strip(), re.I) and len(titles) > 1:
+        return f"{titles[0].strip().title()}: {titles[1].strip().title()}"
+
+    # 3. Default to the first main title (e.g. 'Resources', 'Foreword', 'Acknowledgements')
+    first = titles[0].strip()
+    return first.title() if first.islower() else first
+
+
 def inspect_epub(epub_path: str) -> Dict[str, Any]:
     """Inspects an EPUB file and returns metadata and the exact publisher Table of Contents."""
     if not os.path.exists(epub_path):
@@ -173,45 +217,82 @@ def inspect_epub(epub_path: str) -> Dict[str, Any]:
             ch_num = 1
 
             if toc_items:
-                seen_files = set()
+                from collections import OrderedDict
+                grouped = OrderedDict()
                 for item in toc_items:
                     fpath = item['file_path']
                     if fpath not in names:
                         continue
-                    
-                    # Deduplicate repeated identical entries without anchors
-                    unique_key = (fpath, item.get('anchor', ''))
-                    if unique_key in seen_files:
-                        continue
-                    seen_files.add(unique_key)
+                    if fpath not in grouped:
+                        grouped[fpath] = []
+                    grouped[fpath].append(item)
 
-                    lower_title = item['title'].lower().strip()
-                    # Skip cover and pure table-of-contents link pages
-                    if lower_title in ['cover', 'contents', 'table of contents']:
-                        continue
+                is_monolithic = (len(grouped) == 1 and len(toc_items) > 3)
 
-                    try:
+                if is_monolithic:
+                    # Rare EPUB where all chapters are packed in a single XHTML file with anchors
+                    seen_anchors = set()
+                    for item in toc_items:
+                        fpath = item['file_path']
+                        anchor = item.get('anchor', '')
+                        if anchor in seen_anchors:
+                            continue
+                        seen_anchors.add(anchor)
+                        lower_title = item['title'].lower().strip()
+                        if lower_title in ['cover', 'contents', 'table of contents']:
+                            continue
                         raw_html = z.read(fpath).decode('utf-8', errors='ignore')
-                    except Exception:
-                        continue
+                        text_clean = clean_text_simple(raw_html)
+                        word_count = len(text_clean.split())
+                        if word_count < 20:
+                            continue
+                        duration_mins = round(word_count / 150.0, 1)
+                        chapters.append({
+                            "chapter_index": ch_num,
+                            "title": item['title'],
+                            "file_path": fpath,
+                            "anchor": anchor,
+                            "word_count": word_count,
+                            "estimated_minutes": duration_mins
+                        })
+                        ch_num += 1
+                else:
+                    # Standard EPUB where each chapter is in its own document file
+                    for fpath, it_list in grouped.items():
+                        lower_f = fpath.lower()
+                        titles = [x['title'] for x in it_list]
+                        first_lower = titles[0].lower().strip()
 
-                    text_clean = clean_text_simple(raw_html)
-                    word_count = len(text_clean.split())
-                    
-                    # Skip empty pages or short promo fragments (< 20 words)
-                    if word_count < 20:
-                        continue
+                        # Skip cover and pure table-of-contents link pages
+                        if first_lower in ['cover', 'contents', 'table of contents']:
+                            continue
+                        if any(x in lower_f for x in ['cover.html', 'toc.html', 'cover.xhtml', 'toc.xhtml']):
+                            continue
 
-                    duration_mins = round(word_count / 150.0, 1)
-                    chapters.append({
-                        "chapter_index": ch_num,
-                        "title": item['title'],
-                        "file_path": fpath,
-                        "anchor": item.get('anchor', ''),
-                        "word_count": word_count,
-                        "estimated_minutes": duration_mins
-                    })
-                    ch_num += 1
+                        try:
+                            raw_html = z.read(fpath).decode('utf-8', errors='ignore')
+                        except Exception:
+                            continue
+
+                        text_clean = clean_text_simple(raw_html)
+                        word_count = len(text_clean.split())
+
+                        # Skip empty pages or short promo fragments (< 20 words)
+                        if word_count < 20:
+                            continue
+
+                        clean_title = clean_chapter_title_from_entries(titles)
+                        duration_mins = round(word_count / 150.0, 1)
+
+                        chapters.append({
+                            "chapter_index": ch_num,
+                            "title": clean_title,
+                            "file_path": fpath,
+                            "anchor": it_list[0].get('anchor', ''),
+                            "word_count": word_count,
+                            "estimated_minutes": duration_mins
+                        })
+                        ch_num += 1
             else:
                 # Fallback to spine ordering if EPUB has no TOC
                 spine_pattern = re.compile(r'<itemref\b([^>]*)/?>', re.IGNORECASE)
@@ -293,9 +374,6 @@ def parse_html_chapter(html: str, fpath: str = "", chapter_title: str = ""):
         # Skip pure table of contents / link anchors
         if chapter_title and any(k in lower_t for k in ['table of contents', 'contents.xhtml']):
             continue
-        # Skip single-line redundant chapter headers if title is already known
-        if chapter_title and re.match(r'^(chapter\s+[a-z0-9]+|lesson\s+\d+.*)$', lower_t) and len(lower_t) < 60:
-            continue
         body_paras.append(text)
 
     clean_title = chapter_title.strip() if chapter_title else ""
@@ -305,8 +383,38 @@ def parse_html_chapter(html: str, fpath: str = "", chapter_title: str = ""):
         num = int(m_ch.group(1)) if m_ch else 1
         clean_title = f"Chapter {num}"
 
-    header_block = f"— {clean_title.upper()} —"
-    story_paras = [header_block] + body_paras if body_paras else [header_block]
+    # Deduplicate leading chapter headers / subtitles in body_paras that duplicate clean_title
+    title_clean = re.sub(r'^[—–\-\*\#\s]+|[—–\-\*\#\s]+$', '', clean_title).strip().lower()
+    title_words = set(re.findall(r'[a-z0-9]+', title_clean))
+
+    cleaned_paras = []
+    checking_leading = True
+    for p in body_paras:
+        if checking_leading:
+            p_strip = re.sub(r'^[—–\-\*\#\s]+|[—–\-\*\#\s]+$', '', p).strip()
+            p_lower = p_strip.lower()
+
+            # 1. Matches pure chapter header like 'Chapter 3', 'Chapter Three', 'Chapter III', 'Lesson 1'
+            if re.match(r'^(?:chapter|lesson|part|act|book)\s+(?:\d+|[a-z]+|[ivxlcdm]+)$', p_lower, re.I) and len(p_strip) < 60:
+                continue
+
+            # 2. Matches chapter subtitle / title line if short and overlaps with clean_title (e.g. 'The Letters from No One')
+            p_words = set(re.findall(r'[a-z0-9]+', p_lower))
+            if p_words and len(p_strip) < 100:
+                if p_words.issubset(title_words) or p_lower in title_clean or title_clean in p_lower:
+                    continue
+
+            # 3. If line itself is identical to clean_title
+            if p_lower == title_clean:
+                continue
+
+            # Reached actual narrative body
+            checking_leading = False
+
+        cleaned_paras.append(p)
+
+    header_block = f"— {clean_title} —"
+    story_paras = [header_block] + cleaned_paras if cleaned_paras else [header_block]
     full_cleaned_text = '\n\n'.join(story_paras)
     words = full_cleaned_text.split()
     word_count = len(words)

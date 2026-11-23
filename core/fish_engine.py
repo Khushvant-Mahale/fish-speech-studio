@@ -2,6 +2,7 @@ import os
 import re
 import io
 import json
+import time
 import base64
 import hashlib
 from pathlib import Path
@@ -36,9 +37,10 @@ class FishEngine:
       5. Automatic disk caching by content & voice hash.
     """
 
-    def __init__(self, remote_url: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(self, remote_url: Optional[str] = None, api_key: Optional[str] = None, model: str = "drama-3"):
         self.remote_url = remote_url.strip() if (remote_url and remote_url.strip()) else None
         self.api_key = api_key.strip() if (api_key and api_key.strip()) else None
+        self.model = model.strip() if (model and model.strip()) else "drama-3"
         self.sample_rate = 24000  # Default synthesis sample rate
         self.preset_voices: Dict[str, Dict] = {}
         self.load_preset_voices()
@@ -64,14 +66,18 @@ class FishEngine:
         ref_path: Optional[Path] = None
         ref_text: Optional[str] = reference_text
 
-        # 1. Check if voice_id points to a preset archetype
+        # 1. Check if voice_id points to a preset archetype or installed library voice
+        if voice_id and voice_id not in self.preset_voices:
+            self.load_preset_voices()
+
         if voice_id and voice_id in self.preset_voices:
             preset = self.preset_voices[voice_id]
-            if not reference_audio and preset.get("reference_audio"):
-                p = BASE_DIR / preset["reference_audio"]
-                if p.exists():
-                    ref_path = p
-            if not ref_text and preset.get("reference_text"):
+            preset_ref = preset.get("reference_audio")
+            # If reference_audio is empty OR belongs to a different voice (stale leftover from previous cast assignment), use this preset's ref
+            if not reference_audio or (preset_ref and Path(reference_audio).name != Path(preset_ref).name):
+                reference_audio = preset_ref
+                ref_text = preset.get("reference_text")
+            elif not ref_text and preset.get("reference_text"):
                 ref_text = preset["reference_text"]
 
         # 2. Check explicit reference_audio parameter
@@ -94,24 +100,155 @@ class FishEngine:
 
         return ref_path, ref_text
 
+    PARALINGUISTIC_ACTIONS = {
+        "chuckle": "chuckle",
+        "chuckles": "chuckle",
+        "sigh": "sigh",
+        "sighs": "sigh",
+        "gasp": "gasp",
+        "gasps": "gasp",
+        "gasping": "gasp",
+        "laugh": "laughs",
+        "laughs": "laughs",
+        "laughter": "laughs",
+        "groan": "groan",
+        "groans": "groan",
+        "pant": "pant",
+        "pants": "pant",
+        "panting": "pant",
+        "snicker": "snicker",
+        "snickers": "snicker",
+        "snort": "snort",
+        "snorts": "snort",
+        "cough": "cough",
+        "coughs": "cough",
+        "yawn": "yawn",
+        "yawns": "yawn",
+        "cry": "crying",
+        "crying": "crying",
+        "sob": "sobbing",
+        "sobbing": "sobbing",
+        "inhale": "inhale",
+        "exhale": "exhale",
+        "throat-clearing": "throat-clearing",
+        "yell": "screaming",
+        "yelling": "screaming",
+        "scream": "screaming",
+        "screaming": "screaming",
+        "shout": "screaming",
+        "shouting": "screaming"
+    }
+
+    @classmethod
+    def decompose_emotion_tag(cls, tag: str) -> str:
+        """
+        Parses and standardizes emotion tags, separating physical paralinguistic actions
+        (chuckle, sigh, gasp, laugh, sob, etc.) from delivery/mood descriptors (sarcastic, whisper, angry).
+        Produces tightly bound discrete tokens like [chuckle][sarcastic] without stray spaces,
+        allowing Fish Speech S2 Pro's neural codebook to fire both the physical acoustic sound
+        and the semantic acting tone.
+        """
+        if not tag:
+            return ""
+        raw = tag.strip()
+        if not raw:
+            return ""
+
+        bracket_matches = re.findall(r'\[([^\]]+)\]', raw)
+        if bracket_matches:
+            tokens = []
+            for b in bracket_matches:
+                items = [p.strip() for p in re.split(r'[,;/]+', b) if p.strip()]
+                tokens.extend(items)
+        else:
+            tokens = [p.strip() for p in re.split(r'[,;/]+', raw) if p.strip()]
+
+        if not tokens:
+            return ""
+
+        action_tokens = []
+        mood_tokens = []
+
+        for item in tokens:
+            item_clean = item.strip().lower()
+            if item_clean in cls.PARALINGUISTIC_ACTIONS:
+                canonical = cls.PARALINGUISTIC_ACTIONS[item_clean]
+                token_str = f"[{canonical}]"
+                if token_str not in action_tokens:
+                    action_tokens.append(token_str)
+            else:
+                if item not in mood_tokens:
+                    mood_tokens.append(item)
+
+        result_parts = []
+        if action_tokens:
+            result_parts.extend(action_tokens)
+        if mood_tokens:
+            for m in mood_tokens:
+                result_parts.append(f"[{m}]")
+
+        return "".join(result_parts)
+
+    @classmethod
+    def split_action_and_mood_tags(cls, tag: str) -> Tuple[str, str]:
+        """
+        Splits emotion tags into:
+        (1) full_tag: all action and mood tags combined, e.g. [sigh][uncanny realization]
+        (2) mood_only_tag: continuous delivery/mood styles with one-shot physical actions
+            (sigh, gasp, chuckle, laugh, groan, cough, yawn, etc.) stripped out, e.g. [uncanny realization].
+        This ensures that when an oversized block is chunked, physical sounds (like sighing) only play
+        at the beginning of the sentence instead of repeating in every subsequent sub-chunk.
+        """
+        if not tag:
+            return "", ""
+        raw = tag.strip()
+        bracket_matches = re.findall(r'\[([^\]]+)\]', raw)
+        tokens = []
+        if bracket_matches:
+            for b in bracket_matches:
+                items = [p.strip() for p in re.split(r'[,;/]+', b) if p.strip()]
+                tokens.extend(items)
+        else:
+            tokens = [p.strip() for p in re.split(r'[,;/]+', raw) if p.strip()]
+
+        action_tokens = []
+        mood_tokens = []
+        for item in tokens:
+            item_clean = item.strip().lower()
+            if item_clean in cls.PARALINGUISTIC_ACTIONS:
+                canonical = cls.PARALINGUISTIC_ACTIONS[item_clean]
+                action_tokens.append(f"[{canonical}]")
+            else:
+                mood_tokens.append(f"[{item}]")
+
+        full_tag = "".join(action_tokens + mood_tokens)
+        mood_only_tag = "".join(mood_tokens)
+        return full_tag, mood_only_tag
+
     def format_emotion_text(self, text: str, emotion_tag: Optional[str]) -> str:
-        """Embeds natural-language emotion tags (e.g. [whispering in fear]) cleanly into the prompt."""
-        clean = text.strip()
+        """Embeds natural-language emotion tags into the prompt with proper token spacing for Drama 3 / S2."""
+        clean = text.strip() if text else ""
         if not clean:
             return ""
 
-        if not emotion_tag:
-            return clean
+        # 1. Check if text already starts with one or more bracketed tags, e.g.:
+        #    [chuckle][sarcastic]“Why not own the ladder?” or [chuckle][sarcastic] Why not...
+        m_inline = re.match(r'^\s*((?:\[[^\]]+\]\s*)*\[[^\]]+\])(\s*)(.*)$', clean, re.DOTALL)
+        if m_inline:
+            inline_tags_str = m_inline.group(1).strip()
+            rest_text = m_inline.group(3).strip()
+            effective_tag = emotion_tag.strip() if (emotion_tag and emotion_tag.strip()) else inline_tags_str
+            tag = self.decompose_emotion_tag(effective_tag)
+            result = f"{tag} {rest_text}" if rest_text else tag
+        elif emotion_tag and emotion_tag.strip():
+            tag = self.decompose_emotion_tag(emotion_tag.strip())
+            result = f"{tag} {clean}" if tag else clean
+        else:
+            result = clean
 
-        tag = emotion_tag.strip()
-        if not (tag.startswith("[") and tag.endswith("]")):
-            tag = f"[{tag}]"
-
-        # Check if text already begins with the exact tag or a similar bracketed tag
-        if clean.startswith("[") and "]" in clean:
-            return clean
-
-        return f"{tag} {clean}"
+        # Ensure any inline tags stuck directly to words (e.g. "[sigh]Your") have a space: "[sigh] Your"
+        result = re.sub(r'\]([A-Za-z0-9"\'\u00C0-\u024F])', r'] \1', result)
+        return result
 
     def compute_cache_hash(
         self,
@@ -137,8 +274,9 @@ class FishEngine:
             except Exception:
                 ref_sig = ref_audio_path.name
 
+        model_name = getattr(self, "model", "drama-3") or "drama-3"
         cache_str = (
-            f"fish_s2__{formatted_text}__{ref_sig}__{ref_text or ''}__"
+            f"fish_{model_name}__{formatted_text}__{ref_sig}__{ref_text or ''}__"
             f"{speed:.2f}__{temperature:.2f}__{top_p:.2f}__{gain:.2f}__"
             f"{pitch_shift:.1f}__{warmth:.1f}__{clarity:.1f}__{reverb:.2f}__{fx_filter}"
         )
@@ -174,6 +312,10 @@ class FishEngine:
         clean_text = text.strip()
         if not clean_text:
             return {"error": "Empty text"}
+
+        # Validate voice_id: if foreign voice from Kokoro or Edge, reset to None for default fallback
+        if voice_id and ("Neural" in str(voice_id) or str(voice_id).startswith(("am_", "af_", "bm_", "bf_"))):
+            voice_id = None
 
         # Format emotion prompt
         formatted_text = self.format_emotion_text(clean_text, emotion_tag)
@@ -215,7 +357,7 @@ class FishEngine:
 
         # Check raw neural audio cache for instant DSP re-sculpting (<0.1s)
         raw_cache_hash = self.compute_cache_hash(
-            formatted_text, ref_path, ref_text, speed_f, temp_f, top_p_f,
+            formatted_text, ref_path, ref_text, 1.0, temp_f, top_p_f,
             1.0, 0.0, 0.0, 0.0, 0.0, "none"
         )
         raw_cache_file = CACHE_DIR / f"raw_{raw_cache_hash}.wav"
@@ -231,6 +373,7 @@ class FishEngine:
                     warmth_db=warmth_f,
                     clarity_db=clarity_f,
                     reverb_wet=reverb_f,
+                    speed=speed_f,
                     fx_filter=fx_filter_s
                 )
                 sf.write(str(cache_file), processed, sr)
@@ -252,6 +395,30 @@ class FishEngine:
                 }
             except Exception as e:
                 print(f"[FishEngine] Instant DSP sculpt fallback ({e})")
+
+        base_cache_hash = cache_hash
+        # When force_refresh is requested, delete previous cached files for this exact text/tag/voice signature
+        # and generate a fresh unique take hash so the browser receives a brand new file path
+        if force_refresh:
+            prev_files = [
+                CACHE_DIR / f"{base_cache_hash}.wav",
+                CACHE_DIR / f"raw_{base_cache_hash}.wav",
+                CACHE_DIR / f"raw_{raw_cache_hash}.wav"
+            ] + list(CACHE_DIR.glob(f"{base_cache_hash}_*.wav")) \
+              + list(CACHE_DIR.glob(f"raw_{base_cache_hash}_*.wav")) \
+              + list(CACHE_DIR.glob(f"raw_{raw_cache_hash}_*.wav")) \
+              + list(CACHE_DIR.glob(f"dsp_{base_cache_hash}*.wav"))
+            for p in prev_files:
+                try:
+                    if p.exists():
+                        p.unlink()
+                except Exception as del_err:
+                    print(f"[FishEngine] Could not delete previous cache file {p.name}: {del_err}")
+
+            import uuid
+            take_id = uuid.uuid4().hex[:8]
+            cache_hash = f"{base_cache_hash}_{take_id}"
+            cache_file = CACHE_DIR / f"{cache_hash}.wav"
 
         audio_bytes: Optional[bytes] = None
         source_tag = "remote_worker"
@@ -315,20 +482,23 @@ class FishEngine:
             samples, sr = sf.read(io.BytesIO(audio_bytes))
 
             # Save raw untouched neural voice for instant non-destructive DSP re-sculpting
+            raw_hash_file = CACHE_DIR / f"raw_{cache_hash}.wav"
             try:
-                with open(raw_cache_file, "wb") as f_raw:
+                with open(raw_hash_file, "wb") as f_raw:
                     f_raw.write(audio_bytes)
             except Exception:
                 pass
-            try:
-                with open(CACHE_DIR / f"raw_{cache_hash}.wav", "wb") as f_raw_hash:
-                    f_raw_hash.write(audio_bytes)
-            except Exception:
-                pass
+            # Update baseline neutral cache if not force_refresh
+            if not force_refresh and raw_cache_file != raw_hash_file:
+                try:
+                    with open(raw_cache_file, "wb") as f_raw:
+                        f_raw.write(audio_bytes)
+                except Exception:
+                    pass
 
             # Apply DSP transformations if non-neutral
             needs_dsp = (
-                gain_f != 1.0 or pitch_shift_f != 0.0 or warmth_f != 0.0 or
+                gain_f != 1.0 or abs(speed_f - 1.0) >= 0.03 or pitch_shift_f != 0.0 or warmth_f != 0.0 or
                 clarity_f != 0.0 or reverb_f != 0.0 or fx_filter_s != "none"
             )
 
@@ -341,18 +511,30 @@ class FishEngine:
                     warmth_db=warmth_f,
                     clarity_db=clarity_f,
                     reverb_wet=reverb_f,
+                    speed=speed_f,
                     fx_filter=fx_filter_s
                 )
                 sf.write(str(cache_file), processed, sr)
+                if force_refresh:
+                    try:
+                        sf.write(str(CACHE_DIR / f"{base_cache_hash}.wav"), processed, sr)
+                    except Exception:
+                        pass
                 duration = len(processed) / sr
             else:
                 with open(cache_file, "wb") as f:
                     f.write(audio_bytes)
+                if force_refresh:
+                    try:
+                        with open(CACHE_DIR / f"{base_cache_hash}.wav", "wb") as f_base:
+                            f_base.write(audio_bytes)
+                    except Exception:
+                        pass
                 duration = len(samples) / sr
 
             return {
                 "hash": cache_hash,
-                "audio_url": f"/api/audio/{cache_hash}.wav",
+                "audio_url": f"/api/audio/{cache_hash}.wav?t={int(time.time() * 1000)}",
                 "duration": round(duration, 2),
                 "cached": False,
                 "engine": "fish_s2",
@@ -373,21 +555,43 @@ class FishEngine:
     ) -> bytes:
         """
         Sends inference request to Colab T4 / Local GPU worker.
-        Auto-chunks blocks exceeding safe GPU VRAM limits (>160 chars) into sub-chunks,
-        preventing CUDA out-of-memory errors on Tesla T4 GPUs.
+        Auto-chunks blocks exceeding safe GPU VRAM limits (>450 chars) into sub-chunks,
+        preventing CUDA out-of-memory errors on Tesla T4 GPUs while avoiding tiny micro-fragments.
         """
         clean_text = text.strip()
-        # If text is oversized (>160 chars), break into safe clauses to protect T4 GPU VRAM
-        if len(clean_text) > 160:
-            chunks = ProjectManager.split_into_sentences(clean_text, max_chars=140)
-            if len(chunks) > 1:
-                print(f"[FishEngine] Auto-chunking oversized block ({len(clean_text)} chars) into {len(chunks)} GPU-safe clauses...")
+        # Clean decorative leading formatting punctuation (e.g. "— ", "--- ", "* ") that can cause Dual-AR model hallucination
+        stripped = re.sub(r'^[—–\-\*\#\~\=\s]+', '', clean_text)
+        if re.search(r'[A-Za-z0-9]', stripped):
+            clean_text = stripped
+
+        # Extract leading emotion/acting tag if present so it propagates cleanly across sub-chunks
+        tag_prefix = ""
+        m_tag = re.match(r'^((?:\[[^\]]+\]\s*)+)', clean_text)
+        if m_tag:
+            tag_prefix = self.decompose_emotion_tag(m_tag.group(1).strip())
+
+        # If text is oversized (>130 chars), break into safe clauses (120 chars max)
+        # to protect Tesla T4 GPU VRAM and prevent CUDA Out Of Memory during DAC decoding
+        if len(clean_text) > 130:
+            chunks = ProjectManager.split_into_sentences(clean_text, max_chars=120)
+            valid_chunks = [c.strip() for c in chunks if re.search(r'[A-Za-z0-9]', c.strip())]
+            if len(valid_chunks) > 1:
+                print(f"[FishEngine] Auto-chunking oversized block ({len(clean_text)} chars) into {len(valid_chunks)} GPU-safe clauses (180 chars max)...")
                 combined_audio_parts = []
                 sample_rate = 24000
-                for c_idx, sub_c in enumerate(chunks):
+                full_tag, mood_only_tag = self.split_action_and_mood_tags(tag_prefix)
+
+                for c_idx, sub_c in enumerate(valid_chunks):
                     sub_c_clean = sub_c.strip()
                     if not sub_c_clean:
                         continue
+                    # First chunk gets full tags (including physical actions like [sigh]);
+                    # subsequent chunks only get continuous tone/mood tags (like [terrified]), preventing repetitive physical sounds
+                    if not sub_c_clean.startswith("["):
+                        effective_sub_tag = full_tag if c_idx == 0 else mood_only_tag
+                        if effective_sub_tag:
+                            sub_c_clean = f"{effective_sub_tag}{sub_c_clean}"
+
                     part_bytes = self._call_remote_worker_single(
                         sub_c_clean, ref_path, ref_text, speed, temperature, top_p
                     )
@@ -395,7 +599,7 @@ class FishEngine:
                     sample_rate = sr
                     combined_audio_parts.append(part_samples)
                     # Natural 40ms trailing gap between clauses
-                    if c_idx < len(chunks) - 1:
+                    if c_idx < len(valid_chunks) - 1:
                         gap_len = int(sr * 0.04)
                         combined_audio_parts.append(np.zeros(gap_len, dtype=part_samples.dtype))
 
@@ -451,7 +655,7 @@ class FishEngine:
                         "User-Agent": "FishSpeechStudio/1.0"
                     }
                 )
-                with urllib.request.urlopen(req, timeout=50) as resp:
+                with urllib.request.urlopen(req, timeout=120) as resp:
                     audio_data = resp.read()
                     if audio_data and len(audio_data) > 200:
                         return audio_data
@@ -480,38 +684,98 @@ class FishEngine:
     ) -> bytes:
         """Sends inference request to official Fish Audio REST API."""
         api_endpoint = "https://api.fish.audio/v1/tts"
+        model_name = getattr(self, "model", "drama-3") or "drama-3"
 
         payload = {
             "text": text,
             "format": "wav",
             "temperature": temperature,
-            "top_p": top_p
+            "top_p": top_p,
+            "model": model_name
         }
+        if speed and speed != 1.0:
+            payload["prosody"] = {"speed": speed}
 
-        if ref_path and ref_path.exists():
-            with open(ref_path, "rb") as f:
-                b64 = base64.b64encode(f.read()).decode("utf-8")
+        # If voice_id is a Fish Audio model ID (e.g., 32-char hex or fish_<hex>), pass reference_id directly
+        clean_voice_id = (voice_id or "").strip()
+        if clean_voice_id.startswith("fish_"):
+            clean_voice_id = clean_voice_id[5:]
+
+        is_hex_model = len(clean_voice_id) == 32 and all(c in "0123456789abcdefABCDEF" for c in clean_voice_id)
+
+        content_type = "application/json"
+        request_data = None
+
+        if is_hex_model:
+            payload["reference_id"] = clean_voice_id
+            request_data = json.dumps(payload).encode("utf-8")
+        elif ref_path and ref_path.exists():
+            # For custom zero-shot voices, Fish Audio Cloud API requires 16-bit mono WAV binary bytes sent via MessagePack
+            try:
+                import soundfile as sf
+                import io
+                data, sr = sf.read(str(ref_path))
+                if data.ndim > 1:
+                    data = data.mean(axis=1)  # convert stereo to mono
+                buf = io.BytesIO()
+                sf.write(buf, data, sr, format="WAV", subtype="PCM_16")
+                raw_wav_bytes = buf.getvalue()
+
                 payload["references"] = [
                     {
-                        "audio": b64,
+                        "audio": raw_wav_bytes,
                         "text": ref_text or ""
                     }
                 ]
-        elif voice_id and not voice_id.startswith("fish_"):
-            payload["reference_id"] = voice_id
+                import msgpack
+                request_data = msgpack.packb(payload)
+                content_type = "application/msgpack"
+            except Exception as e:
+                print(f"[FishEngine] MessagePack preparation notice: {e}, falling back to base64 JSON")
+                with open(ref_path, "rb") as f:
+                    b64 = base64.b64encode(f.read()).decode("utf-8")
+                    payload["references"] = [{"audio": b64, "text": ref_text or ""}]
+                request_data = json.dumps(payload).encode("utf-8")
+        elif clean_voice_id:
+            payload["reference_id"] = clean_voice_id
+            request_data = json.dumps(payload).encode("utf-8")
+        else:
+            request_data = json.dumps(payload).encode("utf-8")
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": content_type,
+            "User-Agent": "FishSpeechStudio/1.0",
+            "model": model_name
+        }
 
         req = urllib.request.Request(
             api_endpoint,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-                "User-Agent": "FishSpeechStudio/1.0"
-            }
+            data=request_data,
+            headers=headers
         )
 
-        with urllib.request.urlopen(req, timeout=45) as resp:
-            audio_data = resp.read()
-            if audio_data and len(audio_data) > 100:
-                return audio_data
-            raise ValueError("Cloud API returned empty audio response")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                audio_data = resp.read()
+                if audio_data and len(audio_data) > 100:
+                    return audio_data
+                raise ValueError("Cloud API returned empty audio response")
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode("utf-8", errors="ignore")
+            print(f"[FishEngine] Cloud API HTTP {e.code} error: {err_body}")
+            if model_name == "drama-3" and e.code in (400, 404, 500, 503):
+                print("[FishEngine] Falling back to s2.1-pro...")
+                fallback_headers = dict(headers)
+                fallback_headers["model"] = "s2.1-pro"
+                if isinstance(request_data, bytes) and content_type == "application/json":
+                    payload["model"] = "s2.1-pro"
+                    fb_data = json.dumps(payload).encode("utf-8")
+                else:
+                    fb_data = request_data
+                fb_req = urllib.request.Request(api_endpoint, data=fb_data, headers=fallback_headers)
+                with urllib.request.urlopen(fb_req, timeout=60) as fb_resp:
+                    fb_audio = fb_resp.read()
+                    if fb_audio and len(fb_audio) > 100:
+                        return fb_audio
+            raise

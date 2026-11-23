@@ -1,4 +1,5 @@
 import os
+import hashlib
 import re
 import io
 import json
@@ -17,17 +18,19 @@ import soundfile as sf
 
 from core.fish_engine import FishEngine
 from core.kokoro_engine import KokoroEngine
+from core.engine_registry import initialize_engine_registry, engine_registry
 from core.kaggle_cloud_manager import KaggleCloudManager
+from core.tier_manager import TierManager
 from core.dns_fallback import setup_resilient_dns
 
 # Ensure resilient DNS is active
 setup_resilient_dns()
 from core.project_manager import ProjectManager
+from core.local_gpu_manager import LocalGpuManager
 from core.epub_parser import inspect_epub, get_chapter_text
 
 BASE_DIR = Path(__file__).resolve().parent
 STUDIO_DIR = BASE_DIR / "studio"
-KOKORO_STUDIO_DIR = BASE_DIR / "kokoro_studio"
 CACHE_DIR = BASE_DIR / "cache"
 OUTPUT_DIR = BASE_DIR / "output"
 SAMPLES_DIR = OUTPUT_DIR / "samples"
@@ -44,6 +47,8 @@ fish_engine: FishEngine = None
 kokoro_engine: KokoroEngine = None
 project_mgr = ProjectManager()
 kaggle_mgr = KaggleCloudManager(BASE_DIR)
+local_gpu_mgr = LocalGpuManager(BASE_DIR)
+tier_mgr = TierManager()
 
 
 
@@ -59,6 +64,7 @@ def load_config() -> dict:
         "remote_worker_url": "",
         "fish_remote_worker_url": "",
         "fish_api_key": "",
+        "fish_api_model": "drama-3",
         "active_engine": "fish_s2"
     }
 
@@ -73,12 +79,21 @@ async def init_engine():
     global fish_engine, kokoro_engine
     cfg = load_config()
 
-    # Initialize Fish Audio S2 Pro Engine
+    # Load master platform key for SaaS subscriptions (env var takes top priority, config fallback)
+    platform_key = (os.environ.get("FISH_PLATFORM_API_KEY") or cfg.get("fish_api_key", "")).strip()
+    if platform_key:
+        tier_mgr.state["platform_fish_api_key"] = platform_key
+        print("[SaaS Engine] Platform master Drama 3 API key loaded successfully.")
+
+    # Initialize Fish Audio S2 Pro / Drama 3 Engine
     fish_remote = (cfg.get("fish_remote_worker_url") or cfg.get("remote_worker_url", "")).strip()
     fish_key = cfg.get("fish_api_key", "").strip()
+    # If in BYOK mode, use user's explicit key; otherwise resolve via TierManager
+    active_fish_key = tier_mgr.resolve_api_key() or fish_key
+    fish_model = (cfg.get("fish_api_model") or "drama-3").strip()
     try:
-        fish_engine = FishEngine(remote_url=fish_remote, api_key=fish_key)
-        print(f"[Fish Speech Studio] Fish Audio S2 Pro engine ready (Worker: {fish_remote or 'None'}, API Key: {'Set' if fish_key else 'None'})")
+        fish_engine = FishEngine(remote_url=fish_remote, api_key=active_fish_key, model=fish_model)
+        print(f"[Fish Speech Studio] Fish Audio engine ready (Worker: {fish_remote or 'None'}, Active Tier: {tier_mgr.get_tier()}, Model: {fish_model})")
     except Exception as e:
         print(f"[Fish Speech Studio] Warning: FishEngine init error: {e}")
 
@@ -89,6 +104,13 @@ async def init_engine():
         print(f"[Kokoro Studio] Kokoro engine ready (Worker: {kokoro_remote or 'Local ONNX'})")
     except Exception as e:
         print(f"[Kokoro Studio] Warning: KokoroEngine init error: {e}")
+
+    # Initialize Multi-Engine Registry (Fish Speech, Kokoro 82M, Microsoft Edge TTS)
+    try:
+        initialize_engine_registry(fish_engine=fish_engine, kokoro_engine=kokoro_engine)
+        print("[Multi-Engine] Engine registry initialized with Fish Speech, Kokoro, and Edge TTS.")
+    except Exception as e:
+        print(f"[Multi-Engine] Warning: Engine registry init error: {e}")
 
     # Restore active Kaggle session state if configured
     if cfg.get("kaggle_username"):
@@ -119,42 +141,72 @@ async def handle_index(request):
 
 
 async def handle_kokoro_index(request):
-    resp = web.FileResponse(KOKORO_STUDIO_DIR / "index.html")
-    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    return resp
+    qs = request.query_string
+    dest = f"/studio?{qs}" if qs else "/studio"
+    raise web.HTTPMovedPermanently(dest)
 
 
 async def handle_kokoro_favicon(request):
-    fav_file = KOKORO_STUDIO_DIR / "favicon.svg"
+    fav_file = STUDIO_DIR / "favicon.svg"
     if fav_file.exists():
         return web.FileResponse(fav_file, headers={"Content-Type": "image/svg+xml", "Cache-Control": "max-age=86400"})
     return web.Response(status=404)
 
 
+async def handle_get_engines(request):
+    """Returns list of registered engines and their capabilities."""
+    engines = engine_registry.list_engines()
+    cfg = load_config()
+    return web.json_response({
+        "engines": engines,
+        "active_engine": cfg.get("active_engine", "fish_s2")
+    })
+
+
 async def handle_get_voices(request):
     engine_param = (request.query.get("engine") or "").lower()
     referer = request.headers.get("Referer", "").lower()
-    is_kokoro = (engine_param == "kokoro") or (not engine_param and "/kokoro" in referer)
+    is_kokoro_only = (engine_param == "kokoro") or (not engine_param and "/kokoro" in referer)
 
-    if is_kokoro:
-        k_voices = []
-        if VOICES_FILE.exists():
-            try:
-                with open(VOICES_FILE, "r", encoding="utf-8") as f:
-                    k_voices = json.load(f)
-            except Exception:
-                pass
+    # 1. Edge TTS voices
+    if engine_param in ("edge", "edge_tts", "ms_edge"):
+        edge_voices = engine_registry.get_voices_for_engine("edge_tts")
+        return web.json_response(edge_voices)
+
+    # 2. Load Kokoro Voices (Fast on-device / client narration)
+    k_voices = []
+    if VOICES_FILE.exists():
+        try:
+            with open(VOICES_FILE, "r", encoding="utf-8") as f:
+                k_voices = json.load(f)
+                for kv in k_voices:
+                    kv["engine"] = "kokoro"
+                    kv["engine_label"] = "Fast (Kokoro 82M)"
+                    if not kv.get("badge"):
+                        kv["badge"] = kv.get("name", "KO")[:2].upper()
+                    if not kv.get("color"):
+                        kv["color"] = "#6366f1"
+        except Exception as e:
+            print(f"[app] Error loading Kokoro voices: {e}")
+
+    if is_kokoro_only:
         return web.json_response(k_voices)
 
+    # 3. Load Fish Speech Voices (Cinema Drama 3 acting)
     voices = []
     if FISH_VOICES_FILE.exists():
         try:
             with open(FISH_VOICES_FILE, "r", encoding="utf-8") as f:
                 voices = json.load(f)
-        except Exception:
-            pass
+                for fv in voices:
+                    fv["engine"] = "fish_s2"
+                    fv["engine_label"] = "Cinema (Drama 3)"
+        except Exception as e:
+            print(f"[app] Error loading Fish voices: {e}")
 
     for v in voices:
+        v["engine"] = "fish_s2"
+        v["engine_label"] = "Cinema (Drama 3)"
         if v.get("id", "").startswith("custom_") or "Library" in v.get("genre", []):
             v["is_custom"] = True
 
@@ -175,6 +227,7 @@ async def handle_get_voices(request):
                 "id": f"custom_{slug}",
                 "name": clean_title,
                 "engine": "fish_s2",
+                "engine_label": "Cinema (Drama 3)",
                 "is_custom_ref": True,
                 "is_custom": True,
                 "gender": "Custom",
@@ -190,7 +243,12 @@ async def handle_get_voices(request):
                 "created_at": rf.stat().st_mtime
             })
 
-    return web.json_response(voices)
+    if engine_param in ("fish", "fish_s2"):
+        return web.json_response(voices)
+
+    edge_voices = engine_registry.get_voices_for_engine("edge_tts")
+    # Unified voice catalog: Cinema (Drama 3) + Fast (Kokoro) + Free (Edge TTS)
+    return web.json_response(voices + k_voices + edge_voices)
 
 
 async def handle_upload_reference_voice(request):
@@ -740,14 +798,62 @@ async def handle_synthesize_block(request):
         radio_fx = bool(data.get("radio_fx", False))
         fx_filter = str(data.get("fx_filter") or ("radio" if radio_fx else "none")).strip().lower()
 
-        # Engine routing: check if Kokoro is requested or Kokoro voice is used
+        # Engine routing: check if Edge TTS or Kokoro is requested
         voice_id = data.get("voice_id")
         blend_weights = data.get("blend_weights")
         referer = request.headers.get("Referer", "").lower()
-        is_kokoro = (block_engine == "kokoro") or ("/kokoro" in referer) or (blend_weights is not None)
-        if not is_kokoro and voice_id:
+        is_edge = (block_engine in ("edge_tts", "edge", "ms_edge")) or (voice_id and "Neural" in str(voice_id))
+        is_kokoro = not is_edge and ((block_engine == "kokoro") or ("/kokoro" in referer) or (blend_weights is not None))
+        if not is_kokoro and not is_edge and voice_id:
             if str(voice_id).startswith(("am_", "af_", "bm_", "bf_", "blend_")):
                 is_kokoro = True
+
+        if is_edge:
+            task_key = f"edge::{text}::{voice_id or 'en-US-GuyNeural'}::{speed}::{gain}::{pitch_shift}::{warmth}::{clarity}::{reverb}::{radio_fx}::{fx_filter}"
+            if not force_refresh and task_key in in_flight_synthesis_futures:
+                print(f"[Edge Studio] [WAIT] Task already rendering for: '{text[:50]}...'. Attaching to active job.", flush=True)
+                try:
+                    res = await in_flight_synthesis_futures[task_key]
+                    return web.json_response(res)
+                except Exception as e:
+                    return web.json_response({"error": str(e)}, status=500)
+
+            loop = asyncio.get_running_loop()
+            fut = loop.create_future()
+            in_flight_synthesis_futures[task_key] = fut
+
+            try:
+                edge_adapter = engine_registry.get_engine("edge_tts")
+                res = await asyncio.to_thread(
+                    edge_adapter.synthesize_block,
+                    text=text,
+                    voice_id=voice_id or "en-US-GuyNeural",
+                    speed=speed,
+                    gain=gain,
+                    pitch_shift=pitch_shift,
+                    warmth=warmth,
+                    clarity=clarity,
+                    reverb=reverb,
+                    radio_fx=radio_fx,
+                    fx_filter=fx_filter,
+                    force_refresh=force_refresh
+                )
+                if not fut.done():
+                    fut.set_result(res)
+                if isinstance(res, dict) and not res.get("error"):
+                    user = get_current_user(request)
+                    res["tier_status"] = tier_mgr.get_public_status(user=user)
+                return web.json_response(res)
+            except asyncio.CancelledError:
+                if not fut.done():
+                    fut.cancel()
+                raise
+            except Exception as e:
+                if not fut.done():
+                    fut.set_exception(e)
+                return web.json_response({"error": str(e)}, status=500)
+            finally:
+                in_flight_synthesis_futures.pop(task_key, None)
 
         if is_kokoro:
             task_key = f"kokoro::{text}::{voice_id or ''}::{str(blend_weights)}::{speed}::{gain}::{pitch_shift}::{warmth}::{clarity}::{reverb}::{radio_fx}::{fx_filter}"
@@ -782,6 +888,9 @@ async def handle_synthesize_block(request):
                     )
                     if not fut.done():
                         fut.set_result(res)
+                    if isinstance(res, dict) and not res.get("error"):
+                        user = get_current_user(request)
+                        res["tier_status"] = tier_mgr.get_public_status(user=user)
                     return web.json_response(res)
             except asyncio.CancelledError:
                 if not fut.done():
@@ -800,6 +909,23 @@ async def handle_synthesize_block(request):
         reference_text = data.get("reference_text")
         temperature = max(0.1, min(1.0, _num(data.get("temperature"), 0.7)))
         top_p = max(0.1, min(1.0, _num(data.get("top_p"), 0.85)))
+
+        user = get_current_user(request)
+
+        # SaaS Tier & Quota Check for Cinema Drama 3
+        word_count = len(text.split())
+        tier_allowed, tier_info = tier_mgr.can_synthesize_fish(word_count, user=user)
+        if not tier_allowed:
+            return web.json_response({
+                "error": tier_info,
+                "needs_tier_upgrade": True,
+                "tier_status": tier_mgr.get_public_status(user=user)
+            }, status=403)
+
+        # Resolve correct Fish API key (Platform master key or user's BYOK key)
+        tier_api_key = tier_mgr.resolve_api_key(user=user)
+        if tier_api_key and fish_engine:
+            fish_engine.api_key = tier_api_key
 
         # Unique task key for in-flight deduplication
         prev_a = data.get("prev_audio") or ""
@@ -847,6 +973,10 @@ async def handle_synthesize_block(request):
                 )
                 if not fut.done():
                     fut.set_result(res)
+                if isinstance(res, dict) and not res.get("error"):
+                    is_trial = tier_info.startswith("trial_")
+                    tier_mgr.record_usage(word_count, is_trial=is_trial, user=user)
+                    res["tier_status"] = tier_mgr.get_public_status(user=user)
                 return web.json_response(res)
         except asyncio.CancelledError:
             if not fut.done():
@@ -860,6 +990,249 @@ async def handle_synthesize_block(request):
             in_flight_synthesis_futures.pop(task_key, None)
     except Exception as top_err:
         return web.json_response({"error": f"Server processing error: {top_err}"}, status=500)
+
+
+async def handle_check_cache(request):
+    """
+    Fast disk-cache check for blocks without running neural inference or acquiring GPU locks.
+    Instantly returns whether a rendered audio file (or raw audio that can be sculpted) exists on disk.
+    If a raw audio file exists, it instantaneously produces the DSP audio if needed so the URL is immediately playable.
+    """
+    try:
+        try:
+            data = await request.json()
+        except Exception as e:
+            return web.json_response({"error": f"Invalid JSON payload: {e}"}, status=400)
+
+        raw_blocks = data.get("blocks")
+        if raw_blocks is None:
+            if "block" in data:
+                raw_blocks = [data["block"]]
+            else:
+                raw_blocks = [data]
+
+        cfg = load_config()
+        default_engine = cfg.get("active_engine", "fish_s2")
+        referer = request.headers.get("Referer", "").lower()
+        if "/kokoro" in referer:
+            default_engine = "kokoro"
+
+        def _num(v, default=0.0):
+            if v is None:
+                return default
+            try:
+                return float(v)
+            except (ValueError, TypeError):
+                return default
+
+        results = []
+
+        for item in raw_blocks:
+            idx = item.get("index")
+            text = (item.get("text") or "").strip()
+            if not text:
+                results.append({"index": idx, "cached": False, "reason": "empty_text"})
+                continue
+
+            block_engine = (item.get("engine") or default_engine).lower()
+            voice_id = item.get("voice_id")
+            blend_weights = item.get("blend_weights")
+
+            is_edge = (block_engine in ("edge_tts", "edge", "ms_edge")) or ("Neural" in str(voice_id))
+            is_kokoro = not is_edge and ((block_engine == "kokoro") or (blend_weights is not None) or (voice_id and str(voice_id).startswith(("am_", "af_", "bm_", "bf_", "blend_"))))
+
+            speed = _num(item.get("speed"), 1.0 if not is_kokoro else 0.90)
+            gain = _num(item.get("gain"), 1.0)
+            pitch_shift = _num(item.get("pitch_shift"), 0.0)
+            warmth = _num(item.get("warmth"), 0.0)
+            clarity = _num(item.get("clarity"), 0.0)
+            reverb = _num(item.get("reverb"), 0.0)
+            radio_fx = bool(item.get("radio_fx", False))
+            fx_filter = str(item.get("fx_filter") or ("radio" if radio_fx else "none")).strip().lower()
+
+            needs_dsp = (
+                gain != 1.0 or abs(speed - (1.0 if not is_kokoro else 0.90)) >= 0.03 or
+                pitch_shift != 0.0 or warmth != 0.0 or clarity != 0.0 or reverb != 0.0 or fx_filter != "none"
+            )
+
+            if is_edge:
+                valid_voice = (voice_id or "").strip()
+                if not valid_voice or "Neural" not in valid_voice:
+                    valid_voice = "en-US-GuyNeural"
+
+                speed_pct = int(round((speed - 1.0) * 100))
+                rate_str = f"{speed_pct:+d}%"
+
+                pitch_hz = int(round(pitch_shift * 5))
+                pitch_str = f"{pitch_hz:+d}Hz"
+
+                fx_filter_s = str(fx_filter or ("radio" if radio_fx else "none")).strip().lower()
+                pitch_shift_f = float(pitch_shift)
+                warmth_f = float(warmth)
+                clarity_f = float(clarity)
+                reverb_f = float(reverb)
+
+                cache_key = (
+                    f"edge::{text}::{valid_voice}::{rate_str}::{pitch_str}::{gain}::"
+                    f"{pitch_shift_f}::{warmth_f}::{clarity_f}::{reverb_f}::{radio_fx}::{fx_filter_s}"
+                )
+                c_hash = hashlib.md5(cache_key.encode("utf-8")).hexdigest()
+                c_file = CACHE_DIR / f"{c_hash}.wav"
+
+                if not c_file.exists():
+                    take_files = list(CACHE_DIR.glob(f"{c_hash}_*.wav"))
+                    if take_files:
+                        take_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                        c_file = take_files[0]
+                        c_hash = c_file.stem
+
+                if c_file.exists():
+                    try:
+                        info = sf.info(str(c_file))
+                        results.append({
+                            "index": idx,
+                            "cached": True,
+                            "hash": c_hash,
+                            "audio_url": f"/api/audio/{c_hash}.wav",
+                            "duration": round(info.duration, 2),
+                            "engine": "edge_tts"
+                        })
+                        continue
+                    except Exception:
+                        pass
+                results.append({"index": idx, "cached": False, "hash": c_hash, "engine": "edge_tts"})
+
+            elif is_kokoro:
+                voice_tag = voice_id or "blend_fenrir_onyx"
+                if blend_weights and voice_id not in getattr(kokoro_engine, "preset_blends", {}):
+                    voice_tag = "blend_" + "_".join(f"{k}:{v:.2f}" for k, v in sorted(blend_weights.items()))
+
+                cache_str = (
+                    f"{text}__{voice_tag}__{speed:.2f}__{gain:.2f}__"
+                    f"{pitch_shift:.1f}__{warmth:.1f}__{clarity:.1f}__{reverb:.2f}__{fx_filter}"
+                )
+                c_hash = hashlib.md5(cache_str.encode("utf-8")).hexdigest()
+                c_file = CACHE_DIR / f"{c_hash}.wav"
+
+                if not c_file.exists():
+                    take_files = list(CACHE_DIR.glob(f"{c_hash}_*.wav"))
+                    if take_files:
+                        take_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                        c_file = take_files[0]
+                        c_hash = c_file.stem
+
+                if c_file.exists():
+                    try:
+                        info = sf.info(str(c_file))
+                        results.append({
+                            "index": idx,
+                            "cached": True,
+                            "hash": c_hash,
+                            "audio_url": f"/api/audio/{c_hash}.wav",
+                            "duration": round(info.duration, 2),
+                            "engine": "kokoro"
+                        })
+                        continue
+                    except Exception:
+                        pass
+                results.append({"index": idx, "cached": False, "hash": c_hash, "engine": "kokoro"})
+
+            else:
+                # Fish S2
+                emotion_tag = item.get("emotion_tag")
+                reference_audio = item.get("reference_audio")
+                reference_text = item.get("reference_text")
+                temp = max(0.1, min(1.0, _num(item.get("temperature"), 0.70)))
+                top_p = max(0.1, min(1.0, _num(item.get("top_p"), 0.85)))
+
+                formatted_text = fish_engine.format_emotion_text(text, emotion_tag)
+                ref_path, r_text = fish_engine.resolve_reference_audio(reference_audio, reference_text, voice_id)
+
+                c_hash = fish_engine.compute_cache_hash(
+                    formatted_text, ref_path, r_text, speed, temp, top_p,
+                    gain, pitch_shift, warmth, clarity, reverb, fx_filter
+                )
+                c_file = CACHE_DIR / f"{c_hash}.wav"
+
+                # Check if exact hash exists
+                if not c_file.exists():
+                    # Check if any take exists
+                    take_files = list(CACHE_DIR.glob(f"{c_hash}_*.wav"))
+                    if take_files:
+                        take_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                        c_file = take_files[0]
+                        c_hash = c_file.stem
+
+                if c_file.exists():
+                    try:
+                        info = sf.info(str(c_file))
+                        results.append({
+                            "index": idx,
+                            "cached": True,
+                            "hash": c_hash,
+                            "audio_url": f"/api/audio/{c_hash}.wav",
+                            "duration": round(info.duration, 2),
+                            "engine": "fish_s2"
+                        })
+                        continue
+                    except Exception:
+                        pass
+
+                # Check raw cache
+                raw_hash = fish_engine.compute_cache_hash(
+                    formatted_text, ref_path, r_text, 1.0, temp, top_p,
+                    1.0, 0.0, 0.0, 0.0, 0.0, "none"
+                )
+                raw_file = CACHE_DIR / f"raw_{raw_hash}.wav"
+                raw_hash_file = CACHE_DIR / f"raw_{c_hash}.wav"
+
+                source_raw = None
+                if raw_file.exists():
+                    source_raw = raw_file
+                elif raw_hash_file.exists():
+                    source_raw = raw_hash_file
+                else:
+                    raw_takes = list(CACHE_DIR.glob(f"raw_{c_hash}_*.wav"))
+                    if raw_takes:
+                        raw_takes.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                        source_raw = raw_takes[0]
+
+                if source_raw and source_raw.exists():
+                    try:
+                        base_samples, sr = sf.read(str(source_raw))
+                        if needs_dsp:
+                            from core.audio_dsp import process_audio_fx
+                            processed = base_samples * gain if gain != 1.0 else base_samples.copy()
+                            processed = process_audio_fx(
+                                processed,
+                                sr=sr,
+                                pitch_shift_st=pitch_shift,
+                                warmth_db=warmth,
+                                clarity_db=clarity,
+                                reverb_wet=reverb,
+                                speed=speed,
+                                fx_filter=fx_filter
+                            )
+                        else:
+                            processed = base_samples
+                        sf.write(str(c_file), processed, sr)
+                        results.append({
+                            "index": idx,
+                            "cached": True,
+                            "hash": c_hash,
+                            "audio_url": f"/api/audio/{c_hash}.wav",
+                            "duration": round(len(processed) / sr, 2),
+                            "engine": "fish_s2"
+                        })
+                        continue
+                    except Exception as e:
+                        print(f"[CheckCache] Instant DSP from raw failed: {e}")
+
+                results.append({"index": idx, "cached": False, "hash": c_hash, "engine": "fish_s2"})
+
+        return web.json_response({"results": results})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_blend_preview(request):
@@ -913,6 +1286,72 @@ async def handle_blend_preview(request):
         return web.json_response(res)
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
+
+
+async def handle_cache_client_audio(request):
+    """
+    Receives client-side synthesized audio (e.g. from in-browser kokoro-js WebGPU)
+    and stores it in the server CACHE_DIR and updates the project block,
+    enabling $0 server CPU compute while preserving full export capabilities.
+    """
+    try:
+        reader = await request.multipart()
+        audio_bytes = None
+        hash_val = None
+        project_id = None
+        block_id = None
+        duration = None
+
+        while True:
+            part = await reader.next()
+            if part is None:
+                break
+            if part.name == 'audio':
+                audio_bytes = await part.read()
+            elif part.name == 'hash':
+                hash_val = (await part.text()).strip()
+            elif part.name == 'project_id':
+                project_id = (await part.text()).strip()
+            elif part.name == 'block_id':
+                block_id = (await part.text()).strip()
+            elif part.name == 'duration':
+                try:
+                    duration = float(await part.text())
+                except Exception:
+                    pass
+
+        if not audio_bytes or not hash_val:
+            return web.json_response({"ok": False, "error": "audio and hash required"}, status=400)
+
+        safe_hash = re.sub(r'[^a-zA-Z0-9_\-]', '', hash_val)
+        wav_file = CACHE_DIR / f"{safe_hash}.wav"
+        with open(wav_file, "wb") as f:
+            f.write(audio_bytes)
+
+        # Update project JSON block if project_id and block_id were supplied
+        if project_id and block_id:
+            proj = project_mgr.get_project(project_id)
+            if proj and proj.get("blocks"):
+                updated = False
+                for b in proj["blocks"]:
+                    if str(b.get("id")) == str(block_id):
+                        b["audio_url"] = f"/api/audio/{safe_hash}.wav"
+                        b["cachedAudioUrl"] = f"/api/audio/{safe_hash}.wav"
+                        b["hash"] = safe_hash
+                        if duration:
+                            b["duration"] = duration
+                        updated = True
+                        break
+                if updated:
+                    project_mgr.save_project(proj, project_id)
+
+        return web.json_response({
+            "ok": True,
+            "hash": safe_hash,
+            "audio_url": f"/api/audio/{safe_hash}.wav"
+        })
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
 
 
 def sync_synthesize_block_for_export(b: dict, active_engine_name: str) -> Optional[Tuple[np.ndarray, int]]:
@@ -970,9 +1409,24 @@ def sync_synthesize_block_for_export(b: dict, active_engine_name: str) -> Option
     # Live synthesize if not cached
     b_engine = (b.get("engine") or active_engine_name).lower()
     voice_id = str(b.get("voice_id", ""))
-    is_kokoro = (b_engine == "kokoro") or voice_id.startswith(("am_", "af_", "bm_", "bf_", "blend_"))
+    is_edge = (b_engine in ("edge_tts", "edge", "ms_edge")) or ("Neural" in voice_id)
+    is_kokoro = not is_edge and ((b_engine == "kokoro") or voice_id.startswith(("am_", "af_", "bm_", "bf_", "blend_")))
 
-    if is_kokoro:
+    if is_edge:
+        edge_adapter = engine_registry.get_engine("edge_tts")
+        res = edge_adapter.synthesize_block(
+            text=text,
+            voice_id=voice_id or "en-US-GuyNeural",
+            speed=float(b.get("speed", 1.0) or 1.0),
+            gain=float(b.get("gain", 1.0) or 1.0),
+            pitch_shift=float(b.get("pitch_shift", 0.0) or 0.0),
+            warmth=float(b.get("warmth", 0.0) or 0.0),
+            clarity=float(b.get("clarity", 0.0) or 0.0),
+            reverb=float(b.get("reverb", 0.0) or 0.0),
+            radio_fx=bool(b.get("radio_fx", False)),
+            fx_filter=str(b.get("fx_filter") or "none").strip().lower()
+        )
+    elif is_kokoro:
         res = kokoro_engine.synthesize_block(
             text=text,
             voice_id=voice_id or "blend_fenrir_onyx",
@@ -1297,8 +1751,10 @@ async def handle_reset_dsp(request):
 
 
 async def handle_get_projects(request):
+    user = get_current_user(request)
     engine_filter = request.query.get("engine")
-    projs = project_mgr.list_projects(engine=engine_filter)
+    owner_id = user["user_id"] if user and not user.get("is_admin") else None
+    projs = project_mgr.list_projects(engine=engine_filter, owner_id=owner_id)
     return web.json_response(projs)
 
 
@@ -1315,141 +1771,182 @@ async def handle_job_progress(request):
     return web.json_response({"ok": True, "job": job})
 
 async def handle_create_project(request):
-    data = await request.json()
-    title = data.get("title", "Untitled Project").strip() or "Untitled Project"
-    raw_text = data.get("text", "").strip()
-    defaults = data.get("defaults") or data.get("default_settings") or {}
-    job_id = data.get("job_id", "").strip()
-    
-    default_engine = (data.get("engine") or "").lower()
-    if not default_engine:
-        referer = request.headers.get("Referer", "").lower()
-        default_engine = "kokoro" if "/kokoro" in referer else "fish_s2"
+    try:
+        data = await request.json()
+        title = data.get("title", "Untitled Project").strip() or "Untitled Project"
+        raw_text = data.get("text", "").strip()
+        defaults = data.get("defaults") or data.get("default_settings") or {}
+        job_id = data.get("job_id", "").strip()
+        folder_id = data.get("folder_id")
+        acting_intensity = data.get("acting_intensity", "balanced")
+        analysis_temperature = float(data.get("analysis_temperature", 0.6))
+        split_long_emotional_blocks = bool(data.get("split_long_emotional_blocks", True))
+        tag_placement = data.get("tag_placement", "pill")
+        cast_mode = data.get("cast_mode", "multi")
+        
+        default_engine = (data.get("engine") or "").lower()
+        if not default_engine:
+            referer = request.headers.get("Referer", "").lower()
+            default_engine = "kokoro" if "/kokoro" in referer else "fish_s2"
 
-    default_voice = data.get("default_voice") or defaults.get("voice_id", "voice_stanley_narrator" if default_engine == "fish_s2" else "blend_fenrir_onyx")
+        default_voice = data.get("default_voice") or defaults.get("voice_id", "voice_stanley_narrator" if default_engine == "fish_s2" else "blend_fenrir_onyx")
 
-    dedup_key = f"{title}_{hashlib_str(raw_text or str(data.get('blocks', [])))}"
-    now = time.time()
-    if dedup_key in _recent_created_projects:
-        ts, cached_proj = _recent_created_projects[dedup_key]
-        if now - ts < 3.0:
-            return web.json_response(cached_proj)
+        dedup_key = f"{title}_{hashlib_str(raw_text or str(data.get('blocks', [])))}"
+        now = time.time()
+        if dedup_key in _recent_created_projects:
+            ts, cached_proj = _recent_created_projects[dedup_key]
+            if now - ts < 3.0:
+                return web.json_response(cached_proj)
 
-    proj_id = f"proj_{uuid.uuid4().hex[:8]}"
+        proj_id = f"proj_{uuid.uuid4().hex[:8]}"
 
-    blocks = []
-    if "blocks" in data and isinstance(data["blocks"], list) and len(data["blocks"]) > 0:
-        blocks = data["blocks"]
-    elif raw_text:
-        blocks = project_mgr.split_text_into_blocks(raw_text, default_voice=default_voice, defaults=defaults)
-    else:
-        b1 = {
-            "id": "b_1",
-            "text": "Start typing your first story sentence here...",
-            "voice_id": default_voice,
-            "engine": default_engine,
-            "emotion_tag": "[slow, deep dramatic horror narration, ominous pause]" if default_engine == "fish_s2" else "",
-            "speed": 1.0 if default_engine == "fish_s2" else 0.90,
-            "gain": 1.0,
-            "pause_after": 0.6,
-            "temperature": 0.7,
-            "top_p": 0.85
-        }
-        blocks = [b1]
+        blocks = []
+        if "blocks" in data and isinstance(data["blocks"], list) and len(data["blocks"]) > 0:
+            blocks = data["blocks"]
+        elif raw_text:
+            blocks = project_mgr.split_text_into_blocks(raw_text, default_voice=default_voice, defaults=defaults)
+        else:
+            b1 = {
+                "id": "b_1",
+                "text": "Start typing your first story sentence here...",
+                "voice_id": default_voice,
+                "engine": default_engine,
+                "emotion_tag": "[slow, deep dramatic horror narration, ominous pause]" if default_engine == "fish_s2" else "",
+                "speed": 1.0 if default_engine == "fish_s2" else 0.90,
+                "gain": 1.0,
+                "pause_after": 0.6,
+                "temperature": 0.7,
+                "top_p": 0.85
+            }
+            blocks = [b1]
 
-    ai_direct = bool(data.get("ai_direct", False))
-    characters = data.get("characters", [])
+        ai_direct = bool(data.get("ai_direct", False))
+        characters = data.get("characters", [])
 
-    if job_id:
-        ACTIVE_JOBS[job_id] = {
-            "status": "processing",
-            "percent": 8,
-            "step": "init",
-            "message": "Initializing project blocks...",
-            "characters": [],
-            "total_blocks": len(blocks),
-            "current_chunk": 0,
-            "total_chunks": 1
-        }
-
-    def _on_create_progress(p_data):
         if job_id:
             ACTIVE_JOBS[job_id] = {
-                "status": "done" if p_data.get("percent", 0) >= 100 else "processing",
-                **p_data
+                "status": "processing",
+                "percent": 8,
+                "step": "init",
+                "message": "Initializing project blocks...",
+                "characters": [],
+                "total_blocks": len(blocks),
+                "current_chunk": 0,
+                "total_chunks": 1
             }
 
-    if ai_direct and len(blocks) > 0:
-        try:
-            if default_engine == "kokoro":
-                try:
-                    with open(BASE_DIR / "core" / "voices_metadata.json", "r", encoding="utf-8") as f:
-                        k_raw = json.load(f)
-                        voices = k_raw if isinstance(k_raw, list) else [{"id": k, **v} for k, v in k_raw.items()]
-                except Exception:
-                    voices = []
-            else:
-                try:
-                    with open(BASE_DIR / "core" / "fish_voices_metadata.json", "r", encoding="utf-8") as f:
-                        voices = json.load(f)
-                except Exception:
-                    voices = []
+        def _on_create_progress(p_data):
+            if job_id:
+                ACTIVE_JOBS[job_id] = {
+                    "status": "done" if p_data.get("percent", 0) >= 100 else "processing",
+                    **p_data
+                }
 
-            cfg = load_config()
-            provider = data.get("ai_provider") or cfg.get("default_llm_provider", "gemini")
-            api_key = data.get("ai_api_key") or cfg.get(f"{provider}_api_key") or os.environ.get(f"{provider.upper()}_API_KEY", "")
-            model = data.get("ai_model") or ""
+        if ai_direct and len(blocks) > 0:
+            try:
+                if default_engine == "kokoro":
+                    try:
+                        with open(BASE_DIR / "core" / "voices_metadata.json", "r", encoding="utf-8") as f:
+                            k_raw = json.load(f)
+                            voices = k_raw if isinstance(k_raw, list) else [{"id": k, **v} for k, v in k_raw.items()]
+                    except Exception:
+                        voices = []
+                else:
+                    try:
+                        with open(BASE_DIR / "core" / "fish_voices_metadata.json", "r", encoding="utf-8") as f:
+                            voices = json.load(f)
+                    except Exception:
+                        voices = []
 
-            from core.ai_director import AIDirector
-            director = AIDirector()
+                cfg = load_config()
+                prov = data.get("ai_provider")
+                model = data.get("ai_model") or ""
+                if not prov:
+                    if "gemini" in model.lower():
+                        prov = "gemini"
+                    elif any(x in model.lower() for x in ["llama", "mixtral", "gemma", "whisper", "gpt-oss"]):
+                        prov = "groq"
+                    elif "gpt-" in model.lower():
+                        prov = "openai"
+                    elif "ollama" in model.lower():
+                        prov = "ollama"
+                    else:
+                        prov = cfg.get("default_llm_provider", "gemini")
+                provider = prov
+                api_key = data.get("ai_api_key") or cfg.get(f"{prov}_api_key") or os.environ.get(f"{prov.upper()}_API_KEY", "")
 
-            def _direct_sync():
-                return director.direct_story(
-                    blocks=blocks,
-                    voices=voices,
-                    provider=provider,
-                    api_key=api_key,
-                    model=model,
-                    split_dialogue=data.get("split_dialogue", True),
-                    cast_voices=True,
-                    add_emotions=data.get("add_emotions", True),
-                    default_narrator_voice=default_voice,
-                    progress_callback=_on_create_progress
-                )
+                from core.ai_director import AIDirector
+                director = AIDirector()
 
-            direct_res = await asyncio.to_thread(_direct_sync)
-            if direct_res.get("ok"):
-                blocks = direct_res.get("blocks", blocks)
-                characters = direct_res.get("characters", [])
-                for b in blocks:
-                    b["engine"] = default_engine
-        except Exception as direct_err:
-            print(f"[handle_create_project] AI Direct notice ({direct_err}), proceeding with default blocks.")
+                def _direct_sync():
+                    return director.direct_story(
+                        blocks=blocks,
+                        voices=voices,
+                        provider=provider,
+                        api_key=api_key,
+                        model=model,
+                        split_dialogue=data.get("split_dialogue", True),
+                        cast_voices=True,
+                        add_emotions=data.get("add_emotions", True),
+                        default_narrator_voice=default_voice,
+                        progress_callback=_on_create_progress,
+                        acting_intensity=acting_intensity,
+                        analysis_temperature=analysis_temperature,
+                        split_long_emotional_blocks=split_long_emotional_blocks,
+                        tag_placement=tag_placement,
+                        production_mode=cast_mode
+                    )
 
-    proj_data = {
-        "id": proj_id,
-        "title": title,
-        "engine": default_engine,
-        "default_voice": default_voice,
-        "default_settings": defaults if defaults else None,
-        "characters": characters,
-        "blocks": blocks,
-        "master_filename": f"{proj_id}_master.wav"
-    }
-    project_mgr.save_project(proj_data, proj_id)
-    _recent_created_projects[dedup_key] = (time.time(), proj_data)
+                direct_res = await asyncio.to_thread(_direct_sync)
+                if direct_res.get("ok"):
+                    blocks = direct_res.get("blocks", blocks)
+                    characters = direct_res.get("characters", [])
+                    for b in blocks:
+                        b["engine"] = default_engine
+            except Exception as direct_err:
+                print(f"[handle_create_project] AI Direct notice ({direct_err}), proceeding with default blocks.")
 
-    if job_id:
-        ACTIVE_JOBS[job_id] = {
-            "status": "done",
-            "percent": 100,
-            "step": "done",
-            "message": "Project ready! Opening Studio...",
+        proj_data = {
+            "id": proj_id,
+            "title": title,
+            "engine": default_engine,
+            "default_voice": default_voice,
+            "default_settings": defaults if defaults else None,
             "characters": characters,
-            "url": f"/kokoro/studio?project={proj_id}" if default_engine == "kokoro" else f"/studio?project={proj_id}"
+            "blocks": blocks,
+            "master_filename": f"{proj_id}_master.wav"
         }
+        user = get_current_user(request)
+        if user and user.get("user_id"):
+            proj_data["owner_id"] = user["user_id"]
+        if folder_id:
+            proj_data["folder_id"] = folder_id
 
-    return web.json_response(proj_data)
+        project_mgr.save_project(proj_data, proj_id)
+        _recent_created_projects[dedup_key] = (time.time(), proj_data)
+
+        if job_id:
+            ACTIVE_JOBS[job_id] = {
+                "status": "done",
+                "percent": 100,
+                "step": "done",
+                "message": "Project ready! Opening Studio...",
+                "characters": characters,
+                "url": f"/studio?project={proj_id}"
+            }
+
+        return web.json_response(proj_data)
+    except Exception as err:
+        import traceback
+        traceback.print_exc()
+        if job_id:
+            ACTIVE_JOBS[job_id] = {
+                "status": "error",
+                "percent": 0,
+                "step": "error",
+                "message": f"Project creation error: {err}"
+            }
+        return web.json_response({"ok": False, "error": f"Failed to create project: {err}"}, status=500)
 
 
 def hashlib_str(s: str) -> str:
@@ -1464,14 +1961,22 @@ async def handle_delete_project(request):
 
 
 async def handle_get_project(request):
+    user = get_current_user(request)
     proj_id = request.query.get("id", "default")
     proj = project_mgr.load_project(proj_id)
+    if not proj:
+        return web.json_response({"error": "Project not found"}, status=404)
+    if user and not user.get("is_admin") and proj.get("owner_id") and proj["owner_id"] != user["user_id"]:
+        return web.json_response({"error": "Access denied to this project"}, status=403)
     return web.json_response(proj)
 
 
 async def handle_save_project(request):
+    user = get_current_user(request)
     data = await request.json()
     proj_id = data.get("id", "default")
+    if user and user.get("user_id") and not data.get("owner_id"):
+        data["owner_id"] = user["user_id"]
     project_mgr.save_project(data, proj_id)
     return web.json_response({"status": "saved", "id": proj_id})
 
@@ -1515,6 +2020,412 @@ async def handle_rename_project(request):
         return web.json_response({"error": "id and title are required"}, status=400)
     ok = project_mgr.rename_project(proj_id, title)
     return web.json_response({"success": ok, "id": proj_id, "title": title})
+
+
+# ---------------- FOLDERS / SERIES COLLECTIONS HANDLERS ---------------- #
+
+async def handle_get_folders(request):
+    user = get_current_user(request)
+    engine_filter = request.query.get("engine")
+    parent_id = request.query.get("parent_id")
+    include_all = request.query.get("include_all") == "1"
+    owner_id = user["user_id"] if user and not user.get("is_admin") else None
+    folders = project_mgr.list_folders(engine=engine_filter, parent_id=parent_id, include_all=include_all, owner_id=owner_id)
+    return web.json_response(folders)
+
+async def handle_get_folder(request):
+    user = get_current_user(request)
+    folder_id = request.query.get("id", "").strip()
+    if not folder_id:
+        return web.json_response({"ok": False, "error": "Missing folder id"}, status=400)
+    owner_id = user["user_id"] if user and not user.get("is_admin") else None
+    folder = project_mgr.get_folder(folder_id, owner_id=owner_id)
+    if not folder:
+        return web.json_response({"ok": False, "error": "Folder not found"}, status=404)
+    return web.json_response(folder)
+
+async def handle_create_folder(request):
+    try:
+        user = get_current_user(request)
+        owner_id = user["user_id"] if user else None
+        data = await request.json()
+        title = data.get("title", "").strip()
+        if not title:
+            return web.json_response({"ok": False, "error": "Title required"}, status=400)
+        folder = project_mgr.create_folder(
+            title=title,
+            author=data.get("author", ""),
+            description=data.get("description", ""),
+            parent_id=data.get("parent_series_id"),
+            cover_image=data.get("cover_image", ""),
+            engine=data.get("engine", "fish_s2"),
+            series_order=data.get("series_order", 0),
+            owner_id=owner_id
+        )
+        return web.json_response(folder)
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+async def handle_delete_folder(request):
+    try:
+        folder_id = request.match_info.get("id", "").strip()
+        delete_chapters = request.query.get("delete_chapters") == "1"
+        ok = project_mgr.delete_folder(folder_id, delete_chapters=delete_chapters)
+        return web.json_response({"ok": ok})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+async def handle_move_project_to_folder(request):
+    try:
+        data = await request.json()
+        folder_id = data.get("folder_id")
+        project_id = data.get("project_id")
+        chapter_index = data.get("chapter_index")
+        if folder_id:
+            ok = project_mgr.add_project_to_folder(folder_id, project_id, chapter_index)
+        else:
+            ok = project_mgr.remove_project_from_folder(data.get("current_folder_id", ""), project_id)
+        return web.json_response({"ok": ok})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+async def handle_reorder_folder_chapters(request):
+    try:
+        data = await request.json()
+        folder_id = data.get("folder_id")
+        chapter_ids = data.get("chapter_ids", [])
+        ok = project_mgr.reorder_folder_chapters(folder_id, chapter_ids)
+        return web.json_response({"ok": ok})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+async def handle_sort_folder_chapters(request):
+    try:
+        data = await request.json()
+        folder_id = data.get("folder_id")
+        sorted_ids = project_mgr.sort_folder_chapters(folder_id)
+        return web.json_response({"ok": True, "chapter_order": sorted_ids})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+async def handle_get_folder_master_cast(request):
+    folder_id = request.query.get("folder_id", "").strip() or request.query.get("id", "").strip()
+    cast = project_mgr.get_folder_master_cast(folder_id)
+    return web.json_response(cast)
+
+async def handle_update_folder_master_cast(request):
+    try:
+        data = await request.json()
+        folder_id = data.get("folder_id")
+        characters = data.get("characters", [])
+        sync_to_chapters = data.get("sync_to_chapters", True)
+        mode = data.get("mode", "replace")
+        ok = project_mgr.update_folder_master_cast(folder_id, characters, sync_to_chapters=sync_to_chapters, mode=mode)
+        return web.json_response({"ok": ok})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+async def handle_remove_character_from_master_cast(request):
+    try:
+        data = await request.json()
+        folder_id = data.get("folder_id")
+        char_id = data.get("character_id") or data.get("char_id")
+        remove_from_chapters = data.get("remove_from_chapters", False)
+        ok = project_mgr.remove_character_from_master_cast(folder_id, char_id, remove_from_chapters=remove_from_chapters)
+        return web.json_response({"ok": ok})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+async def handle_get_folder_director_settings(request):
+    folder_id = request.query.get("folder_id", "").strip() or request.query.get("id", "").strip()
+    settings = project_mgr.get_folder_director_settings(folder_id)
+    return web.json_response(settings)
+
+async def handle_save_folder_director_settings(request):
+    try:
+        data = await request.json()
+        folder_id = data.get("folder_id")
+        settings = data.get("settings", {})
+        ok = project_mgr.save_folder_director_settings(folder_id, settings)
+        return web.json_response({"ok": ok})
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
+async def handle_direct_stub_chapter(request):
+    job_id = ""
+    try:
+        data = await request.json()
+        project_id = data.get("project_id", "").strip()
+        if not project_id:
+            return web.json_response({"ok": False, "error": "Missing project_id"}, status=400)
+
+        job_id = data.get("job_id", "").strip()
+        cast_mode = data.get("cast_mode", "multi")
+        ai_direct = bool(data.get("ai_direct", True))
+        ai_model = data.get("ai_model", "gemini-3.5-flash-lite")
+        split_quotes = bool(data.get("split_quotes", True))
+        acting_tags = bool(data.get("acting_tags", True))
+        acting_intensity = data.get("acting_intensity", "balanced")
+        analysis_temperature = float(data.get("analysis_temperature", 0.7))
+        default_voice = data.get("default_voice")
+        save_as_folder_default = bool(data.get("save_as_folder_default", False))
+
+        if job_id:
+            ACTIVE_JOBS[job_id] = {
+                "status": "processing",
+                "percent": 10,
+                "step": "extracting",
+                "message": "Extracting chapter manuscript & speech blocks...",
+                "characters": []
+            }
+
+        def _on_stub_progress(p_data):
+            if job_id:
+                ACTIVE_JOBS[job_id] = {
+                    "status": "done" if p_data.get("percent", 0) >= 100 else "processing",
+                    **p_data
+                }
+
+        def _direct_sync():
+            return project_mgr.direct_stub_chapter(
+                project_id=project_id,
+                cast_mode=cast_mode,
+                ai_direct=ai_direct,
+                ai_model=ai_model,
+                split_quotes=split_quotes,
+                acting_tags=acting_tags,
+                acting_intensity=acting_intensity,
+                analysis_temperature=analysis_temperature,
+                default_voice=default_voice,
+                save_as_folder_default=save_as_folder_default,
+                progress_callback=_on_stub_progress
+            )
+
+        res = await asyncio.to_thread(_direct_sync)
+        if job_id:
+            ACTIVE_JOBS[job_id] = {
+                "status": "done",
+                "percent": 100,
+                "step": "done",
+                "message": f"Chapter directed! {res.get('blocks_count', 0)} speech blocks ready.",
+                "characters": res.get("characters", [])
+            }
+        return web.json_response(res)
+    except Exception as e:
+        if job_id:
+            ACTIVE_JOBS[job_id] = {
+                "status": "error",
+                "percent": 0,
+                "step": "error",
+                "message": str(e)
+            }
+        logger.error(f"[App] Error in handle_direct_stub_chapter: {e}", exc_info=True)
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
+async def handle_epub_generate_series(request):
+    try:
+        data = await request.json()
+        epub_path = data.get("epub_path", "").strip()
+        if not epub_path or not os.path.exists(epub_path):
+            return web.json_response({"ok": False, "error": "EPUB file not found"}, status=400)
+
+        title = data.get("title")
+        author = data.get("author")
+        description = data.get("description")
+        referer = request.headers.get("Referer", "").lower()
+        engine = data.get("engine") or ("kokoro" if "/kokoro" in referer else "fish_s2")
+        selected_books = data.get("selected_books")
+        selected_chapters = data.get("selected_chapters")
+
+        def _generate_sync():
+            return project_mgr.generate_series_from_epub(
+                epub_path=epub_path,
+                title=title,
+                author=author,
+                description=description,
+                engine=engine,
+                selected_book_indices=selected_books,
+                selected_chapters=selected_chapters
+            )
+
+        res = await asyncio.to_thread(_generate_sync)
+        return web.json_response(res)
+    except Exception as e:
+        logger.error(f"[App] Error in handle_epub_generate_series: {e}", exc_info=True)
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
+async def handle_export_folder(request):
+    try:
+        data = await request.json()
+        folder_id = data.get("folder_id", "").strip()
+        if not folder_id:
+            return web.json_response({"ok": False, "error": "Missing folder_id"}, status=400)
+
+        folder = project_mgr.get_folder(folder_id)
+        if not folder:
+            return web.json_response({"ok": False, "error": "Folder not found"}, status=404)
+
+        silence_gap_sec = float(data.get("silence_gap_sec", 2.0))
+        chapters_only = bool(data.get("chapters_only", False))
+
+        chapter_ids = folder.get("chapter_ids", [])
+        if not chapter_ids:
+            return web.json_response({"ok": False, "error": "No chapters in this folder"}, status=400)
+
+        def _export_folder_sync():
+            import soundfile as sf
+            import numpy as np
+            from math import gcd
+            from scipy import signal
+
+            def _resample(samples: np.ndarray, orig_sr: int, dest_sr: int) -> np.ndarray:
+                if orig_sr == dest_sr or len(samples) == 0:
+                    return samples
+                g = gcd(int(orig_sr), int(dest_sr))
+                up = int(dest_sr // g)
+                down = int(orig_sr // g)
+                return signal.resample_poly(samples.astype(np.float32), up, down).astype(np.float32)
+
+            target_sr = 44100
+            audio_segments = []
+            chapters_included = 0
+
+            for pid in chapter_ids:
+                proj = project_mgr.get_project(pid)
+                if not proj:
+                    continue
+
+                if chapters_only:
+                    ch_info = ProjectManager.parse_chapter_info(proj.get("title", ""))
+                    if ch_info.get("is_front_matter"):
+                        continue
+
+                master_path = OUTPUT_DIR / proj.get("master_filename", f"{pid}_master.wav")
+                if not master_path.exists():
+                    master_path = OUTPUT_DIR / f"{pid}_master.wav"
+
+                ch_audio = None
+                ch_sr = target_sr
+
+                if master_path.exists():
+                    try:
+                        ch_audio, ch_sr = sf.read(str(master_path), dtype="float32")
+                    except Exception:
+                        ch_audio = None
+
+                if ch_audio is None and proj.get("blocks"):
+                    blks = proj.get("blocks", [])
+                    b_segs = []
+                    for b in blks:
+                        if not b.get("is_spoken", True):
+                            continue
+                        af = b.get("audio_file") or b.get("audio_url")
+                        if af:
+                            af_name = af.split("/")[-1].split("?")[0]
+                            f_path = OUTPUT_DIR / af_name
+                            if not f_path.exists():
+                                f_path = CACHE_DIR / af_name
+                            if f_path.exists():
+                                try:
+                                    s_data, s_sr = sf.read(str(f_path), dtype="float32")
+                                    if s_sr != target_sr:
+                                        s_data = _resample(s_data, s_sr, target_sr)
+                                    b_segs.append(s_data)
+                                    p_after = float(b.get("pause_after", 0.5) or 0.5)
+                                    if p_after > 0:
+                                        b_segs.append(np.zeros(int(target_sr * p_after), dtype=np.float32))
+                                except Exception:
+                                    pass
+                    if b_segs:
+                        ch_audio = np.concatenate(b_segs)
+                        ch_sr = target_sr
+
+                if ch_audio is not None and len(ch_audio) > 0:
+                    if ch_sr != target_sr:
+                        ch_audio = _resample(ch_audio, ch_sr, target_sr)
+                    if len(ch_audio.shape) > 1:
+                        ch_audio = np.mean(ch_audio, axis=1)
+                    audio_segments.append(ch_audio)
+                    chapters_included += 1
+
+                    if silence_gap_sec > 0:
+                        audio_segments.append(np.zeros(int(target_sr * silence_gap_sec), dtype=np.float32))
+
+            if not audio_segments or chapters_included == 0:
+                raise ValueError("No synthesized audio found for chapters in this series. Please render chapters first.")
+
+            if silence_gap_sec > 0 and len(audio_segments) > 1:
+                audio_segments.pop()
+
+            master_audio = np.concatenate(audio_segments)
+            safe_title = re.sub(r'[^a-zA-Z0-9_\-.]', '_', folder.get("title", "Audiobook_Series"))
+            out_filename = f"{safe_title}_Full_Audiobook.wav"
+            out_path = OUTPUT_DIR / out_filename
+            sf.write(str(out_path), master_audio, target_sr)
+            total_duration = round(len(master_audio) / target_sr, 2)
+
+            return {
+                "ok": True,
+                "audio_url": f"/api/audio/{out_filename}",
+                "filename": out_filename,
+                "total_chapters": chapters_included,
+                "total_duration": total_duration
+            }
+
+        res = await asyncio.to_thread(_export_folder_sync)
+        return web.json_response(res)
+    except Exception as e:
+        logger.error(f"[App] Error in handle_export_folder: {e}", exc_info=True)
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
+async def handle_remote_worker_health(request):
+    url = request.query.get("url", "").strip()
+    if not url:
+        return web.json_response({"ok": False, "error": "Missing URL"}, status=400)
+    
+    import urllib.request
+    import json
+    for endpoint in [f"{url.rstrip('/')}/v1/health", f"{url.rstrip('/')}/health", f"{url.rstrip('/')}/v1/tts/defaults"]:
+        try:
+            req = urllib.request.Request(endpoint, headers={"User-Agent": "FishStudio/1.0"})
+            with urllib.request.urlopen(req, timeout=4) as response:
+                if response.status == 200:
+                    try:
+                        data = json.loads(response.read().decode("utf-8"))
+                        return web.json_response({"ok": True, **data})
+                    except Exception:
+                        return web.json_response({"ok": True})
+        except Exception:
+            continue
+    return web.json_response({"ok": False, "error": "Could not connect to remote worker endpoint"}, status=502)
+
+
+async def handle_gpu_local_detect(request):
+    force = request.query.get("force") == "1"
+    info = local_gpu_mgr.detect_hardware(force_refresh=force)
+    return web.json_response(info)
+
+
+async def handle_gpu_local_status(request):
+    return web.json_response(local_gpu_mgr.get_status())
+
+
+async def handle_gpu_local_start(request):
+    data = await request.json() if request.can_read_body else {}
+    port = int(data.get("port", 8080))
+    engine = data.get("engine", "fish_s2")
+    res = local_gpu_mgr.start_worker(engine=engine, port=port)
+    return web.json_response(res)
+
+
+async def handle_gpu_local_stop(request):
+    res = local_gpu_mgr.stop_worker()
+    return web.json_response(res)
+
 
 
 async def handle_split_text(request):
@@ -1651,6 +2562,51 @@ async def handle_ai_direct(request):
         import traceback
         traceback.print_exc()
         return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
+async def handle_ai_director_chat(request):
+    """
+    Handles interactive AI Director Agent conversation.
+    Inspects project context and returns agent reply + atomic execution actions.
+    """
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "Invalid request JSON"}, status=400)
+
+    messages = data.get("messages", [])
+    if not messages:
+        return web.json_response({"ok": False, "error": "Messages list is required."}, status=400)
+
+    project_context = data.get("project_context", {})
+    provider = data.get("provider", "")
+    api_key = data.get("api_key", "")
+    model = data.get("model", "")
+    temperature = float(data.get("temperature", 0.5))
+
+    voices = data.get("available_voices", [])
+    if not voices:
+        try:
+            voices = fish_engine.list_voices()
+        except Exception:
+            voices = []
+
+    from core.ai_director import AIDirector
+    director = AIDirector()
+
+    def _chat_sync():
+        return director.agent_chat(
+            messages=messages,
+            project_context=project_context,
+            available_voices=voices,
+            provider=provider,
+            api_key=api_key,
+            model=model,
+            temperature=temperature
+        )
+
+    res = await asyncio.to_thread(_chat_sync)
+    return web.json_response(res)
 
 
 async def handle_get_ai_director_config(request):
@@ -1793,15 +2749,19 @@ async def handle_get_config(request):
                 k_has_key = bool(c.get("key", ""))
             except Exception:
                 pass
+    is_byok = tier_mgr.get_tier() == "byok"
+    masked_key = cfg.get("fish_api_key", "") if is_byok else ("sk-••••••••" if (cfg.get("fish_api_key") or tier_mgr.state.get("platform_fish_api_key")) else "")
     return web.json_response({
         "remote_worker_url": remote_url or "",
         "kokoro_remote_worker_url": cfg.get("kokoro_remote_worker_url", ""),
         "fish_remote_worker_url": cfg.get("fish_remote_worker_url", ""),
-        "fish_api_key": cfg.get("fish_api_key", ""),
+        "fish_api_key": masked_key,
         "kaggle_username": k_user,
         "kaggle_has_key": k_has_key,
         "active_engine": "kokoro" if is_kokoro else cfg.get("active_engine", "fish_s2"),
-        "active": bool(remote_url or (not is_kokoro and cfg.get("fish_api_key")))
+        "active": bool(remote_url or (not is_kokoro and (cfg.get("fish_api_key") or tier_mgr.resolve_api_key()))),
+        "tier_status": tier_mgr.get_public_status(),
+        "google_client_id": cfg.get("google_client_id", "") or os.environ.get("GOOGLE_CLIENT_ID", "")
     })
 
 
@@ -1918,15 +2878,15 @@ async def handle_kaggle_beacon_close(request):
 
 
 def _studio_inactivity_watchdog_loop():
-    """Background watchdog: if Kaggle is active but Studio frontend stops heartbeating for > 4 min, auto-cancel."""
+    """Background watchdog: auto-terminate Kaggle GPU only if Studio frontend has been completely inactive for > 20 min."""
     while True:
         time.sleep(30)
         try:
             status = kaggle_mgr.get_status().get("status", "")
             if status in ("ready", "booting", "queued"):
                 idle_sec = time.time() - _last_studio_heartbeat[0]
-                if idle_sec > 240:  # 4 minutes without browser heartbeat
-                    print(f"\n[KaggleWatchdog] ⚠️ No browser heartbeat for {int(idle_sec)}s! Auto-terminating Kaggle GPU to conserve user's free weekly quota...")
+                if idle_sec > 1200:  # 20 minutes without browser heartbeat
+                    print(f"\n[KaggleWatchdog] ⚠️ No browser heartbeat for {int(idle_sec)}s (>20m)! Auto-terminating Kaggle GPU to conserve user's quota...")
                     cfg = load_config()
                     username = cfg.get("kaggle_username", "")
                     key = cfg.get("kaggle_key", "")
@@ -2008,6 +2968,12 @@ async def handle_save_config(request):
         if fish_engine:
             fish_engine.api_key = key if key else None
 
+    if "fish_api_model" in data:
+        m = data.get("fish_api_model", "").strip() or "drama-3"
+        cfg["fish_api_model"] = m
+        if fish_engine:
+            fish_engine.model = m
+
     if "active_engine" in data:
         engine_choice = data.get("active_engine", "fish_s2").lower()
         cfg["active_engine"] = engine_choice
@@ -2017,8 +2983,180 @@ async def handle_save_config(request):
         "status": "saved",
         "active_engine": cfg.get("active_engine", "fish_s2"),
         "remote_worker_url": cfg.get("remote_worker_url", ""),
-        "active": bool(cfg.get("remote_worker_url") or cfg.get("fish_api_key"))
+        "active": bool(cfg.get("remote_worker_url") or cfg.get("fish_api_key")),
+        "tier_status": tier_mgr.get_public_status(),
+        "google_client_id": cfg.get("google_client_id", "") or os.environ.get("GOOGLE_CLIENT_ID", "")
     })
+
+
+def get_current_user(request: web.Request) -> Dict:
+    auth_header = request.headers.get("Authorization", "")
+    token = None
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+    if not token:
+        token = request.cookies.get("fish_session")
+    if not token:
+        token = request.query.get("token")
+    return tier_mgr.auth_mgr.get_user_by_session(token)
+
+
+async def handle_auth_register(request: web.Request):
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    email = (data.get("email") or "").strip()
+    password = (data.get("password") or "").strip()
+    name = (data.get("name") or "").strip()
+
+    ok, msg_or_token, user_dict = tier_mgr.auth_mgr.register(email, password, name=name)
+    if not ok:
+        return web.json_response({"error": msg_or_token}, status=400)
+
+    resp = web.json_response({
+        "success": True,
+        "token": msg_or_token,
+        "user": user_dict
+    })
+    resp.set_cookie("fish_session", msg_or_token, max_age=30 * 86400, httponly=False, samesite="Lax")
+    return resp
+
+
+async def handle_auth_login(request: web.Request):
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    email = (data.get("email") or "").strip()
+    password = (data.get("password") or "").strip()
+
+    ok, msg_or_token, user_dict = tier_mgr.auth_mgr.login(email, password)
+    if not ok:
+        return web.json_response({"error": msg_or_token}, status=401)
+
+    resp = web.json_response({
+        "success": True,
+        "token": msg_or_token,
+        "user": user_dict
+    })
+    resp.set_cookie("fish_session", msg_or_token, max_age=30 * 86400, httponly=False, samesite="Lax")
+    return resp
+
+
+async def handle_auth_google(request: web.Request):
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    token_str = (data.get("credential") or data.get("token") or "").strip()
+    email = (data.get("email") or "").strip()
+    name = (data.get("name") or "").strip()
+    avatar = (data.get("avatar") or "").strip()
+    google_sub = None
+
+    # Real Google ID Token (JWT) sent by Google Identity Services (GSI)
+    if token_str:
+        try:
+            import base64
+            parts = token_str.split(".")
+            if len(parts) >= 2:
+                payload_b64 = parts[1]
+                payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
+                payload_json = json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
+
+                # Check expiration
+                exp = payload_json.get("exp", 0)
+                if exp and time.time() > exp:
+                    return web.json_response({"error": "Google sign-in token has expired. Please sign in again."}, status=400)
+
+                email = payload_json.get("email", email)
+                name = payload_json.get("name", name)
+                avatar = payload_json.get("picture", avatar)
+                google_sub = payload_json.get("sub", "")
+        except Exception as e:
+            logger.warning(f"Failed decoding google credential: {e}")
+            return web.json_response({"error": f"Invalid Google credential: {str(e)}"}, status=400)
+
+    if not email:
+        return web.json_response({"error": "Google account email is required"}, status=400)
+
+    ok, msg_or_token, user_dict = tier_mgr.auth_mgr.login_or_register_google(
+        email=email,
+        name=name,
+        google_sub=google_sub,
+        avatar=avatar
+    )
+    if not ok:
+        return web.json_response({"error": msg_or_token}, status=400)
+
+    resp = web.json_response({
+        "success": True,
+        "token": msg_or_token,
+        "user": user_dict
+    })
+    resp.set_cookie("fish_session", msg_or_token, max_age=30 * 86400, httponly=False, samesite="Lax")
+    return resp
+
+
+async def handle_auth_logout(request: web.Request):
+    auth_header = request.headers.get("Authorization", "")
+    token = None
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+    if not token:
+        token = request.cookies.get("fish_session")
+    if token:
+        tier_mgr.auth_mgr.logout(token)
+
+    resp = web.json_response({"success": True})
+    resp.del_cookie("fish_session")
+    return resp
+
+
+async def handle_auth_me(request: web.Request):
+    auth_header = request.headers.get("Authorization", "")
+    token = None
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+    if not token:
+        token = request.cookies.get("fish_session")
+
+    user = tier_mgr.auth_mgr.get_user_by_session(token)
+    is_logged_in = user is not None
+    return web.json_response({
+        "logged_in": is_logged_in,
+        "user": tier_mgr.auth_mgr.get_public_user(user) if user else None
+    })
+
+
+async def handle_get_tier_status(request):
+    user = get_current_user(request)
+    return web.json_response(tier_mgr.get_public_status(user=user))
+
+
+async def handle_set_tier(request):
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    user = get_current_user(request)
+    tier = (data.get("tier") or "").strip().lower()
+    byok_key = data.get("byok_key")
+    if tier:
+        tier_mgr.set_tier(tier, byok_key=byok_key, user=user)
+        if byok_key is not None and tier == "byok":
+            cfg = load_config()
+            cfg["fish_api_key"] = byok_key.strip()
+            save_config(cfg)
+        resolved = tier_mgr.resolve_api_key(user=user)
+        if resolved and fish_engine:
+            fish_engine.api_key = resolved
+    return web.json_response(tier_mgr.get_public_status(user=user))
 
 
 async def handle_epub_inspect(request):
@@ -2180,7 +3318,7 @@ async def handle_epub_import(request):
                 print(f"[handle_epub_import] AI Direct notice ({direct_err}), proceeding with default narrator blocks.")
 
         proj_id = f"proj_{uuid.uuid4().hex[:8]}"
-        proj_url = f"/kokoro/studio?project={proj_id}" if engine == "kokoro" else f"/studio?project={proj_id}"
+        proj_url = f"/studio?project={proj_id}"
         proj_data = {
             "id": proj_id,
             "title": custom_title,
@@ -2359,6 +3497,7 @@ async def handle_favicon(request):
 def create_app():
     app = web.Application(middlewares=[no_cache_middleware])
     app.router.add_get("/", handle_index)
+    app.router.add_get("/login", handle_index)
     app.router.add_get("/studio", handle_index)
     app.router.add_get("/studio/", handle_index)
     app.router.add_get("/projects", handle_index)
@@ -2366,6 +3505,7 @@ def create_app():
     app.router.add_get("/studio/favicon.svg", handle_favicon)
 
     # Voices & Reference management
+    app.router.add_get("/api/engines", handle_get_engines)
     app.router.add_get("/api/voices", handle_get_voices)
     app.router.add_post("/api/voices/upload_reference", handle_upload_reference_voice)
     app.router.add_get("/api/voices/reference", handle_get_reference_voices)
@@ -2378,6 +3518,8 @@ def create_app():
 
     # Synthesis & Export & Instant Audio FX
     app.router.add_post("/api/synthesize_block", handle_synthesize_block)
+    app.router.add_post("/api/project/cache_audio", handle_cache_client_audio)
+    app.router.add_post("/api/check_cache", handle_check_cache)
     app.router.add_post("/api/blend_preview", handle_blend_preview)
     app.router.add_post("/api/audio/apply_dsp", handle_apply_dsp)
     app.router.add_post("/api/audio/reset_dsp", handle_reset_dsp)
@@ -2394,20 +3536,45 @@ def create_app():
     app.router.add_get("/api/project", handle_get_project)
     app.router.add_post("/api/project", handle_save_project)
 
+    # Folders & Series Collections
+    app.router.add_get("/api/folders", handle_get_folders)
+    app.router.add_post("/api/folders/new", handle_create_folder)
+    app.router.add_delete("/api/folders/{id}", handle_delete_folder)
+    app.router.add_get("/api/folder", handle_get_folder)
+    app.router.add_post("/api/folder/move_project", handle_move_project_to_folder)
+    app.router.add_post("/api/folder/reorder", handle_reorder_folder_chapters)
+    app.router.add_post("/api/folder/sort_chapters", handle_sort_folder_chapters)
+    app.router.add_get("/api/folder/master_cast", handle_get_folder_master_cast)
+    app.router.add_post("/api/folder/master_cast", handle_update_folder_master_cast)
+    app.router.add_post("/api/folder/master_cast/remove_character", handle_remove_character_from_master_cast)
+    app.router.add_get("/api/folder/director_settings", handle_get_folder_director_settings)
+    app.router.add_post("/api/folder/director_settings", handle_save_folder_director_settings)
+    app.router.add_post("/api/folder/export", handle_export_folder)
+
     # Text & Auto-directing
     app.router.add_post("/api/split_text", handle_split_text)
     app.router.add_post("/api/auto_direct", handle_auto_direct)
     app.router.add_post("/api/ai_director/direct", handle_ai_direct)
+    app.router.add_post("/api/ai_director/chat", handle_ai_director_chat)
     app.router.add_get("/api/ai_director/config", handle_get_ai_director_config)
     app.router.add_post("/api/ai_director/config", handle_save_ai_director_config)
     app.router.add_post("/api/ai_director/test_key", handle_test_ai_director_key)
     app.router.add_get("/api/job_progress", handle_job_progress)
     app.router.add_post("/api/merge_short", handle_merge_short)
 
+    # User Accounts & Auth
+    app.router.add_post("/api/auth/register", handle_auth_register)
+    app.router.add_post("/api/auth/login", handle_auth_login)
+    app.router.add_post("/api/auth/google", handle_auth_google)
+    app.router.add_post("/api/auth/logout", handle_auth_logout)
+    app.router.add_get("/api/auth/me", handle_auth_me)
+
     # Audio & Config
     app.router.add_get("/api/audio/{filename}", handle_get_audio)
     app.router.add_get("/api/config", handle_get_config)
     app.router.add_post("/api/config", handle_save_config)
+    app.router.add_get("/api/tier/status", handle_get_tier_status)
+    app.router.add_post("/api/tier/set", handle_set_tier)
     app.router.add_post("/api/cloud/kaggle/verify", handle_kaggle_verify)
     app.router.add_post("/api/cloud/kaggle/launch", handle_kaggle_launch)
     app.router.add_get("/api/cloud/kaggle/status", handle_kaggle_status)
@@ -2419,21 +3586,29 @@ def create_app():
     app.router.add_get("/api/colab_script", handle_get_colab_script)
     app.router.add_get("/api/sample_story", handle_get_sample_story)
 
-    # EPUB Audiobook Importer
+    # EPUB Audiobook Importer & Chapter Stubs
     app.router.add_post("/api/epub/inspect", handle_epub_inspect)
     app.router.add_post("/api/epub/import", handle_epub_import)
+    app.router.add_post("/api/epub/generate_series", handle_epub_generate_series)
+    app.router.add_post("/api/chapter/direct_stub", handle_direct_stub_chapter)
+
+    # Local GPU & Remote Worker
+    app.router.add_get("/api/gpu/local/detect", handle_gpu_local_detect)
+    app.router.add_get("/api/gpu/local/status", handle_gpu_local_status)
+    app.router.add_post("/api/gpu/local/start", handle_gpu_local_start)
+    app.router.add_post("/api/gpu/local/stop", handle_gpu_local_stop)
+    app.router.add_get("/api/remote_worker/health", handle_remote_worker_health)
 
     # Static assets
     app.router.add_static("/studio", STUDIO_DIR)
     app.router.add_static("/voices", BASE_DIR / "voices")
 
-    # Kokoro Studio Routes (completely isolated UI and engine)
+    # Deprecated Kokoro routes redirect to unified Studio
     app.router.add_get("/kokoro", handle_kokoro_index)
     app.router.add_get("/kokoro/", handle_kokoro_index)
     app.router.add_get("/kokoro/studio", handle_kokoro_index)
     app.router.add_get("/kokoro/studio/", handle_kokoro_index)
     app.router.add_get("/kokoro/favicon.svg", handle_kokoro_favicon)
-    app.router.add_static("/kokoro_studio", KOKORO_STUDIO_DIR)
 
     return app
 

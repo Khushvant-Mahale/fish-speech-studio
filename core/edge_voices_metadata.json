@@ -1,0 +1,3182 @@
+[
+  {
+    "id": "en-AU-NatashaNeural",
+    "name": "Natasha (English (Australia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-AU",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-AU-WilliamMultilingualNeural",
+    "name": "WilliamMultilingual (English (Australia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-AU",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-CA-ClaraNeural",
+    "name": "Clara (English (Canada)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-CA",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-CA-LiamNeural",
+    "name": "Liam (English (Canada)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-CA",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-GB-LibbyNeural",
+    "name": "Libby (English (United Kingdom)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-GB",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-GB-MaisieNeural",
+    "name": "Maisie (English (United Kingdom)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-GB",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-GB-RyanNeural",
+    "name": "Ryan (English (United Kingdom)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-GB",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-GB-SoniaNeural",
+    "name": "Sonia (English (United Kingdom)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-GB",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-GB-ThomasNeural",
+    "name": "Thomas (English (United Kingdom)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-GB",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-HK-SamNeural",
+    "name": "Sam (English (Hongkong)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-HK",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-HK-YanNeural",
+    "name": "Yan (English (Hong Kong SAR)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-HK",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-IE-ConnorNeural",
+    "name": "Connor (English (Ireland)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-IE",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-IE-EmilyNeural",
+    "name": "Emily (English (Ireland)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-IE",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-IN-NeerjaNeural",
+    "name": "Neerja (English (India)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-IN",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-IN-NeerjaExpressiveNeural",
+    "name": "Neerja (English (India) (Preview)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-IN",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-IN-PrabhatNeural",
+    "name": "Prabhat (English (India)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-IN",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-KE-AsiliaNeural",
+    "name": "Asilia (English (Kenya)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-KE",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-KE-ChilembaNeural",
+    "name": "Chilemba (English (Kenya)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-KE",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-NG-AbeoNeural",
+    "name": "Abeo (English (Nigeria)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-NG",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-NG-EzinneNeural",
+    "name": "Ezinne (English (Nigeria)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-NG",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-NZ-MitchellNeural",
+    "name": "Mitchell (English (New Zealand)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-NZ",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-NZ-MollyNeural",
+    "name": "Molly (English (New Zealand)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-NZ",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-PH-JamesNeural",
+    "name": "James (English (Philippines)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-PH",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-PH-RosaNeural",
+    "name": "Rosa (English (Philippines)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-PH",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-SG-LunaNeural",
+    "name": "Luna (English (Singapore)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-SG",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-SG-WayneNeural",
+    "name": "Wayne (English (Singapore)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-SG",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-TZ-ElimuNeural",
+    "name": "Elimu (English (Tanzania)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-TZ",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-TZ-ImaniNeural",
+    "name": "Imani (English (Tanzania)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-TZ",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-AnaNeural",
+    "name": "Ana (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-AndrewNeural",
+    "name": "Andrew (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-AndrewMultilingualNeural",
+    "name": "AndrewMultilingual (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-AriaNeural",
+    "name": "Aria (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-AvaNeural",
+    "name": "Ava (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-AvaMultilingualNeural",
+    "name": "AvaMultilingual (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-BrianNeural",
+    "name": "Brian (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Narrator",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-BrianMultilingualNeural",
+    "name": "BrianMultilingual (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Narrator",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-ChristopherNeural",
+    "name": "Christopher (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Narrator",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-EmmaNeural",
+    "name": "Emma (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-EmmaMultilingualNeural",
+    "name": "EmmaMultilingual (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-EricNeural",
+    "name": "Eric (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-GuyNeural",
+    "name": "Guy (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Narrator",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-JennyNeural",
+    "name": "Jenny (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-MichelleNeural",
+    "name": "Michelle (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-RogerNeural",
+    "name": "Roger (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-US-SteffanNeural",
+    "name": "Steffan (English (United States)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-US",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-ZA-LeahNeural",
+    "name": "Leah (English (South Africa)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "en-ZA",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "en-ZA-LukeNeural",
+    "name": "Luke (English (South Africa)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "en-ZA",
+    "lang": "en",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "af-ZA-AdriNeural",
+    "name": "Adri (Afrikaans (South Africa)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "af-ZA",
+    "lang": "af",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "af-ZA-WillemNeural",
+    "name": "Willem (Afrikaans (South Africa)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "af-ZA",
+    "lang": "af",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "am-ET-AmehaNeural",
+    "name": "Ameha (Amharic (Ethiopia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "am-ET",
+    "lang": "am",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "am-ET-MekdesNeural",
+    "name": "Mekdes (Amharic (Ethiopia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "am-ET",
+    "lang": "am",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-AE-FatimaNeural",
+    "name": "Fatima (Arabic (United Arab Emirates)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-AE",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-AE-HamdanNeural",
+    "name": "Hamdan (Arabic (United Arab Emirates)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-AE",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-BH-AliNeural",
+    "name": "Ali (Arabic (Bahrain)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-BH",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-BH-LailaNeural",
+    "name": "Laila (Arabic (Bahrain)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-BH",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-DZ-AminaNeural",
+    "name": "Amina (Arabic (Algeria)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-DZ",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-DZ-IsmaelNeural",
+    "name": "Ismael (Arabic (Algeria)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-DZ",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-EG-SalmaNeural",
+    "name": "Salma (Arabic (Egypt)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-EG",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-EG-ShakirNeural",
+    "name": "Shakir (Arabic (Egypt)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-EG",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-IQ-BasselNeural",
+    "name": "Bassel (Arabic (Iraq)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-IQ",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-IQ-RanaNeural",
+    "name": "Rana (Arabic (Iraq)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-IQ",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-JO-SanaNeural",
+    "name": "Sana (Arabic (Jordan)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-JO",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-JO-TaimNeural",
+    "name": "Taim (Arabic (Jordan)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-JO",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-KW-FahedNeural",
+    "name": "Fahed (Arabic (Kuwait)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-KW",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-KW-NouraNeural",
+    "name": "Noura (Arabic (Kuwait)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-KW",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-LB-LaylaNeural",
+    "name": "Layla (Arabic (Lebanon)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-LB",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-LB-RamiNeural",
+    "name": "Rami (Arabic (Lebanon)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-LB",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-LY-ImanNeural",
+    "name": "Iman (Arabic (Libya)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-LY",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-LY-OmarNeural",
+    "name": "Omar (Arabic (Libya)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-LY",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-MA-JamalNeural",
+    "name": "Jamal (Arabic (Morocco)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-MA",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-MA-MounaNeural",
+    "name": "Mouna (Arabic (Morocco)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-MA",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-OM-AbdullahNeural",
+    "name": "Abdullah (Arabic (Oman)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-OM",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-OM-AyshaNeural",
+    "name": "Aysha (Arabic (Oman)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-OM",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-QA-AmalNeural",
+    "name": "Amal (Arabic (Qatar)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-QA",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-QA-MoazNeural",
+    "name": "Moaz (Arabic (Qatar)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-QA",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-SA-HamedNeural",
+    "name": "Hamed (Arabic (Saudi Arabia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-SA",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-SA-ZariyahNeural",
+    "name": "Zariyah (Arabic (Saudi Arabia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-SA",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-SY-AmanyNeural",
+    "name": "Amany (Arabic (Syria)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-SY",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-SY-LaithNeural",
+    "name": "Laith (Arabic (Syria)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-SY",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-TN-HediNeural",
+    "name": "Hedi (Arabic (Tunisia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-TN",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-TN-ReemNeural",
+    "name": "Reem (Arabic (Tunisia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-TN",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-YE-MaryamNeural",
+    "name": "Maryam (Arabic (Yemen)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ar-YE",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ar-YE-SalehNeural",
+    "name": "Saleh (Arabic (Yemen)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ar-YE",
+    "lang": "ar",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "az-AZ-BabekNeural",
+    "name": "Babek (Azerbaijani (Azerbaijan)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "az-AZ",
+    "lang": "az",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "az-AZ-BanuNeural",
+    "name": "Banu (Azerbaijani (Azerbaijan)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "az-AZ",
+    "lang": "az",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "bg-BG-BorislavNeural",
+    "name": "Borislav (Bulgarian (Bulgaria)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "bg-BG",
+    "lang": "bg",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "bg-BG-KalinaNeural",
+    "name": "Kalina (Bulgarian (Bulgaria)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "bg-BG",
+    "lang": "bg",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "bn-BD-NabanitaNeural",
+    "name": "Nabanita (Bangla (Bangladesh)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "bn-BD",
+    "lang": "bn",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "bn-BD-PradeepNeural",
+    "name": "Pradeep (Bangla (Bangladesh)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "bn-BD",
+    "lang": "bn",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "bn-IN-BashkarNeural",
+    "name": "Bashkar (Bangla (India)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "bn-IN",
+    "lang": "bn",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "bn-IN-TanishaaNeural",
+    "name": "Tanishaa (Bengali (India)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "bn-IN",
+    "lang": "bn",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "bs-BA-GoranNeural",
+    "name": "Goran (Bosnian (Bosnia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "bs-BA",
+    "lang": "bs",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "bs-BA-VesnaNeural",
+    "name": "Vesna (Bosnian (Bosnia and Herzegovina)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "bs-BA",
+    "lang": "bs",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ca-ES-EnricNeural",
+    "name": "Enric (Catalan (ca-ES)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ca-ES",
+    "lang": "ca",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ca-ES-JoanaNeural",
+    "name": "Joana (Catalan (ca-ES)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ca-ES",
+    "lang": "ca",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "cs-CZ-AntoninNeural",
+    "name": "Antonin (Czech (Czech)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "cs-CZ",
+    "lang": "cs",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "cs-CZ-VlastaNeural",
+    "name": "Vlasta (Czech (Czech)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "cs-CZ",
+    "lang": "cs",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "cy-GB-AledNeural",
+    "name": "Aled (Welsh (United Kingdom)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "cy-GB",
+    "lang": "cy",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "cy-GB-NiaNeural",
+    "name": "Nia (Welsh (United Kingdom)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "cy-GB",
+    "lang": "cy",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "da-DK-ChristelNeural",
+    "name": "Christel (Danish (Denmark)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "da-DK",
+    "lang": "da",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "da-DK-JeppeNeural",
+    "name": "Jeppe (Danish (Denmark)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "da-DK",
+    "lang": "da",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "de-AT-IngridNeural",
+    "name": "Ingrid (German (Austria)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "de-AT",
+    "lang": "de",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "de-AT-JonasNeural",
+    "name": "Jonas (German (Austria)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "de-AT",
+    "lang": "de",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "de-CH-JanNeural",
+    "name": "Jan (German (Switzerland)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "de-CH",
+    "lang": "de",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "de-CH-LeniNeural",
+    "name": "Leni (German (Switzerland)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "de-CH",
+    "lang": "de",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "de-DE-ChristophNeural",
+    "name": "Christoph (German (Germany)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "de-DE",
+    "lang": "de",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "de-DE-TanjaNeural",
+    "name": "Tanja (German (Germany)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "de-DE",
+    "lang": "de",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "el-GR-AthinaNeural",
+    "name": "Athina (Greek (Greece)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "el-GR",
+    "lang": "el",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "el-GR-NestorasNeural",
+    "name": "Nestoras (Greek (Greece)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "el-GR",
+    "lang": "el",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-AR-ElenaNeural",
+    "name": "Elena (Spanish (Argentina)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-AR",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-AR-TomasNeural",
+    "name": "Tomas (Spanish (Argentina)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-AR",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-BO-MarceloNeural",
+    "name": "Marcelo (Spanish (Bolivia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-BO",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-BO-SofiaNeural",
+    "name": "Sofia (Spanish (Bolivia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-BO",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-CL-CatalinaNeural",
+    "name": "Catalina (Spanish (Chile)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-CL",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-CL-LorenzoNeural",
+    "name": "Lorenzo (Spanish (Chile)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-CL",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-CO-GonzaloNeural",
+    "name": "Gonzalo (Spanish (Colombia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-CO",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-CO-SalomeNeural",
+    "name": "Salome (Spanish (Colombia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-CO",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-CR-JuanNeural",
+    "name": "Juan (Spanish (Costa Rica)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-CR",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-CR-MariaNeural",
+    "name": "Maria (Spanish (Costa Rica)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-CR",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-CU-BelkysNeural",
+    "name": "Belkys (Spanish (Cuba)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-CU",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-CU-ManuelNeural",
+    "name": "Manuel (Spanish (Cuba)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-CU",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-DO-EmilioNeural",
+    "name": "Emilio (Spanish (Dominican Republic)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-DO",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-DO-RamonaNeural",
+    "name": "Ramona (Spanish (Dominican Republic)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-DO",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-EC-AndreaNeural",
+    "name": "Andrea (Spanish (Ecuador)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-EC",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-EC-LuisNeural",
+    "name": "Luis (Spanish (Ecuador)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-EC",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-ES-AlvaroNeural",
+    "name": "Alvaro (Spanish (Spain)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-ES",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-ES-ElviraNeural",
+    "name": "Elvira (Spanish (Spain)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-ES",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-ES-XimenaNeural",
+    "name": "Ximena (Spanish (Colombia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-ES",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-GQ-JavierNeural",
+    "name": "Javier (Spanish (Equatorial Guinea)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-GQ",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-GQ-TeresaNeural",
+    "name": "Teresa (Spanish (Equatorial Guinea)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-GQ",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-GT-AndresNeural",
+    "name": "Andres (Spanish (Guatemala)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-GT",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-GT-MartaNeural",
+    "name": "Marta (Spanish (Guatemala)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-GT",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-HN-CarlosNeural",
+    "name": "Carlos (Spanish (Honduras)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-HN",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-HN-KarlaNeural",
+    "name": "Karla (Spanish (Honduras)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-HN",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-MX-DaliaNeural",
+    "name": "Dalia (Spanish (Mexico)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-MX",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-MX-JorgeNeural",
+    "name": "Jorge (Spanish (Mexico)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-MX",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-NI-FedericoNeural",
+    "name": "Federico (Spanish (Nicaragua)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-NI",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-NI-YolandaNeural",
+    "name": "Yolanda (Spanish (Nicaragua)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-NI",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-PA-MargaritaNeural",
+    "name": "Margarita (Spanish (Panama)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-PA",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-PA-RobertoNeural",
+    "name": "Roberto (Spanish (Panama)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-PA",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-PE-AlexNeural",
+    "name": "Alex (Spanish (Peru)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-PE",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-PE-CamilaNeural",
+    "name": "Camila (Spanish (Peru)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-PE",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-PR-KarinaNeural",
+    "name": "Karina (Spanish (Puerto Rico)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-PR",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-PR-VictorNeural",
+    "name": "Victor (Spanish (Puerto Rico)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-PR",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-PY-MarioNeural",
+    "name": "Mario (Spanish (Paraguay)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-PY",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-PY-TaniaNeural",
+    "name": "Tania (Spanish (Paraguay)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-PY",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-SV-LorenaNeural",
+    "name": "Lorena (Spanish (El Salvador)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-SV",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-SV-RodrigoNeural",
+    "name": "Rodrigo (Spanish (El Salvador)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-SV",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-US-AlonsoNeural",
+    "name": "Alonso (Spanish (United States)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-US",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-US-PalomaNeural",
+    "name": "Paloma (Spanish (United States)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-US",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-UY-MateoNeural",
+    "name": "Mateo (Spanish (Uruguay)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-UY",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-UY-ValentinaNeural",
+    "name": "Valentina (Spanish (Uruguay)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-UY",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-VE-PaolaNeural",
+    "name": "Paola (Spanish (Venezuela)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "es-VE",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "es-VE-SebastianNeural",
+    "name": "Sebastian (Spanish (Venezuela)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "es-VE",
+    "lang": "es",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "et-EE-AnuNeural",
+    "name": "Anu (Estonian (Estonia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "et-EE",
+    "lang": "et",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "et-EE-KertNeural",
+    "name": "Kert (Estonian (Estonia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "et-EE",
+    "lang": "et",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fa-IR-DilaraNeural",
+    "name": "Dilara (Persian (Iran)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "fa-IR",
+    "lang": "fa",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fa-IR-FaridNeural",
+    "name": "Farid (Persian (Iran)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "fa-IR",
+    "lang": "fa",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fi-FI-HarriNeural",
+    "name": "Harri (Finnish (Finland)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "fi-FI",
+    "lang": "fi",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fi-FI-NooraNeural",
+    "name": "Noora (Finnish (Finland)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "fi-FI",
+    "lang": "fi",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fil-PH-AngeloNeural",
+    "name": "Angelo (Filipino (Philippines)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "fil-PH",
+    "lang": "fil",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fil-PH-BlessicaNeural",
+    "name": "Blessica (Filipino (Philippines)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "fil-PH",
+    "lang": "fil",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-BE-CharlineNeural",
+    "name": "Charline (French (Belgium)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "fr-BE",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-BE-GerardNeural",
+    "name": "Gerard (French (Belgium)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "fr-BE",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-CA-AntoineNeural",
+    "name": "Antoine (French (Canada)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "fr-CA",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-CA-JeanNeural",
+    "name": "Jean (French (Canada)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "fr-CA",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-CA-SylvieNeural",
+    "name": "Sylvie (French (Canada)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "fr-CA",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-CA-ThierryNeural",
+    "name": "Thierry (French (Canada)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "fr-CA",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-CH-ArianeNeural",
+    "name": "Ariane (French (Switzerland)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "fr-CH",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-CH-FabriceNeural",
+    "name": "Fabrice (French (Switzerland)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "fr-CH",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-FR-DeniseNeural",
+    "name": "Denise (French (France)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "fr-FR",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-FR-EloiseNeural",
+    "name": "Eloise (French (France)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "fr-FR",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-FR-HenriNeural",
+    "name": "Henri (French (France)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "fr-FR",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-FR-RemyMultilingualNeural",
+    "name": "RemyMultilingual (French (France)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "fr-FR",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "fr-FR-VivienneMultilingualNeural",
+    "name": "VivienneMultilingual (French (France)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "fr-FR",
+    "lang": "fr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ga-IE-ColmNeural",
+    "name": "Colm (Irish (Ireland)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ga-IE",
+    "lang": "ga",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ga-IE-OrlaNeural",
+    "name": "Orla (Irish (Ireland)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ga-IE",
+    "lang": "ga",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "gl-ES-RoiNeural",
+    "name": "Roi (Galician (gl-ES)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "gl-ES",
+    "lang": "gl",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "gl-ES-SabelaNeural",
+    "name": "Sabela (Galician (gl-ES)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "gl-ES",
+    "lang": "gl",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "gu-IN-DhwaniNeural",
+    "name": "Dhwani (Gujarati (India)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "gu-IN",
+    "lang": "gu",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "gu-IN-NiranjanNeural",
+    "name": "Niranjan (Gujarati (India)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "gu-IN",
+    "lang": "gu",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "he-IL-AvriNeural",
+    "name": "Avri (Hebrew (Israel)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "he-IL",
+    "lang": "he",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "he-IL-HilaNeural",
+    "name": "Hila (Hebrew (Israel)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "he-IL",
+    "lang": "he",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "hi-IN-MadhurNeural",
+    "name": "Madhur (Hindi (India)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "hi-IN",
+    "lang": "hi",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "hi-IN-SwaraNeural",
+    "name": "Swara (Hindi (India)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "hi-IN",
+    "lang": "hi",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "hr-HR-GabrijelaNeural",
+    "name": "Gabrijela (Croatian (Croatia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "hr-HR",
+    "lang": "hr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "hr-HR-SreckoNeural",
+    "name": "Srecko (Croatian (Croatia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "hr-HR",
+    "lang": "hr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "hu-HU-NoemiNeural",
+    "name": "Noemi (Hungarian (Hungary)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "hu-HU",
+    "lang": "hu",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "hu-HU-TamasNeural",
+    "name": "Tamas (Hungarian (Hungary)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "hu-HU",
+    "lang": "hu",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "id-ID-ArdiNeural",
+    "name": "Ardi (Indonesian (Indonesia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "id-ID",
+    "lang": "id",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "id-ID-GadisNeural",
+    "name": "Gadis (Indonesian (Indonesia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "id-ID",
+    "lang": "id",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "is-IS-GudrunNeural",
+    "name": "Gudrun (Icelandic (Iceland)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "is-IS",
+    "lang": "is",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "is-IS-GunnarNeural",
+    "name": "Gunnar (Icelandic (Iceland)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "is-IS",
+    "lang": "is",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "it-IT-DiegoNeural",
+    "name": "Diego (Italian (Italy)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "it-IT",
+    "lang": "it",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "it-IT-ElsaNeural",
+    "name": "Elsa (Italian (Italy)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "it-IT",
+    "lang": "it",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "it-IT-GiuseppeMultilingualNeural",
+    "name": "GiuseppeMultilingual (Italian (Italy)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "it-IT",
+    "lang": "it",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "it-IT-IsabellaNeural",
+    "name": "Isabella (Italian (Italy)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "it-IT",
+    "lang": "it",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "iu-Cans-CA-SiqiniqNeural",
+    "name": "Siqiniq (Inuktitut (Syllabics, Canada)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "iu-Cans-CA",
+    "lang": "iu",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "iu-Cans-CA-TaqqiqNeural",
+    "name": "Taqqiq (Inuktitut (Syllabics, Canada)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "iu-Cans-CA",
+    "lang": "iu",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "iu-Latn-CA-SiqiniqNeural",
+    "name": "Siqiniq (Inuktitut (Latin, Canada)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "iu-Latn-CA",
+    "lang": "iu",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "iu-Latn-CA-TaqqiqNeural",
+    "name": "Taqqiq (Inuktitut (Latin, Canada)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "iu-Latn-CA",
+    "lang": "iu",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ja-JP-KeitaNeural",
+    "name": "Keita (Japanese (Japan)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ja-JP",
+    "lang": "ja",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ja-JP-NanamiNeural",
+    "name": "Nanami (Japanese (Japan)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ja-JP",
+    "lang": "ja",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "jv-ID-DimasNeural",
+    "name": "Dimas (Javanese (Indonesia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "jv-ID",
+    "lang": "jv",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "jv-ID-SitiNeural",
+    "name": "Siti (Javanese (Indonesia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "jv-ID",
+    "lang": "jv",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ka-GE-EkaNeural",
+    "name": "Eka (Georgian (Georgia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ka-GE",
+    "lang": "ka",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ka-GE-GiorgiNeural",
+    "name": "Giorgi (Georgian (Georgia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ka-GE",
+    "lang": "ka",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "kk-KZ-AigulNeural",
+    "name": "Aigul (Kazakh (Kazakhstan)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "kk-KZ",
+    "lang": "kk",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "kk-KZ-DauletNeural",
+    "name": "Daulet (Kazakh (Kazakhstan)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "kk-KZ",
+    "lang": "kk",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "km-KH-PisethNeural",
+    "name": "Piseth (Khmer (Cambodia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "km-KH",
+    "lang": "km",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "km-KH-SreymomNeural",
+    "name": "Sreymom (Khmer (Cambodia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "km-KH",
+    "lang": "km",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "kn-IN-GaganNeural",
+    "name": "Gagan (Kannada (India)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "kn-IN",
+    "lang": "kn",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "kn-IN-SapnaNeural",
+    "name": "Sapna (Kannada (India)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "kn-IN",
+    "lang": "kn",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ko-KR-HyunsuMultilingualNeural",
+    "name": "HyunsuMultilingual (Korean (Korea)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ko-KR",
+    "lang": "ko",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ko-KR-InJoonNeural",
+    "name": "InJoon (Korean (Korea)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ko-KR",
+    "lang": "ko",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ko-KR-SunHiNeural",
+    "name": "SunHi (Korean (Korea)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ko-KR",
+    "lang": "ko",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "lo-LA-ChanthavongNeural",
+    "name": "Chanthavong (Lao (Laos)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "lo-LA",
+    "lang": "lo",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "lo-LA-KeomanyNeural",
+    "name": "Keomany (Lao (Laos)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "lo-LA",
+    "lang": "lo",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "lt-LT-LeonasNeural",
+    "name": "Leonas (Lithuanian (Lithuania)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "lt-LT",
+    "lang": "lt",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "lt-LT-OnaNeural",
+    "name": "Ona (Lithuanian (Lithuania)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "lt-LT",
+    "lang": "lt",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "lv-LV-EveritaNeural",
+    "name": "Everita (Latvian (Latvia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "lv-LV",
+    "lang": "lv",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "lv-LV-NilsNeural",
+    "name": "Nils (Latvian (Latvia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "lv-LV",
+    "lang": "lv",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "mk-MK-AleksandarNeural",
+    "name": "Aleksandar (Macedonian (North Macedonia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "mk-MK",
+    "lang": "mk",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "mk-MK-MarijaNeural",
+    "name": "Marija (Macedonian (North Macedonia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "mk-MK",
+    "lang": "mk",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ml-IN-MidhunNeural",
+    "name": "Midhun (Malayalam (India)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ml-IN",
+    "lang": "ml",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ml-IN-SobhanaNeural",
+    "name": "Sobhana (Malayalam (India)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ml-IN",
+    "lang": "ml",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "mn-MN-BataaNeural",
+    "name": "Bataa (Mongolian (Mongolia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "mn-MN",
+    "lang": "mn",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "mn-MN-YesuiNeural",
+    "name": "Yesui (Mongolian (Mongolia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "mn-MN",
+    "lang": "mn",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "mr-IN-AarohiNeural",
+    "name": "Aarohi (Marathi (India)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "mr-IN",
+    "lang": "mr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "mr-IN-ManoharNeural",
+    "name": "Manohar (Marathi (India)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "mr-IN",
+    "lang": "mr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ms-MY-OsmanNeural",
+    "name": "Osman (Malay (Malaysia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ms-MY",
+    "lang": "ms",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ms-MY-YasminNeural",
+    "name": "Yasmin (Malay (Malaysia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ms-MY",
+    "lang": "ms",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "mt-MT-GraceNeural",
+    "name": "Grace (Maltese (Malta)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "mt-MT",
+    "lang": "mt",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "mt-MT-JosephNeural",
+    "name": "Joseph (Maltese (Malta)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "mt-MT",
+    "lang": "mt",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "my-MM-NilarNeural",
+    "name": "Nilar (Burmese (Myanmar)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "my-MM",
+    "lang": "my",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "my-MM-ThihaNeural",
+    "name": "Thiha (Burmese (Myanmar)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "my-MM",
+    "lang": "my",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "nb-NO-FinnNeural",
+    "name": "Finn (Norwegian (Bokm\u00e5l Norway)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "nb-NO",
+    "lang": "nb",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "nb-NO-PernilleNeural",
+    "name": "Pernille (Norwegian (Bokm\u00e5l, Norway)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "nb-NO",
+    "lang": "nb",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ne-NP-HemkalaNeural",
+    "name": "Hemkala (Nepali (Nepal)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ne-NP",
+    "lang": "ne",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ne-NP-SagarNeural",
+    "name": "Sagar (Nepali (Nepal)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ne-NP",
+    "lang": "ne",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "nl-BE-ArnaudNeural",
+    "name": "Arnaud (Dutch (Belgium)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "nl-BE",
+    "lang": "nl",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "nl-BE-DenaNeural",
+    "name": "Dena (Dutch (Belgium)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "nl-BE",
+    "lang": "nl",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "nl-NL-ColetteNeural",
+    "name": "Colette (Dutch (Netherlands)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "nl-NL",
+    "lang": "nl",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "nl-NL-FennaNeural",
+    "name": "Fenna (Dutch (Netherlands)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "nl-NL",
+    "lang": "nl",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "nl-NL-MaartenNeural",
+    "name": "Maarten (Dutch (Netherlands)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "nl-NL",
+    "lang": "nl",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "pl-PL-MarekNeural",
+    "name": "Marek (Polish (Poland)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "pl-PL",
+    "lang": "pl",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "pl-PL-ZofiaNeural",
+    "name": "Zofia (Polish (Poland)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "pl-PL",
+    "lang": "pl",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ps-AF-GulNawazNeural",
+    "name": "GulNawaz (Pashto (Afghanistan)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ps-AF",
+    "lang": "ps",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ps-AF-LatifaNeural",
+    "name": "Latifa (Pashto (Afghanistan)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ps-AF",
+    "lang": "ps",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "pt-BR-AntonioNeural",
+    "name": "Antonio (Portuguese (Brazil)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "pt-BR",
+    "lang": "pt",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "pt-BR-FranciscaNeural",
+    "name": "Francisca (Portuguese (Brazil)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "pt-BR",
+    "lang": "pt",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "pt-BR-ThalitaMultilingualNeural",
+    "name": "ThalitaMultilingual (Portuguese (Brazil)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "pt-BR",
+    "lang": "pt",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "pt-PT-DuarteNeural",
+    "name": "Duarte (Portuguese (Portugal)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "pt-PT",
+    "lang": "pt",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "pt-PT-RaquelNeural",
+    "name": "Raquel (Portuguese (Portugal)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "pt-PT",
+    "lang": "pt",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ro-RO-AlinaNeural",
+    "name": "Alina (Romanian (Romania)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ro-RO",
+    "lang": "ro",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ro-RO-EmilNeural",
+    "name": "Emil (Romanian (Romania)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ro-RO",
+    "lang": "ro",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ru-RU-DmitryNeural",
+    "name": "Dmitry (Russian (Russia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ru-RU",
+    "lang": "ru",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ru-RU-SvetlanaNeural",
+    "name": "Svetlana (Russian (Russia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ru-RU",
+    "lang": "ru",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "si-LK-SameeraNeural",
+    "name": "Sameera (Sinhala (Sri Lanka)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "si-LK",
+    "lang": "si",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "si-LK-ThiliniNeural",
+    "name": "Thilini (Sinhala (Sri Lanka)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "si-LK",
+    "lang": "si",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sk-SK-LukasNeural",
+    "name": "Lukas (Slovak (Slovakia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "sk-SK",
+    "lang": "sk",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sk-SK-ViktoriaNeural",
+    "name": "Viktoria (Slovak (Slovakia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "sk-SK",
+    "lang": "sk",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sl-SI-PetraNeural",
+    "name": "Petra (Slovenian (Slovenia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "sl-SI",
+    "lang": "sl",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sl-SI-RokNeural",
+    "name": "Rok (Slovenian (Slovenia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "sl-SI",
+    "lang": "sl",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "so-SO-MuuseNeural",
+    "name": "Muuse (Somali (Somalia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "so-SO",
+    "lang": "so",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "so-SO-UbaxNeural",
+    "name": "Ubax (Somali (Somalia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "so-SO",
+    "lang": "so",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sq-AL-AnilaNeural",
+    "name": "Anila (Albanian (Albania)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "sq-AL",
+    "lang": "sq",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sq-AL-IlirNeural",
+    "name": "Ilir (Albanian (Albania)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "sq-AL",
+    "lang": "sq",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sr-RS-NicholasNeural",
+    "name": "Nicholas (Serbian (Serbia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "sr-RS",
+    "lang": "sr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sr-RS-SophieNeural",
+    "name": "Sophie (Serbian (Serbia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "sr-RS",
+    "lang": "sr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "su-ID-JajangNeural",
+    "name": "Jajang (Sundanese (Indonesia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "su-ID",
+    "lang": "su",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "su-ID-TutiNeural",
+    "name": "Tuti (Sundanese (Indonesia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "su-ID",
+    "lang": "su",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sv-SE-MattiasNeural",
+    "name": "Mattias (Swedish (Sweden)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "sv-SE",
+    "lang": "sv",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sv-SE-SofieNeural",
+    "name": "Sofie (Swedish (Sweden)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "sv-SE",
+    "lang": "sv",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sw-KE-RafikiNeural",
+    "name": "Rafiki (Swahili (Kenya)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "sw-KE",
+    "lang": "sw",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sw-KE-ZuriNeural",
+    "name": "Zuri (Swahili (Kenya)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "sw-KE",
+    "lang": "sw",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sw-TZ-DaudiNeural",
+    "name": "Daudi (Swahili (Tanzania)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "sw-TZ",
+    "lang": "sw",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "sw-TZ-RehemaNeural",
+    "name": "Rehema (Swahili (Tanzania)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "sw-TZ",
+    "lang": "sw",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ta-IN-PallaviNeural",
+    "name": "Pallavi (Tamil (India)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ta-IN",
+    "lang": "ta",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ta-IN-ValluvarNeural",
+    "name": "Valluvar (Tamil (India)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ta-IN",
+    "lang": "ta",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ta-LK-KumarNeural",
+    "name": "Kumar (Tamil (Sri Lanka)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ta-LK",
+    "lang": "ta",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ta-LK-SaranyaNeural",
+    "name": "Saranya (Tamil (Sri Lanka)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ta-LK",
+    "lang": "ta",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ta-MY-KaniNeural",
+    "name": "Kani (Tamil (Malaysia)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ta-MY",
+    "lang": "ta",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ta-MY-SuryaNeural",
+    "name": "Surya (Tamil (Malaysia)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ta-MY",
+    "lang": "ta",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ta-SG-AnbuNeural",
+    "name": "Anbu (Tamil (Singapore)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ta-SG",
+    "lang": "ta",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ta-SG-VenbaNeural",
+    "name": "Venba (Tamil (Singapore)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ta-SG",
+    "lang": "ta",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "te-IN-MohanNeural",
+    "name": "Mohan (Telugu (India)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "te-IN",
+    "lang": "te",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "te-IN-ShrutiNeural",
+    "name": "Shruti (Telugu (India)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "te-IN",
+    "lang": "te",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "th-TH-NiwatNeural",
+    "name": "Niwat (Thai (Thailand)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "th-TH",
+    "lang": "th",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "th-TH-PremwadeeNeural",
+    "name": "Premwadee (Thai (Thailand)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "th-TH",
+    "lang": "th",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "tr-TR-AhmetNeural",
+    "name": "Ahmet (Turkish (T\u00fcrkiye)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "tr-TR",
+    "lang": "tr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "tr-TR-EmelNeural",
+    "name": "Emel (Turkish (Turkey)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "tr-TR",
+    "lang": "tr",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "uk-UA-OstapNeural",
+    "name": "Ostap (Ukrainian (Ukraine)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "uk-UA",
+    "lang": "uk",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "uk-UA-PolinaNeural",
+    "name": "Polina (Ukrainian (Ukraine)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "uk-UA",
+    "lang": "uk",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ur-IN-GulNeural",
+    "name": "Gul (Urdu (India)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ur-IN",
+    "lang": "ur",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ur-IN-SalmanNeural",
+    "name": "Salman (Urdu (India)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ur-IN",
+    "lang": "ur",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ur-PK-AsadNeural",
+    "name": "Asad (Urdu (Pakistan)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "ur-PK",
+    "lang": "ur",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "ur-PK-UzmaNeural",
+    "name": "Uzma (Urdu (Pakistan)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "ur-PK",
+    "lang": "ur",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "uz-UZ-MadinaNeural",
+    "name": "Madina (Uzbek (Uzbekistan)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "uz-UZ",
+    "lang": "uz",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "uz-UZ-SardorNeural",
+    "name": "Sardor (Uzbek (Uzbekistan)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "uz-UZ",
+    "lang": "uz",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "vi-VN-HoaiMyNeural",
+    "name": "HoaiMy (Vietnamese (Vietnam)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "vi-VN",
+    "lang": "vi",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "vi-VN-NamMinhNeural",
+    "name": "NamMinh (Vietnamese (Vietnam)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "vi-VN",
+    "lang": "vi",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-CN-XiaoxiaoNeural",
+    "name": "Xiaoxiao (Chinese (Mainland)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "zh-CN",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-CN-XiaoyiNeural",
+    "name": "Xiaoyi (Chinese (Mainland)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "zh-CN",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-CN-YunjianNeural",
+    "name": "Yunjian (Chinese (Mainland)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "zh-CN",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-CN-YunxiNeural",
+    "name": "Yunxi (Chinese (Mainland)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "zh-CN",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-CN-YunxiaNeural",
+    "name": "Yunxia (Chinese (Mainland)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "zh-CN",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-CN-YunyangNeural",
+    "name": "Yunyang (Chinese (Mainland)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "zh-CN",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-CN-liaoning-XiaobeiNeural",
+    "name": "Xiaobei (Chinese (Northeastern Mandarin)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "zh-CN-liaoning",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-CN-shaanxi-XiaoniNeural",
+    "name": "Xiaoni (Chinese (Zhongyuan Mandarin Shaanxi)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "zh-CN-shaanxi",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-HK-HiuGaaiNeural",
+    "name": "HiuGaai (Chinese (Cantonese Traditional)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "zh-HK",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-HK-HiuMaanNeural",
+    "name": "HiuMaan (Chinese (Hong Kong SAR)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "zh-HK",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-HK-WanLungNeural",
+    "name": "WanLung (Chinese (Hong Kong SAR)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "zh-HK",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-TW-HsiaoChenNeural",
+    "name": "HsiaoChen (Chinese (Taiwan)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "zh-TW",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-TW-HsiaoYuNeural",
+    "name": "HsiaoYu (Chinese (Taiwanese Mandarin)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "zh-TW",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zh-TW-YunJheNeural",
+    "name": "YunJhe (Chinese (Taiwan)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "zh-TW",
+    "lang": "zh",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zu-ZA-ThandoNeural",
+    "name": "Thando (Zulu (South Africa)",
+    "engine": "edge_tts",
+    "gender": "Female",
+    "locale": "zu-ZA",
+    "lang": "zu",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  },
+  {
+    "id": "zu-ZA-ThembaNeural",
+    "name": "Themba (Zulu (South Africa)",
+    "engine": "edge_tts",
+    "gender": "Male",
+    "locale": "zu-ZA",
+    "lang": "zu",
+    "suggested_role": "Dialogue",
+    "sample_rate": 24000
+  }
+]
