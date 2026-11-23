@@ -867,51 +867,10 @@ function debouncedSave() {
   saveTimeout = setTimeout(saveCurrentProject, 600);
 }
 
-function setStudioDraftMode(mode = "master") {
-  state.studioMode = (mode === "draft") ? "draft" : "master";
-  const btnMaster = document.getElementById("btn-mode-master");
-  const btnDraft = document.getElementById("btn-mode-draft");
-
-  if (state.studioMode === "draft") {
-    if (btnDraft) {
-      btnDraft.classList.add("active");
-      btnDraft.style.background = "linear-gradient(135deg, #10b981, #059669)";
-      btnDraft.style.color = "#fff";
-      btnDraft.style.fontWeight = "700";
-    }
-    if (btnMaster) {
-      btnMaster.classList.remove("active");
-      btnMaster.style.background = "transparent";
-      btnMaster.style.color = "var(--text-muted)";
-      btnMaster.style.fontWeight = "600";
-    }
-    if (window.KokoroClient && typeof window.KokoroClient.setClientKokoroEnabled === "function") {
-      window.KokoroClient.setClientKokoroEnabled(true);
-    }
-    showToast("⚡ Fast Draft Mode Active: Rendering dialogue instantly on WebGPU (Kokoro 82M) • 100% Free & 0s queue");
-  } else {
-    if (btnMaster) {
-      btnMaster.classList.add("active");
-      btnMaster.style.background = "linear-gradient(135deg, #8b5cf6, #3b82f6)";
-      btnMaster.style.color = "#fff";
-      btnMaster.style.fontWeight = "700";
-    }
-    if (btnDraft) {
-      btnDraft.classList.remove("active");
-      btnDraft.style.background = "transparent";
-      btnDraft.style.color = "var(--text-muted)";
-      btnDraft.style.fontWeight = "600";
-    }
-    showToast("🎭 Studio Master Mode Active: Rendering with character cast engines (Drama 3, ElevenLabs, Edge TTS)");
-  }
-}
-window.setStudioDraftMode = setStudioDraftMode;
-
 function createBlockSynthesizePayload(block, forceRefresh = false) {
-  const isDraft = (state.studioMode === "draft");
   const char = getCharacterById(block.character_id || block.speaker);
-  let activeEng = isDraft ? "kokoro" : (block.engine || (char && char.engine) || state.activeEngine || "fish_s2");
-  let chosenVoiceId = isDraft ? "af_bella" : (block.voice_id || (char && (char.voice_id || char.assigned_voice_id)));
+  let activeEng = block.engine || (char && char.engine) || state.activeEngine || "fish_s2";
+  let chosenVoiceId = block.voice_id || (char && (char.voice_id || char.assigned_voice_id));
 
   // Voice compatibility guard per engine
   if (activeEng === "edge_tts") {
@@ -8202,27 +8161,101 @@ function renderInspector() {
   const engineSub = document.getElementById("selected-engine-sub");
   const castTierTag = document.getElementById("cast-engine-tier-tag");
 
-  const engineDefs = {
-    fish_s2: { icon: "🎭", name: "Fish Speech (Cinema Drama 3)", sub: "Cinema emotion acting • Voice cloning", tag: "Drama 3", tagBg: "rgba(245, 158, 11, 0.15)", tagColor: "#fcd34d" },
-    elevenlabs: { icon: "🌟", name: "ElevenLabs Premier", sub: "v4 / v3 Multilingual • Flash v2.5", tag: "v4 / Flash", tagBg: "rgba(139, 92, 246, 0.2)", tagColor: "#c4b5fd" },
-    cartesia: { icon: "⚡", name: "Cartesia Sonic", sub: "Ultra-fast neural speech (Sonic 3.6/4)", tag: "Sonic 4", tagBg: "rgba(236, 72, 153, 0.2)", tagColor: "#f472b6" },
-    openai: { icon: "🤖", name: "OpenAI Audio", sub: "Natural clarity • gpt-4o-mini-tts", tag: "gpt-4o", tagBg: "rgba(16, 185, 129, 0.2)", tagColor: "#6ee7b7" },
-    edge_tts: { icon: "🌐", name: "Microsoft Edge TTS", sub: "300+ clean cloud voices • Free", tag: "300+ Voices", tagBg: "rgba(14, 165, 233, 0.15)", tagColor: "#38bdf8" },
-    kokoro: { icon: "⚡", name: "Kokoro 82M (On-Device WebGPU)", sub: "Renders on your CPU/GPU • 0s queue • Free", tag: "WebGPU", tagBg: "rgba(99, 102, 241, 0.15)", tagColor: "#a5b4fc" }
-  };
-  const engInfo = engineDefs[blockEngine] || engineDefs.fish_s2;
-  if (engineIcon) engineIcon.textContent = engInfo.icon;
-  if (engineName) engineName.textContent = engInfo.name;
-  if (engineSub) engineSub.textContent = engInfo.sub;
+  // Multi-Engine & Model Contextual Adaptation - resolves block's character/engine/model
+  const modelName = block.model;
+  let engDisplayName = "Fish Speech (Drama 3)";
+  let engSubName = "Cinema emotion acting • Voice cloning";
+  let engTag = "Drama 3";
+  let engTagBg = "rgba(245, 158, 11, 0.15)";
+  let engTagColor = "#fcd34d";
+  let engIcon = "🎭";
+
+  if (blockEngine === "fish_s2") {
+    engIcon = "🎭";
+    engTagBg = "rgba(245, 158, 11, 0.15)";
+    engTagColor = "#fcd34d";
+    if (modelName === "s2_pro") {
+      engDisplayName = "Fish Speech (S2.1 Pro)";
+      engSubName = "Multi-speaker dialogue acting";
+      engTag = "S2.1 Pro";
+    } else {
+      engDisplayName = "Fish Speech (Drama 3)";
+      engSubName = "Cinema emotion acting • Voice cloning";
+      engTag = "Drama 3";
+    }
+  } else if (blockEngine === "elevenlabs") {
+    engIcon = "🌟";
+    engTagBg = "rgba(139, 92, 246, 0.2)";
+    engTagColor = "#c4b5fd";
+    if (modelName === "v3") {
+      engDisplayName = "ElevenLabs (v3 Multilingual)";
+      engSubName = "Multilingual expressive narration";
+      engTag = "v3";
+    } else if (modelName === "flash_v2.5") {
+      engDisplayName = "ElevenLabs (Flash v2.5)";
+      engSubName = "Fast commercial narration";
+      engTag = "Flash";
+    } else {
+      engDisplayName = "ElevenLabs (v4 Cinematic)";
+      engSubName = "Ultra-consistent studio narrative";
+      engTag = "v4";
+    }
+  } else if (blockEngine === "cartesia") {
+    engIcon = "⚡";
+    engTagBg = "rgba(236, 72, 153, 0.2)";
+    engTagColor = "#f472b6";
+    if (modelName === "sonic_3.6") {
+      engDisplayName = "Cartesia Sonic (3.6)";
+      engSubName = "Ultra-high-speed streaming speech";
+      engTag = "Sonic 3.6";
+    } else {
+      engDisplayName = "Cartesia Sonic (Sonic 4)";
+      engSubName = "Nuanced neural cadence";
+      engTag = "Sonic 4";
+    }
+  } else if (blockEngine === "openai") {
+    engIcon = "🤖";
+    engTagBg = "rgba(16, 185, 129, 0.2)";
+    engTagColor = "#6ee7b7";
+    if (modelName === "tts-1") {
+      engDisplayName = "OpenAI Audio (tts-1)";
+      engSubName = "High-definition neural audio";
+      engTag = "tts-1";
+    } else {
+      engDisplayName = "OpenAI Audio (gpt-4o-mini)";
+      engSubName = "Natural conversational speech";
+      engTag = "gpt-4o";
+    }
+  } else if (blockEngine === "edge_tts") {
+    engIcon = "🌐";
+    engDisplayName = "Microsoft Edge TTS";
+    engSubName = "300+ natural cloud voices • Free";
+    engTag = "300+ Voices";
+    engTagBg = "rgba(14, 165, 233, 0.15)";
+    engTagColor = "#38bdf8";
+  } else if (blockEngine === "kokoro") {
+    engIcon = "⚡";
+    engDisplayName = "Kokoro 82M";
+    engSubName = "On-device WebGPU • 0s queue • Free";
+    engTag = "WebGPU";
+    engTagBg = "rgba(99, 102, 241, 0.15)";
+    engTagColor = "#a5b4fc";
+  }
+
+  if (engineIcon) engineIcon.textContent = engIcon;
+  if (engineName) engineName.textContent = engDisplayName;
+  if (engineSub) engineSub.textContent = engSubName;
   if (castTierTag) {
-    castTierTag.textContent = engInfo.tag;
-    castTierTag.style.background = engInfo.tagBg;
-    castTierTag.style.color = engInfo.tagColor;
+    castTierTag.textContent = engTag;
+    castTierTag.style.background = engTagBg;
+    castTierTag.style.color = engTagColor;
   }
 
   // Update checkmarks and active states in #engine-model-dropdown
-  document.querySelectorAll("#engine-model-dropdown .engine-model-item").forEach(item => {
-    const isThis = item.dataset.engine === blockEngine;
+  document.querySelectorAll("#engine-model-dropdown .engine-model-subitem").forEach(item => {
+    const itemEng = item.dataset.engine;
+    const itemModel = item.dataset.model;
+    const isThis = (itemEng === blockEngine) && (!itemModel || !block.model || itemModel === block.model || (itemEng === "fish_s2" && itemModel === "drama3" && !block.model));
     item.classList.toggle("active", isThis);
     const checkEl = item.querySelector(".engine-model-check");
     if (checkEl) checkEl.style.display = isThis ? "inline" : "none";
@@ -9726,12 +9759,9 @@ function openVoiceDrawer(targetBlockIdx = null, preferredMode = null) {
     }
   }
 
-  // Filter drawer tabs according to project tier
-  const isPro = (state.currentProject?.tier === "cinema_pro");
-  const proTabs = ["tab-nav-elevenlabs", "tab-nav-cartesia", "tab-nav-openai"];
-  proTabs.forEach(tabId => {
-    const el = document.getElementById(tabId);
-    if (el) el.style.display = isPro ? "inline-flex" : "none";
+  // Ensure all drawer tabs are visible and accessible
+  document.querySelectorAll(".drawer-tab-btn").forEach(el => {
+    el.style.display = "inline-flex";
   });
 
   switchDrawerMode(preferredMode);
@@ -9809,7 +9839,12 @@ function switchDrawerMode(mode = "fish") {
   // Update tabs active state
   document.querySelectorAll(".drawer-tab-btn").forEach(b => b.classList.remove("active"));
   const tabBtn = document.getElementById(`tab-nav-${mode}`);
-  if (tabBtn) tabBtn.classList.add("active");
+  if (tabBtn) {
+    tabBtn.classList.add("active");
+    try {
+      tabBtn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    } catch (e) {}
+  }
 
   // Deactivate all subviews first
   [viewFish, viewBrowse, viewCreate, viewEdit].forEach(v => {
@@ -14139,7 +14174,7 @@ function toggleEngineModelDropdown(force) {
   dd.style.display = shouldOpen ? "block" : "none";
 }
 
-function selectEngineOption(newEngine) {
+function selectEngineOption(newEngine, newModel = null) {
   if (!state.currentProject) return;
 
   // Close the dropdown immediately
@@ -14149,6 +14184,7 @@ function selectEngineOption(newEngine) {
   state.activeEngine = newEngine;
   if (state.currentProject) {
     state.currentProject.engine = newEngine;
+    if (newModel) state.currentProject.model = newModel;
   }
 
   // Ensure Kokoro is strictly client-side on user's device
@@ -14166,6 +14202,7 @@ function selectEngineOption(newEngine) {
       const block = state.currentProject.blocks[idx];
       if (!block || block.type === "heading" || block.is_spoken === false) return;
       block.engine = newEngine;
+      if (newModel) block.model = newModel;
       const currentVoice = getVoiceById(block.voice_id);
       if (!currentVoice || (currentVoice.engine || "fish_s2") !== newEngine) {
         const isFemale = Boolean(
@@ -14192,11 +14229,14 @@ function selectEngineOption(newEngine) {
       delete block.duration;
       delete block.audio_hash;
     });
-    showToast(`⚡ Switched engine for ${targets.length} sentence${targets.length > 1 ? 's' : ''}`);
+    showToast(`⚡ Set ${newEngine.toUpperCase()}${newModel ? ' (' + newModel + ')' : ''} for ${targets.length} sentence${targets.length > 1 ? 's' : ''}`);
   } else {
     state.activeEngine = newEngine;
-    if (state.currentProject) state.currentProject.engine = newEngine;
-    showToast(`⚡ Set default engine to ${newEngine.toUpperCase()}`);
+    if (state.currentProject) {
+      state.currentProject.engine = newEngine;
+      if (newModel) state.currentProject.model = newModel;
+    }
+    showToast(`⚡ Set default engine to ${newEngine.toUpperCase()}${newModel ? ' (' + newModel + ')' : ''}`);
   }
 
   renderBlocks();
@@ -14205,13 +14245,6 @@ function selectEngineOption(newEngine) {
   renderTimeline();
   syncProjectAudioCache();
   debouncedSave();
-
-  const labels = {
-    fish_s2: "Fish Speech (Drama 3)",
-    kokoro: "Kokoro 82M (On-Device WebGPU)",
-    edge_tts: "Microsoft Edge TTS (300+ Voices)"
-  };
-  showToast(`Entire chapter unified to ${labels[newEngine] || newEngine}`);
 }
 
 function handleBlockEngineChange(newEngine) {

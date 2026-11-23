@@ -282,16 +282,6 @@
           <span class="engine-label" id="studio-engine-label">⭐ Author Plan</span>
           <span class="engine-config-tag" id="studio-quota-tag">100K words</span>
         </button>
-
-        <!-- Fast Draft vs Studio Master Switch -->
-        <div id="draft-master-toggle-wrapper" style="display: flex; align-items: center; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 2px; gap: 2px;">
-          <button type="button" id="btn-mode-master" onclick="setStudioDraftMode('master')" class="draft-toggle-btn active" style="padding: 4px 11px; font-size: 11px; font-weight: 700; border-radius: 16px; border: none; cursor: pointer; transition: all 0.2s; background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: #fff;" title="Studio Master Mode: Renders with assigned character engines (Drama 3, ElevenLabs, Edge TTS, etc.)">
-            🎭 Studio Master
-          </button>
-          <button type="button" id="btn-mode-draft" onclick="setStudioDraftMode('draft')" class="draft-toggle-btn" style="padding: 4px 11px; font-size: 11px; font-weight: 600; border-radius: 16px; border: none; cursor: pointer; transition: all 0.2s; background: transparent; color: var(--text-muted);" title="Fast Draft Mode: Renders instantly on client WebGPU (Kokoro 82M • 100% Free &amp; 0s queue) to check dialogue and pacing">
-            ⚡ Fast Draft (WebGPU)
-          </button>
-        </div>
       </div>
 
       <div class="nav-right">
@@ -603,80 +593,115 @@
               <span style="font-size: 11px; color: var(--text-muted); margin-left: 6px;">▾</span>
             </button>
 
-            <!-- Custom Model-Style Floating Dropdown (Image 3) -->
+            <!-- Custom Minimal Hierarchical Model Dropdown (LLM-style with Info Icons) -->
             <div id="engine-model-dropdown" class="engine-model-menu" style="display: none;">
-              <div class="engine-model-menu-header">TTS Engine</div>
+              <div class="engine-menu-title">TTS Engine &amp; Model</div>
 
-              <!-- Option: Fish Speech -->
-              <div class="engine-model-item active" data-engine="fish_s2" onclick="selectEngineOption('fish_s2')">
-                <div class="engine-model-item-main">
-                  <div class="engine-model-item-top">
-                    <span class="engine-model-item-name">🌟 Fish Speech</span>
-                    <span class="engine-model-pill pill-fish">Drama 3</span>
-                  </div>
-                  <div class="engine-model-item-desc">Cinema emotion acting [whisper, scream] &amp; voice cloning</div>
+              <!-- GROUP: Fish Speech -->
+              <div class="engine-group-header">
+                <span class="group-title">Fish Speech</span>
+              </div>
+              <div class="engine-model-subitem active" data-engine="fish_s2" data-model="drama3" onclick="selectEngineOption('fish_s2', 'drama3')">
+                <div class="subitem-label">
+                  <span class="subitem-name">Drama 3 Cinema</span>
+                  <span class="engine-info-bubble" title="Cinema emotion acting tags [whisper, scream] & voice cloning. 44.1kHz studio output.">ⓘ</span>
                 </div>
-                <span class="engine-model-check" id="check-engine-fish_s2">✓</span>
+                <span class="engine-model-check" id="check-engine-fish_s2_drama3">✓</span>
+              </div>
+              <div class="engine-model-subitem" data-engine="fish_s2" data-model="s2_pro" onclick="selectEngineOption('fish_s2', 's2_pro')">
+                <div class="subitem-label">
+                  <span class="subitem-name">S2.1 Pro</span>
+                  <span class="engine-info-bubble" title="Low-latency conversational dialogue & multi-speaker zero-shot acting.">ⓘ</span>
+                </div>
+                <span class="engine-model-check" id="check-engine-fish_s2_s2_pro" style="display: none;">✓</span>
               </div>
 
-              <!-- Option: Kokoro 82M -->
-              <div class="engine-model-item" data-engine="kokoro" onclick="selectEngineOption('kokoro')">
-                <div class="engine-model-item-main">
-                  <div class="engine-model-item-top">
-                    <span class="engine-model-item-name">⚡ Kokoro 82M</span>
-                    <span class="engine-model-pill pill-kokoro">On-Device WebGPU</span>
-                  </div>
-                  <div class="engine-model-item-desc">Renders 100% locally on your CPU/GPU • 0s queue • Free</div>
+              <!-- GROUP: ElevenLabs -->
+              <div class="engine-group-header">
+                <span class="group-title">ElevenLabs</span>
+              </div>
+              <div class="engine-model-subitem" data-engine="elevenlabs" data-model="v4" onclick="selectEngineOption('elevenlabs', 'v4')">
+                <div class="subitem-label">
+                  <span class="subitem-name">v4 Cinematic</span>
+                  <span class="engine-info-bubble" title="Next-gen studio audio with natural human micro-inflections.">ⓘ</span>
                 </div>
-                <span class="engine-model-check" id="check-engine-kokoro" style="display: none;">✓</span>
+                <span class="engine-model-check" id="check-engine-elevenlabs_v4" style="display: none;">✓</span>
+              </div>
+              <div class="engine-model-subitem" data-engine="elevenlabs" data-model="v3" onclick="selectEngineOption('elevenlabs', 'v3')">
+                <div class="subitem-label">
+                  <span class="subitem-name">v3 Multilingual</span>
+                  <span class="engine-info-bubble" title="Industry standard multilingual expressive audiobook narration.">ⓘ</span>
+                </div>
+                <span class="engine-model-check" id="check-engine-elevenlabs_v3" style="display: none;">✓</span>
+              </div>
+              <div class="engine-model-subitem" data-engine="elevenlabs" data-model="flash_v2.5" onclick="selectEngineOption('elevenlabs', 'flash_v2.5')">
+                <div class="subitem-label">
+                  <span class="subitem-name">Flash v2.5</span>
+                  <span class="engine-info-bubble" title="Ultra-fast commercial generation at lower character credit cost.">ⓘ</span>
+                </div>
+                <span class="engine-model-check" id="check-engine-elevenlabs_flash_v2.5" style="display: none;">✓</span>
               </div>
 
-              <!-- Option: Edge TTS -->
-              <div class="engine-model-item" data-engine="edge_tts" onclick="selectEngineOption('edge_tts')">
-                <div class="engine-model-item-main">
-                  <div class="engine-model-item-top">
-                    <span class="engine-model-item-name">🌐 Microsoft Edge TTS</span>
-                    <span class="engine-model-pill pill-edge">300+ Voices</span>
-                  </div>
-                  <div class="engine-model-item-desc">Natural voices across 80+ languages • Free cloud</div>
+              <!-- GROUP: Cartesia Sonic -->
+              <div class="engine-group-header">
+                <span class="group-title">Cartesia Sonic</span>
+              </div>
+              <div class="engine-model-subitem" data-engine="cartesia" data-model="sonic_4" onclick="selectEngineOption('cartesia', 'sonic_4')">
+                <div class="subitem-label">
+                  <span class="subitem-name">Sonic 4</span>
+                  <span class="engine-info-bubble" title="Flagship low-latency neural synthesis with nuanced cadence.">ⓘ</span>
                 </div>
-                <span class="engine-model-check" id="check-engine-edge_tts" style="display: none;">✓</span>
+                <span class="engine-model-check" id="check-engine-cartesia_sonic_4" style="display: none;">✓</span>
+              </div>
+              <div class="engine-model-subitem" data-engine="cartesia" data-model="sonic_3.6" onclick="selectEngineOption('cartesia', 'sonic_3.6')">
+                <div class="subitem-label">
+                  <span class="subitem-name">Sonic 3.6</span>
+                  <span class="engine-info-bubble" title="Ultra-high-speed real-time neural streaming voice model.">ⓘ</span>
+                </div>
+                <span class="engine-model-check" id="check-engine-cartesia_sonic_3.6" style="display: none;">✓</span>
               </div>
 
-              <!-- Option: ElevenLabs -->
-              <div class="engine-model-item" data-engine="elevenlabs" onclick="selectEngineOption('elevenlabs')">
-                <div class="engine-model-item-main">
-                  <div class="engine-model-item-top">
-                    <span class="engine-model-item-name">🌟 ElevenLabs</span>
-                    <span class="engine-model-pill" style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd;">v4 / Flash</span>
-                  </div>
-                  <div class="engine-model-item-desc">Industry-standard premier commercial audio</div>
+              <!-- GROUP: OpenAI Audio -->
+              <div class="engine-group-header">
+                <span class="group-title">OpenAI Audio</span>
+              </div>
+              <div class="engine-model-subitem" data-engine="openai" data-model="gpt-4o-mini-tts" onclick="selectEngineOption('openai', 'gpt-4o-mini-tts')">
+                <div class="subitem-label">
+                  <span class="subitem-name">gpt-4o-mini-tts</span>
+                  <span class="engine-info-bubble" title="Clear conversational audio with prompt-guided natural flow.">ⓘ</span>
                 </div>
-                <span class="engine-model-check" id="check-engine-elevenlabs" style="display: none;">✓</span>
+                <span class="engine-model-check" id="check-engine-openai_gpt-4o-mini-tts" style="display: none;">✓</span>
+              </div>
+              <div class="engine-model-subitem" data-engine="openai" data-model="tts-1" onclick="selectEngineOption('openai', 'tts-1')">
+                <div class="subitem-label">
+                  <span class="subitem-name">tts-1 / HD</span>
+                  <span class="engine-info-bubble" title="Standard high-definition neural voices (Alloy, Echo, Nova, etc.).">ⓘ</span>
+                </div>
+                <span class="engine-model-check" id="check-engine-openai_tts-1" style="display: none;">✓</span>
               </div>
 
-              <!-- Option: Cartesia Sonic -->
-              <div class="engine-model-item" data-engine="cartesia" onclick="selectEngineOption('cartesia')">
-                <div class="engine-model-item-main">
-                  <div class="engine-model-item-top">
-                    <span class="engine-model-item-name">⚡ Cartesia Sonic</span>
-                    <span class="engine-model-pill" style="background: rgba(236, 72, 153, 0.2); color: #f472b6;">Sonic 3.6/4</span>
-                  </div>
-                  <div class="engine-model-item-desc">Ultra-low latency high-speed commercial voices</div>
+              <!-- GROUP: Microsoft Edge TTS -->
+              <div class="engine-group-header">
+                <span class="group-title">Microsoft Edge TTS</span>
+              </div>
+              <div class="engine-model-subitem" data-engine="edge_tts" data-model="edge_neural" onclick="selectEngineOption('edge_tts', 'edge_neural')">
+                <div class="subitem-label">
+                  <span class="subitem-name">Edge Neural (300+ Voices)</span>
+                  <span class="engine-info-bubble" title="100% Free cloud speech across 80+ languages. Zero API keys or credits required.">ⓘ</span>
                 </div>
-                <span class="engine-model-check" id="check-engine-cartesia" style="display: none;">✓</span>
+                <span class="engine-model-check" id="check-engine-edge_tts_edge_neural" style="display: none;">✓</span>
               </div>
 
-              <!-- Option: OpenAI Audio -->
-              <div class="engine-model-item" data-engine="openai" onclick="selectEngineOption('openai')">
-                <div class="engine-model-item-main">
-                  <div class="engine-model-item-top">
-                    <span class="engine-model-item-name">🤖 OpenAI Audio</span>
-                    <span class="engine-model-pill" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7;">gpt-4o-mini</span>
-                  </div>
-                  <div class="engine-model-item-desc">High-clarity clear speech (Alloy, Echo, Nova)</div>
+              <!-- GROUP: Kokoro 82M -->
+              <div class="engine-group-header">
+                <span class="group-title">Kokoro 82M</span>
+              </div>
+              <div class="engine-model-subitem" data-engine="kokoro" data-model="kokoro_webgpu" onclick="selectEngineOption('kokoro', 'kokoro_webgpu')">
+                <div class="subitem-label">
+                  <span class="subitem-name">Kokoro On-Device</span>
+                  <span class="engine-info-bubble" title="100% Free on-device WebGPU/WASM synthesis. 0s queue, renders offline on your GPU.">ⓘ</span>
                 </div>
-                <span class="engine-model-check" id="check-engine-openai" style="display: none;">✓</span>
+                <span class="engine-model-check" id="check-engine-kokoro_kokoro_webgpu" style="display: none;">✓</span>
               </div>
             </div>
           </div>
@@ -1095,22 +1120,28 @@
   <div class="drawer-backdrop" id="voice-drawer" onclick="handleVoiceDrawerBackdropClick(event)">
     <div class="drawer-window" id="voice-drawer-window" onclick="event.stopPropagation()">
       <!-- DRAWER HEADER -->
-      <div class="drawer-header">
+      <div class="drawer-header" style="padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;">
         <div class="drawer-header-left" style="display: flex; align-items: center; gap: 10px;">
           <button type="button" class="icon-btn" id="drawer-btn-back" onclick="switchDrawerMode('fish')" style="display: none; font-size: 13px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer;" title="Back to Voice Catalogue">
             ← Back
           </button>
-          <span class="drawer-title" id="drawer-main-title">🎙️ Voice Library</span>
+          <span class="drawer-title" id="drawer-main-title" style="font-size: 16px; font-weight: 700;">🎙️ Voice Library</span>
           <span class="badge-mini" id="drawer-voices-count" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; font-weight: 600;">2M+ Voices</span>
         </div>
 
-        <!-- SCOPE NAVIGATION TABS -->
-        <div class="drawer-tabs-nav" id="drawer-tabs-nav">
-          <button type="button" class="drawer-tab-btn" id="tab-nav-edge" onclick="switchDrawerMode('edge')" title="Microsoft Edge 318 Neural Voices across 80+ languages">
-            🌐 Edge TTS (318)
+        <div class="drawer-header-actions" style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="icon-btn" id="drawer-toggle-size-btn" onclick="toggleDrawerExpanded()" title="Toggle Wide Explorer / Sidebar view" style="font-size: 12px; padding: 5px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); color: var(--text-muted); font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+            <span id="drawer-size-icon">⤢</span> <span id="drawer-size-text">Wide</span>
           </button>
-          <button type="button" class="drawer-tab-btn" id="tab-nav-kokoro" onclick="switchDrawerMode('kokoro')" title="Kokoro 82M On-Device WebGPU Voices">
-            ⚡ Kokoro 82M (44)
+          <button class="icon-btn" id="drawer-close-btn" onclick="closeVoiceDrawer()" style="font-size: 18px; cursor: pointer;" title="Close Library">✕</button>
+        </div>
+      </div>
+
+      <!-- SCOPE NAVIGATION TABS BAR (Full width with smooth horizontal scroll) -->
+      <div class="drawer-tabs-bar" style="padding: 10px 20px; background: rgba(15, 23, 42, 0.85); border-bottom: 1px solid rgba(255, 255, 255, 0.08); flex-shrink: 0; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+        <div class="drawer-tabs-nav" id="drawer-tabs-nav" style="display: flex; align-items: center; gap: 6px; min-width: max-content;">
+          <button type="button" class="drawer-tab-btn active" id="tab-nav-fish" onclick="switchDrawerMode('fish')" title="Fish Audio 2M+ Community AI Models">
+            ☁️ Fish Audio (2M+)
           </button>
           <button type="button" class="drawer-tab-btn" id="tab-nav-fish-speech" onclick="switchDrawerMode('fish_speech')" title="Fish Speech Drama 3 Built-in Voices (28)">
             🎭 Fish Speech (28)
@@ -1124,8 +1155,11 @@
           <button type="button" class="drawer-tab-btn" id="tab-nav-openai" onclick="switchDrawerMode('openai')" title="OpenAI Audio Natural Voices (gpt-4o-mini / tts-1)">
             🤖 OpenAI (6)
           </button>
-          <button type="button" class="drawer-tab-btn active" id="tab-nav-fish" onclick="switchDrawerMode('fish')" title="Fish Audio 2M+ Community AI Models">
-            ☁️ Fish Audio (2M+)
+          <button type="button" class="drawer-tab-btn" id="tab-nav-edge" onclick="switchDrawerMode('edge')" title="Microsoft Edge 318 Neural Voices across 80+ languages">
+            🌐 Edge TTS (318)
+          </button>
+          <button type="button" class="drawer-tab-btn" id="tab-nav-kokoro" onclick="switchDrawerMode('kokoro')" title="Kokoro 82M On-Device WebGPU Voices">
+            ⚡ Kokoro 82M (44)
           </button>
           <button type="button" class="drawer-tab-btn" id="tab-nav-browse" onclick="switchDrawerMode('browse')" title="My Custom & Saved Voices">
             💾 Saved Library
@@ -1136,13 +1170,6 @@
           <button type="button" class="drawer-tab-btn" id="tab-nav-create" onclick="switchDrawerMode('create')" title="Clone or Forge New AI Voice">
             ✨ Create Voice
           </button>
-        </div>
-
-        <div class="drawer-header-actions" style="display: flex; align-items: center; gap: 8px;">
-          <button type="button" class="icon-btn" id="drawer-toggle-size-btn" onclick="toggleDrawerExpanded()" title="Toggle Wide Explorer / Sidebar view" style="font-size: 12px; padding: 5px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); color: var(--text-muted); font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-            <span id="drawer-size-icon">⤢</span> <span id="drawer-size-text">Wide</span>
-          </button>
-          <button class="icon-btn" id="drawer-close-btn" onclick="closeVoiceDrawer()" style="font-size: 18px; cursor: pointer;" title="Close Library">✕</button>
         </div>
       </div>
 
