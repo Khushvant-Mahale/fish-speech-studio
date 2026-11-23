@@ -2,11 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <script>
+    if (!window.location.pathname.endsWith("/") && !window.location.pathname.endsWith(".html")) {
+      window.location.replace(window.location.pathname + "/" + window.location.search + window.location.hash);
+    }
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kashva Voice — AI Speech & Voice Drama Studio</title>
-  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="icon" type="image/svg+xml" href="/app/favicon.svg">
   <link rel="alternate icon" href="/favicon.ico">
-  <link rel="stylesheet" href="../css/studio.css?v=652">
+  <link rel="stylesheet" href="/app/css/studio.css?v=653">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -763,6 +768,29 @@
             <div id="saved-characters-list" class="saved-characters-list" style="display: flex; flex-direction: column; gap: 8px; width: 100%; box-sizing: border-box;">
               <!-- Dynamically populated character cards with block counts, filters, voice switchers -->
             </div>
+          </div>
+
+          <!-- Kokoro In-Browser WebGPU Download Section -->
+          <div id="inspector-kokoro-section" style="display: none; margin-top: 10px; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 8px; padding: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 12px; font-weight: 700; color: #c7d2fe;">⚡ Kokoro 82M (WebGPU Engine)</span>
+              <span id="kokoro-status-badge" style="font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.1); color: #94a3b8;">Not Downloaded</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-bottom: 10px;">
+              Runs neural speech on your device with 0 server queue. Requires downloading a one-time ~80MB AI model into your browser cache.
+            </div>
+            <div id="kokoro-download-progress-wrap" style="display: none; margin-bottom: 10px;">
+              <div style="display: flex; justify-content: space-between; font-size: 10.5px; color: #a5b4fc; margin-bottom: 4px;">
+                <span id="kokoro-progress-text">Downloading AI weights...</span>
+                <span id="kokoro-progress-pct">0%</span>
+              </div>
+              <div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                <div id="kokoro-progress-bar" style="width: 0%; height: 100%; background: #6366f1; transition: width 0.2s;"></div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary" id="btn-kokoro-download" onclick="handleDownloadKokoroModel()" style="width: 100%; font-size: 12px; padding: 8px 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              📥 Download In-Browser Model (~80MB)
+            </button>
           </div>
 
           <!-- Collapsible Zero-Shot Voice Reference Audio (Accordion) -->
@@ -3753,11 +3781,11 @@
   </div>
 
   <div id="studio-toast" class="studio-toast"></div>
-  <script src="../js/demo-bridge.js"></script>
+  <script src="/app/js/demo-bridge.js?v=653"></script>
   <script type="module">
-    import * as KokoroClient from "../js/kokoro-client.js";
+    import * as KokoroClient from "/app/js/kokoro-client.js";
     window.KokoroClient = KokoroClient;
   </script>
-  <script src="../js/app.js?v=652"></script>
+  <script src="/app/js/app.js?v=653"></script>
 </body>
 </html>

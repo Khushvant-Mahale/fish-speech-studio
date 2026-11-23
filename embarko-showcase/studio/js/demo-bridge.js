@@ -18,6 +18,54 @@
   let defaultProject = null;
   let demoDataset = null;
 
+  // Global automatic startup sweep: clean cross-project audio leakage from localStorage
+  try {
+    const schoolHashes = ["652c166f47a50e826f1505c68266a511_a88de341", "058a92014623d97616b48d50d643621d", "d6890204724d4c896fab7b36ae5f512e", "3019f98fe796dcecd498d31df02d952b", "5ae74ab04b597c892218da8b4baf7377", "7f0941d7a67e37f36faeac888ee72007", "4a809eb3c504d1c02f220d88279cb637", "435b677ada00cf79e0416e0338f199f4", "0860b274a9eda5a17d415c4c2e2d6cf5"];
+    const schoolDurations = [6.02, 23.08, 1.09, 2.01, 0.69];
+    const schoolSnippets = ["THE SCHOOL WHERE TIME STOPPED", "school corridor", "Lucy?", "She takes a step", "corridor"];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("kashva_proj_") && key !== "kashva_proj_proj_eb9ab585") {
+        try {
+          const p = JSON.parse(localStorage.getItem(key));
+          if (p && Array.isArray(p.blocks)) {
+            let dirty = false;
+            p.blocks.forEach(b => {
+              if (!b) return;
+              const textHead = (b.text || "").slice(0, 25).trim();
+              if (b.take_cache) {
+                Object.keys(b.take_cache).forEach(k => {
+                  if (schoolSnippets.some(s => k.includes(s)) || (textHead && !k.includes(textHead))) {
+                    delete b.take_cache[k];
+                    dirty = true;
+                  }
+                });
+                if (Object.keys(b.take_cache).length === 0) {
+                  delete b.take_cache;
+                  dirty = true;
+                }
+              }
+              const hasSchoolDur = schoolDurations.some(d => Math.abs((b.duration || 0) - d) < 0.05);
+              const hasSchoolHash = b.audio_url && schoolHashes.some(h => b.audio_url.includes(h));
+              const hasMismatchedText = b.cachedSig && textHead && !b.cachedSig.includes(textHead);
+              if (hasSchoolDur || hasSchoolHash || hasMismatchedText) {
+                delete b.audio_url;
+                delete b.cachedAudioUrl;
+                delete b.cachedSig;
+                delete b.duration;
+                delete b.hash;
+                dirty = true;
+              }
+            });
+            if (dirty) {
+              localStorage.setItem(key, JSON.stringify(p));
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+
   // Register audio mock Service Worker to seamlessly intercept any <audio src="..."> 404s
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
@@ -248,12 +296,12 @@
 
   async function fetchJson(filename) {
     const candidates = [
-      `demo-data/${filename}`,
-      `../demo-data/${filename}`,
-      `../../demo-data/${filename}`,
       `/app/demo-data/${filename}`,
       `/app/studio/demo-data/${filename}`,
       `/studio/demo-data/${filename}`,
+      `demo-data/${filename}`,
+      `../demo-data/${filename}`,
+      `../../demo-data/${filename}`,
       `/demo-data/${filename}`
     ];
     for (const url of candidates) {
@@ -491,9 +539,28 @@
 
               // Sanitize cross-project pollution: if not School, strip School audio takes
               const schoolHashes = ["652c166f47a50e826f1505c68266a511_a88de341", "058a92014623d97616b48d50d643621d", "d6890204724d4c896fab7b36ae5f512e", "3019f98fe796dcecd498d31df02d952b", "5ae74ab04b597c892218da8b4baf7377", "7f0941d7a67e37f36faeac888ee72007", "4a809eb3c504d1c02f220d88279cb637", "435b677ada00cf79e0416e0338f199f4", "0860b274a9eda5a17d415c4c2e2d6cf5"];
+              const schoolDurations = [6.02, 23.08, 1.09, 2.01, 0.69];
+              const schoolSnippets = ["THE SCHOOL WHERE TIME STOPPED", "school corridor", "Lucy?", "She takes a step", "corridor"];
               if (id !== "proj_eb9ab585") {
                 parsed.blocks.forEach(b => {
-                  if (b.audio_url && schoolHashes.some(h => b.audio_url.includes(h))) {
+                  if (!b) return;
+                  const textHead = (b.text || "").slice(0, 25).trim();
+                  if (b.take_cache) {
+                    Object.keys(b.take_cache).forEach(k => {
+                      if (schoolSnippets.some(s => k.includes(s)) || (textHead && !k.includes(textHead))) {
+                        delete b.take_cache[k];
+                        modified = true;
+                      }
+                    });
+                    if (Object.keys(b.take_cache).length === 0) {
+                      delete b.take_cache;
+                      modified = true;
+                    }
+                  }
+                  const hasSchoolDur = schoolDurations.some(d => Math.abs((b.duration || 0) - d) < 0.05);
+                  const hasSchoolHash = b.audio_url && schoolHashes.some(h => b.audio_url.includes(h));
+                  const hasMismatchedText = b.cachedSig && textHead && !b.cachedSig.includes(textHead);
+                  if (hasSchoolDur || hasSchoolHash || hasMismatchedText) {
                     modified = true;
                     delete b.audio_url;
                     delete b.cachedAudioUrl;

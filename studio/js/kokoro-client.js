@@ -7,14 +7,19 @@
 let kokoroInstance = null;
 let modelLoadingPromise = null;
 let isModelReady = false;
-let clientKokoroEnabled = localStorage.getItem("use_client_kokoro") !== "false"; // Default true
+let clientKokoroEnabled = localStorage.getItem("use_client_kokoro") === "true";
 
 export function isClientKokoroEnabled() {
-  return true; // Kokoro always renders locally on user's device (WebGPU/WASM)
+  return clientKokoroEnabled && isModelReady;
+}
+
+export function isModelLoaded() {
+  return isModelReady;
 }
 
 export function setClientKokoroEnabled(enabled) {
-  clientKokoroEnabled = true;
+  clientKokoroEnabled = Boolean(enabled);
+  localStorage.setItem("use_client_kokoro", clientKokoroEnabled ? "true" : "false");
 }
 
 export async function checkDeviceCapabilities() {

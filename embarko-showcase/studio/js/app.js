@@ -823,8 +823,24 @@ async function openProject(projectId, updateUrl = true) {
 
         // Sanitize cross-project pollution: if this project is NOT School (proj_eb9ab585), wipe any takes belonging to School
         const schoolHashes = ["652c166f47a50e826f1505c68266a511_a88de341", "058a92014623d97616b48d50d643621d", "d6890204724d4c896fab7b36ae5f512e", "3019f98fe796dcecd498d31df02d952b", "5ae74ab04b597c892218da8b4baf7377", "7f0941d7a67e37f36faeac888ee72007", "4a809eb3c504d1c02f220d88279cb637", "435b677ada00cf79e0416e0338f199f4", "0860b274a9eda5a17d415c4c2e2d6cf5"];
+        const schoolDurations = [6.02, 23.08, 1.09, 2.01, 0.69];
+        const schoolSnippets = ["THE SCHOOL WHERE TIME STOPPED", "school corridor", "Lucy?", "She takes a step", "corridor"];
         if (projectId !== "proj_eb9ab585") {
-          if (block.audio_url && schoolHashes.some(h => block.audio_url.includes(h))) {
+          const textHead = (block.text || "").slice(0, 25).trim();
+          if (block.take_cache) {
+            Object.keys(block.take_cache).forEach(k => {
+              if (schoolSnippets.some(s => k.includes(s)) || (textHead && !k.includes(textHead))) {
+                delete block.take_cache[k];
+              }
+            });
+            if (Object.keys(block.take_cache).length === 0) {
+              delete block.take_cache;
+            }
+          }
+          const hasSchoolDur = schoolDurations.some(d => Math.abs((block.duration || 0) - d) < 0.05);
+          const hasSchoolHash = block.audio_url && schoolHashes.some(h => block.audio_url.includes(h));
+          const hasMismatchedText = block.cachedSig && textHead && !block.cachedSig.includes(textHead);
+          if (hasSchoolDur || hasSchoolHash || hasMismatchedText) {
             delete block.audio_url;
             delete block.cachedAudioUrl;
             delete block.cachedSig;
@@ -1386,7 +1402,7 @@ async function handleCopyProjectToOtherEngine(projectId, targetEngine, title) {
       throw new Error(data.error || "Failed to copy project");
     }
     const newProj = data.project;
-    const destUrl = `/studio?project=${encodeURIComponent(newProj.id)}`;
+    const destUrl = `/app/studio/?project=${encodeURIComponent(newProj.id)}`;
     showToast(`✅ Copied as "${newProj.title}"!`);
 
     const openNow = await showMessageCard({
@@ -8462,11 +8478,21 @@ function renderInspector() {
 
   // Toggle Context-Sensitive Sections
   const isFish = blockEngine === "fish_s2";
+  const isKokoro = blockEngine === "kokoro";
+
   const emotionSec = document.getElementById("inspector-emotion-section");
   if (emotionSec) emotionSec.style.display = isFish ? "block" : "none";
 
   const zeroShotSec = document.getElementById("inspector-zero-shot-section");
   if (zeroShotSec) zeroShotSec.style.display = isFish ? "block" : "none";
+
+  const kokoroSec = document.getElementById("inspector-kokoro-section");
+  if (kokoroSec) {
+    kokoroSec.style.display = isKokoro ? "block" : "none";
+    if (isKokoro && typeof updateKokoroInspectorUI === "function") {
+      updateKokoroInspectorUI();
+    }
+  }
 
   // Update Character Status Banner
   updateActiveCharacterStatusBanner();
@@ -9400,44 +9426,56 @@ async function playBlockAudio(idx, targetOffset = 0, isAutoContinuation = false,
   startBlockProgress(idx, { mode: "synthesize" });
 
   const activeEng = block.engine || state.currentProject?.engine || state.activeEngine || "fish_s2";
-  if (activeEng === "kokoro" && window.KokoroClient && window.KokoroClient.isClientKokoroEnabled()) {
-    try {
-      const char = getCharacterById(block.character_id || block.speaker);
-      let chosenVoiceId = block.voice_id || (char && (char.voice_id || char.assigned_voice_id)) || "af_bella";
-      if (!chosenVoiceId || chosenVoiceId.startsWith("fish_") || chosenVoiceId.includes("Neural")) {
-        chosenVoiceId = "af_bella";
-      }
-      const clientRes = await window.KokoroClient.synthesizeOnClient(block.text, {
-        voice: chosenVoiceId,
-        speed: Number(block.speed || 1.0)
-      });
-      if (clientRes && clientRes.audioUrl) {
-        const permanentUrl = `/api/audio/${clientRes.hash}.wav`;
-        block.cachedAudioUrl = permanentUrl;
-        block.audio_url = permanentUrl;
-        block.cachedSig = currentSig;
-        block.duration = clientRes.duration;
-        block.hash = clientRes.hash;
-        if (!block.take_cache) block.take_cache = {};
-        block.take_cache[currentSig] = {
-          audio_url: permanentUrl,
-          duration: clientRes.duration,
-          cachedSig: currentSig,
-          timestamp: Date.now()
-        };
-        debouncedSave();
-        renderTimeline();
-        stopBlockProgress(idx, true, clientRes.duration);
-        startPlayback(clientRes.audioUrl, clientRes.duration, false);
-        window.KokoroClient.syncClientAudioToServer(clientRes.blob, clientRes.hash, {
-          project_id: state.currentProject?.id,
-          block_id: block.id,
-          duration: clientRes.duration
+  if (activeEng === "kokoro") {
+    if (window.KokoroClient && window.KokoroClient.isClientKokoroEnabled()) {
+      try {
+        const char = getCharacterById(block.character_id || block.speaker);
+        let chosenVoiceId = block.voice_id || (char && (char.voice_id || char.assigned_voice_id)) || "af_bella";
+        if (!chosenVoiceId || chosenVoiceId.startsWith("fish_") || chosenVoiceId.includes("Neural")) {
+          chosenVoiceId = "af_bella";
+        }
+        const clientRes = await window.KokoroClient.synthesizeOnClient(block.text, {
+          voice: chosenVoiceId,
+          speed: Number(block.speed || 1.0)
         });
-        return;
+        if (clientRes && clientRes.audioUrl) {
+          const permanentUrl = `/api/audio/${clientRes.hash}.wav`;
+          block.cachedAudioUrl = permanentUrl;
+          block.audio_url = permanentUrl;
+          block.cachedSig = currentSig;
+          block.duration = clientRes.duration;
+          block.hash = clientRes.hash;
+          if (!block.take_cache) block.take_cache = {};
+          block.take_cache[currentSig] = {
+            audio_url: permanentUrl,
+            duration: clientRes.duration,
+            cachedSig: currentSig,
+            timestamp: Date.now()
+          };
+          debouncedSave();
+          renderTimeline();
+          stopBlockProgress(idx, true, clientRes.duration);
+          startPlayback(clientRes.audioUrl, clientRes.duration, false);
+          window.KokoroClient.syncClientAudioToServer(clientRes.blob, clientRes.hash, {
+            project_id: state.currentProject?.id,
+            block_id: block.id,
+            duration: clientRes.duration
+          });
+          return;
+        }
+      } catch (clientErr) {
+        console.warn("[KokoroClient] Browser WebGPU synthesis fallback to server:", clientErr);
       }
-    } catch (clientErr) {
-      console.warn("[KokoroClient] Browser WebGPU synthesis fallback to server:", clientErr);
+    } else {
+      // Model not downloaded -> DO NOT download automatically. Show alert & reveal button in inspector.
+      stopBlockProgress(idx, false);
+      showToast("⚡ Kokoro 82M model (~80MB) is not downloaded. Click 'Download In-Browser Model' in Speech Controls on the left, or switch to Edge TTS (Free / Instant)!", 5000);
+      const kokoroSec = document.getElementById("inspector-kokoro-section");
+      if (kokoroSec) {
+        kokoroSec.style.display = "block";
+        kokoroSec.scrollIntoView({ behavior: "smooth" });
+      }
+      return;
     }
   }
 
@@ -10161,24 +10199,39 @@ async function loadFishLibraryExplore() {
 
   try {
     const res = await fetch("/api/fish_library/explore");
+    if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
-    if (!res.ok || data.error) {
-      throw new Error(data.error || "Failed to load Fish Audio discovery voices");
+    if (!data || data.error) {
+      throw new Error((data && data.error) || "Failed to load Fish Audio discovery voices");
     }
     state.fishLibrary.exploreData = data;
     renderFishExploreRails(data);
   } catch (err) {
-    console.error("Fish Audio Explore error:", err);
-    container.innerHTML = `
-      <div class="fish-empty-state">
-        <div style="font-size: 32px; margin-bottom: 8px;">🌐</div>
-        <div style="font-size: 15px; font-weight: 700; color: #f8fafc; margin-bottom: 4px;">Could not connect to Fish Audio Cloud</div>
-        <div style="font-size: 12px; color: var(--text-muted); max-width: 440px; line-height: 1.4; margin-bottom: 14px;">
-          ${escapeHtml(err.message)}
-        </div>
-        <button class="btn btn-secondary" onclick="loadFishLibraryExplore()">↻ Retry Connection</button>
-      </div>
-    `;
+    console.warn("Fish Audio Explore fetch error, using bundled showcase rails:", err);
+    const fallbackData = {
+      trending: [
+        { id: "fish_mod_freeman", title: "Morgan Storyteller", author: "CinemaAudio", description: "Legendary deep, warm, authoritative narrator baritone. Perfect for audiobooks and dramatic intros.", languages: ["en"], gender: "male", tags: ["narration", "cinematic", "documentary"], task_count: 24500, score: 4.96, is_official: true, sample_audio: "/api/audio/demo_clip.wav", sample_text: "In the end, all we have are the stories we leave behind." },
+        { id: "fish_mod_galadriel", title: "Ethereal Elven Queen", author: "FantasyRealms", description: "Graceful, regal, ancient feminine voice with an otherworldly acoustic cadence.", languages: ["en"], gender: "female", tags: ["cinematic", "anime"], task_count: 18900, score: 4.94, is_official: false, sample_audio: "/api/audio/demo_clip.wav", sample_text: "The world is changed. I feel it in the water. I feel it in the earth." }
+      ],
+      recommended: [
+        { id: "fish_mod_attborough", title: "Sir David Naturalist", author: "NatureEcho", description: "Intimate, hushed documentary narration with warm gentle inflections and scholarly authority.", languages: ["en"], gender: "male", tags: ["documentary", "narration"], task_count: 15400, score: 4.91, is_official: false, sample_audio: "/api/audio/demo_clip.wav", sample_text: "Here, in the darkest depths of the ancient canopy, life finds a miraculous way." },
+        { id: "fish_mod_noir_detective", title: "Gritty Noir Detective", author: "ShadowTale", description: "Low, smoke-cured cynical baritone with a weary 1940s hardboiled delivery.", languages: ["en"], gender: "male", tags: ["cinematic", "narration"], task_count: 14200, score: 4.89, is_official: false, sample_audio: "/api/audio/demo_clip.wav", sample_text: "Rain pounded the alley like a bad hangover that wouldn't let up." }
+      ],
+      narration: [
+        { id: "fish_mod_freeman", title: "Morgan Storyteller", author: "CinemaAudio", description: "Legendary deep, warm, authoritative narrator baritone.", languages: ["en"], gender: "male", tags: ["narration"], task_count: 24500, score: 4.96, is_official: true, sample_audio: "/api/audio/demo_clip.wav", sample_text: "In the end, all we have are the stories we leave behind." }
+      ],
+      anime: [
+        { id: "fish_mod_anime_hero", title: "Fiery Anime Shonen Hero", author: "OtakuCraft", description: "High-octane, passionate, determined youthful hero packed with dramatic emotion.", languages: ["en", "ja"], gender: "male", tags: ["anime", "gaming"], task_count: 9800, score: 4.88, is_official: false, sample_audio: "/api/audio/demo_clip.wav", sample_text: "I won't give up! Even if everything stands in my way, I will protect them!" }
+      ],
+      cinematic: [
+        { id: "fish_mod_noir_detective", title: "Gritty Noir Detective", author: "ShadowTale", description: "Low, smoke-cured cynical baritone.", languages: ["en"], gender: "male", tags: ["cinematic"], task_count: 14200, score: 4.89, is_official: false, sample_audio: "/api/audio/demo_clip.wav", sample_text: "Rain pounded the alley like a bad hangover that wouldn't let up." }
+      ],
+      gaming: [
+        { id: "fish_mod_merchant_bob", title: "Garrick the Wandering Trader", author: "TavernGames", description: "Cheerful, eccentric, raspy fantasy merchant full of colorful bargains.", languages: ["en"], gender: "male", tags: ["gaming", "fantasy"], task_count: 11200, score: 4.82, is_official: false, sample_audio: "/api/audio/demo_clip.wav", sample_text: "Got some rare treasures from the southern wastes, stranger!" }
+      ]
+    };
+    state.fishLibrary.exploreData = fallbackData;
+    renderFishExploreRails(fallbackData);
   }
 }
 
@@ -10667,6 +10720,22 @@ function renderVoiceList() {
   const filter = state.activeFilter || "all";
   const sort = state.activeSort || "recommended";
   const countBadge = document.getElementById("drawer-voices-count");
+
+  // If voices catalogue is not loaded yet, fetch immediately and re-render
+  if ((!state.voices || state.voices.length === 0) && _drawerCurrentMode !== "cast") {
+    container.innerHTML = `<div style="text-align: center; color: var(--text-subtle); padding: 40px;"><div class="spinner"></div><div style="margin-top: 10px;">Loading voices catalogue...</div></div>`;
+    fetch("/api/voices")
+      .then(r => r.json())
+      .then(voices => {
+        state.voices = voices;
+        populateVoiceSelects();
+        renderVoiceList();
+      })
+      .catch(() => {
+        container.innerHTML = `<div style="text-align: center; color: var(--text-subtle); padding: 40px;">No voices match your search or filter.</div>`;
+      });
+    return;
+  }
 
   // 1. Chapter Cast Tab Mode
   if (_drawerCurrentMode === "cast") {
@@ -11715,7 +11784,7 @@ function processImportedFile(file, targetContext) {
             const newProj = await res.json();
             if (newProj && newProj.id) {
               closeNewProjectModal();
-              window.open(`/studio?project=${encodeURIComponent(newProj.id)}`, "_blank");
+              window.open(`/app/studio/?project=${encodeURIComponent(newProj.id)}`, "_blank");
               loadProjectsList();
               showToast(`✓ Project "${title}" imported with ${parsed.blocks.length} sentences!`);
               return;
@@ -12330,7 +12399,7 @@ async function handleCreateProjectSubmit(overrideAiDirect = null) {
     setTimeout(() => {
       closeNewProjectModal();
       if (progressTracker) progressTracker.hide();
-      window.location.href = `/studio?project=${encodeURIComponent(newProj.id)}`;
+      window.location.href = `/app/studio/?project=${encodeURIComponent(newProj.id)}`;
       loadProjectsList();
     }, 400);
   } catch (err) {
@@ -14449,9 +14518,9 @@ function selectEngineOption(newEngine, newModel = null) {
   state.activeEngine = newEngine;
   state.activeModel = chosenModel;
 
-  // Ensure Kokoro is strictly client-side on user's device
-  if (newEngine === "kokoro" && window.KokoroClient) {
-    window.KokoroClient.setClientKokoroEnabled(true);
+  // If Kokoro selected, refresh Kokoro status in inspector
+  if (newEngine === "kokoro" && typeof updateKokoroInspectorUI === "function") {
+    updateKokoroInspectorUI();
   }
 
   // Target active block or selected blocks rather than blindly mutating character or chapter!
@@ -14541,7 +14610,87 @@ function handleBlockEngineChange(newEngine) {
 
 function handleToggleClientKokoro(checked) {
   if (window.KokoroClient) {
+    window.KokoroClient.setClientKokoroEnabled(checked);
+    updateKokoroInspectorUI();
+  }
+}
+
+async function handleDownloadKokoroModel() {
+  if (!window.KokoroClient) {
+    showToast("⚠️ Kokoro WebGPU client module is still initializing. Please wait a moment.");
+    return;
+  }
+  const btn = document.getElementById("btn-kokoro-download");
+  const progWrap = document.getElementById("kokoro-download-progress-wrap");
+  const progBar = document.getElementById("kokoro-progress-bar");
+  const progPct = document.getElementById("kokoro-progress-pct");
+  const progText = document.getElementById("kokoro-progress-text");
+  const badge = document.getElementById("kokoro-status-badge");
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "⏳ Initializing WebGPU & downloading weights...";
+  }
+  if (progWrap) progWrap.style.display = "block";
+
+  try {
+    showToast("📥 Starting Kokoro 82M download (~80MB)...");
+    await window.KokoroClient.initKokoroModel((p) => {
+      if (p && typeof p.progress === "number") {
+        const pct = Math.round(p.progress * 100);
+        if (progBar) progBar.style.width = `${pct}%`;
+        if (progPct) progPct.textContent = `${pct}%`;
+        if (progText) progText.textContent = `Downloading ${p.file || 'model weights'} (${pct}%)...`;
+      }
+    });
+
     window.KokoroClient.setClientKokoroEnabled(true);
+    showToast("✅ Kokoro 82M is downloaded and cached for zero-latency synthesis!");
+    updateKokoroInspectorUI();
+  } catch (err) {
+    console.error("Kokoro download error:", err);
+    showToast(`❌ Failed to download Kokoro: ${err.message || err}`, 4000);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "↻ Retry Download (~80MB)";
+    }
+  }
+}
+
+function updateKokoroInspectorUI() {
+  const btn = document.getElementById("btn-kokoro-download");
+  const progWrap = document.getElementById("kokoro-download-progress-wrap");
+  const badge = document.getElementById("kokoro-status-badge");
+  if (!window.KokoroClient) return;
+
+  const isLoaded = window.KokoroClient.isModelLoaded && window.KokoroClient.isModelLoaded();
+  if (isLoaded) {
+    if (badge) {
+      badge.textContent = "✓ Ready (Cached)";
+      badge.style.background = "rgba(16, 185, 129, 0.2)";
+      badge.style.color = "#34d399";
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "✓ Model Ready in Browser";
+      btn.style.background = "rgba(16, 185, 129, 0.15)";
+      btn.style.color = "#34d399";
+      btn.style.border = "1px solid rgba(16, 185, 129, 0.3)";
+    }
+    if (progWrap) progWrap.style.display = "none";
+  } else {
+    if (badge) {
+      badge.textContent = "Not Downloaded";
+      badge.style.background = "rgba(255, 255, 255, 0.1)";
+      badge.style.color = "#94a3b8";
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "📥 Download In-Browser Model (~80MB)";
+      btn.style.background = "";
+      btn.style.color = "";
+      btn.style.border = "";
+    }
   }
 }
 
