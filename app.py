@@ -3691,6 +3691,8 @@ def create_app():
     app.router.add_get("/studio/", handle_index)
     app.router.add_get("/projects", handle_index)
     app.router.add_get("/favicon.ico", handle_favicon)
+    app.router.add_get("/favicon.svg", handle_favicon)
+    app.router.add_get("/app/favicon.svg", handle_favicon)
     app.router.add_get("/studio/favicon.svg", handle_favicon)
 
     # Voices & Reference management
@@ -3789,7 +3791,10 @@ def create_app():
     app.router.add_get("/api/remote_worker/health", handle_remote_worker_health)
 
     # Static assets
+    app.router.add_static("/app", STUDIO_DIR)
     app.router.add_static("/studio", STUDIO_DIR)
+    app.router.add_static("/css", STUDIO_DIR / "css")
+    app.router.add_static("/js", STUDIO_DIR / "js")
     app.router.add_static("/voices", BASE_DIR / "voices")
 
     # Deprecated Kokoro routes redirect to unified Studio
