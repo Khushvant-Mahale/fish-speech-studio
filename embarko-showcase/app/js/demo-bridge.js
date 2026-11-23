@@ -7,52 +7,74 @@
 
 (function() {
   const originalFetch = window.fetch;
-  const STORAGE_KEY_PROJECTS = "kashva_demo_projects_v2";
-  const STORAGE_KEY_CONFIG = "kashva_demo_config_v2";
+  const STORAGE_KEY_PROJECTS = "kashva_demo_projects_v3";
+  const STORAGE_KEY_CONFIG = "kashva_demo_config_v3";
 
-  // Pre-load demo voices and default project
+  // Pre-load demo voices, folders, and projects
   let cachedFishVoices = null;
   let cachedKokoroVoices = null;
   let defaultProject = null;
+  let demoDataset = null;
+
+  async function fetchJson(filename) {
+    const candidates = [
+      `demo-data/${filename}`,
+      `../demo-data/${filename}`,
+      `../../demo-data/${filename}`,
+      `/app/demo-data/${filename}`,
+      `/app/studio/demo-data/${filename}`,
+      `/studio/demo-data/${filename}`,
+      `/demo-data/${filename}`
+    ];
+    for (const url of candidates) {
+      try {
+        const res = await originalFetch(url);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
+    return null;
+  }
 
   async function loadInitialData() {
     try {
-      const fetchJson = async (filename) => {
-        const candidates = [`demo-data/${filename}`, `/app/demo-data/${filename}`, `/studio/demo-data/${filename}`];
-        for (const url of candidates) {
-          try {
-            const res = await originalFetch(url);
-            if (res.ok) return await res.json();
-          } catch (e) {}
-        }
-        return null;
-      };
-
-      const [fv, kv, dp] = await Promise.all([
+      const [fv, kv, dataset] = await Promise.all([
         fetchJson("fish_voices.json").then(r => r || []),
         fetchJson("kokoro_voices.json").then(r => r || []),
-        fetchJson("default_project.json")
+        fetchJson("projects_data.json")
       ]);
       cachedFishVoices = fv;
       cachedKokoroVoices = kv;
-      defaultProject = dp;
-
-      // Seed local storage with default project if empty
-      if (!localStorage.getItem(STORAGE_KEY_PROJECTS) && defaultProject) {
-        localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify([defaultProject]));
+      demoDataset = dataset;
+      if (demoDataset && demoDataset.projects) {
+        defaultProject = demoDataset.projects["proj_eb9ab585"] || demoDataset.projects["proj_194579ce"] || Object.values(demoDataset.projects)[0];
       }
     } catch (e) {
       console.warn("[DemoBridge] Error loading initial demo data:", e);
     }
   }
-  loadInitialData();
+  const dataReadyPromise = loadInitialData();
 
   function getStoredProjects() {
+    const baseSummaries = (demoDataset && demoDataset.summaries && demoDataset.summaries.length > 0)
+      ? demoDataset.summaries
+      : (defaultProject ? [defaultProject] : []);
     try {
-      const data = localStorage.getItem(STORAGE_KEY_PROJECTS);
-      if (data) return JSON.parse(data);
+      const custom = localStorage.getItem(STORAGE_KEY_PROJECTS);
+      if (custom) {
+        const parsed = JSON.parse(custom);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const map = new Map();
+          baseSummaries.forEach(s => map.set(s.id, s));
+          parsed.forEach(p => {
+            if (p && p.id) {
+              map.set(p.id, { ...(map.get(p.id) || {}), ...p });
+            }
+          });
+          return Array.from(map.values());
+        }
+      }
     } catch (e) {}
-    return defaultProject ? [defaultProject] : [];
+    return baseSummaries;
   }
 
   function saveStoredProjects(projects) {
@@ -88,8 +110,16 @@
   }
 
   window.fetch = async function(resource, init = {}) {
-    const urlStr = typeof resource === "string" ? resource : resource.url;
+    const urlStr = typeof resource === "string" ? resource : (resource ? resource.url : "");
     const method = (init.method || "GET").toUpperCase();
+
+    // Pass through non-API resources immediately (scripts, stylesheets, fonts, icons)
+    if (!urlStr.startsWith("/api/")) {
+      return originalFetch.apply(window, arguments);
+    }
+
+    // Wait until demo dataset is ready for all mock endpoints
+    await dataReadyPromise;
 
     // 1. Auth check -> Always logged in as Contest Judge (Pro Tier)
     if (urlStr.startsWith("/api/auth/me")) {
@@ -120,13 +150,13 @@
     if (urlStr.startsWith("/api/voices")) {
       const isKokoro = urlStr.includes("engine=kokoro");
       if (isKokoro) {
-        if (!cachedKokoroVoices) {
-          cachedKokoroVoices = await originalFetch("/studio/demo-data/kokoro_voices.json").then(r => r.json()).catch(() => []);
+        if (!cachedKokoroVoices || cachedKokoroVoices.length === 0) {
+          cachedKokoroVoices = await fetchJson("kokoro_voices.json");
         }
         return jsonResponse(cachedKokoroVoices || []);
       } else {
-        if (!cachedFishVoices) {
-          cachedFishVoices = await originalFetch("/studio/demo-data/fish_voices.json").then(r => r.json()).catch(() => []);
+        if (!cachedFishVoices || cachedFishVoices.length === 0) {
+          cachedFishVoices = await fetchJson("fish_voices.json");
         }
         return jsonResponse(cachedFishVoices || []);
       }
@@ -151,24 +181,38 @@
     // 5. Projects list
     if (urlStr.startsWith("/api/projects")) {
       const projs = getStoredProjects();
-      const summaries = projs.map(p => ({
-        id: p.id,
-        title: p.title || "Untitled Drama",
-        engine: p.engine || "fish_s2",
-        updated_at: p.updated_at || Date.now(),
-        block_count: (p.blocks || []).length,
-        character_count: (p.characters || []).length
-      }));
-      return jsonResponse(summaries);
+      return jsonResponse(projs);
     }
 
     // 6. Single Project GET
     if (urlStr.startsWith("/api/project?") || urlStr.startsWith("/api/project/")) {
       const url = new URL(urlStr, window.location.origin);
       const id = url.searchParams.get("id");
+      
+      // Check user customized version in localStorage
+      try {
+        if (id) {
+          const customSaved = localStorage.getItem(`kashva_proj_${id}`);
+          if (customSaved) {
+            const parsed = JSON.parse(customSaved);
+            if (parsed && Array.isArray(parsed.blocks)) return jsonResponse(parsed);
+          }
+        }
+      } catch (e) {}
+
+      // Check bundled demo projects
+      if (demoDataset && demoDataset.projects) {
+        if (id && demoDataset.projects[id]) {
+          return jsonResponse(demoDataset.projects[id]);
+        }
+      }
+
+      // Fallback
+      if (!id && defaultProject) return jsonResponse(defaultProject);
       const projs = getStoredProjects();
-      const p = projs.find(x => x.id === id) || projs[0] || defaultProject;
+      const p = (id ? projs.find(x => x.id === id) : null) || defaultProject;
       if (p) return jsonResponse(p);
+
       return jsonResponse({ error: "Project not found" }, 404);
     }
 
@@ -176,23 +220,44 @@
     if (urlStr === "/api/project" && method === "POST") {
       try {
         const body = typeof init.body === "string" ? JSON.parse(init.body) : {};
-        const projs = getStoredProjects();
-        const existingIdx = projs.findIndex(x => x.id === body.id);
-        if (existingIdx >= 0) {
-          projs[existingIdx] = { ...projs[existingIdx], ...body, updated_at: Date.now() };
-        } else {
-          projs.unshift({ ...body, updated_at: Date.now() });
+        if (demoDataset && demoDataset.projects && body.id) {
+          demoDataset.projects[body.id] = { ...demoDataset.projects[body.id], ...body, updated_at: Date.now() };
         }
-        saveStoredProjects(projs);
+        try {
+          if (body.id) localStorage.setItem(`kashva_proj_${body.id}`, JSON.stringify(body));
+        } catch (e) {}
         return jsonResponse({ ok: true, id: body.id });
       } catch (e) {
         return jsonResponse({ ok: false, error: e.message }, 500);
       }
     }
 
-    // 8. Folders (Stub)
+    // 8. Folders (Audiobook series)
+    if (urlStr.startsWith("/api/folder/master_cast")) {
+      const url = new URL(urlStr, window.location.origin);
+      const folderId = url.searchParams.get("folder_id") || url.searchParams.get("id");
+      const folder = (demoDataset && demoDataset.folders) ? demoDataset.folders.find(f => f.id === folderId) : null;
+      return jsonResponse(folder ? (folder.characters || []) : []);
+    }
+    if (urlStr.startsWith("/api/folder/director_settings")) {
+      const url = new URL(urlStr, window.location.origin);
+      const folderId = url.searchParams.get("folder_id") || url.searchParams.get("id");
+      const folder = (demoDataset && demoDataset.folders) ? demoDataset.folders.find(f => f.id === folderId) : null;
+      return jsonResponse(folder ? (folder.director_settings || {}) : {});
+    }
+    if (urlStr.startsWith("/api/folder?") || urlStr.startsWith("/api/folder/")) {
+      const url = new URL(urlStr, window.location.origin);
+      const id = url.searchParams.get("id");
+      const folders = (demoDataset && demoDataset.folders) ? demoDataset.folders : [];
+      const folder = folders.find(f => f.id === id);
+      if (folder) {
+        return jsonResponse(folder);
+      }
+      return jsonResponse({ error: "Folder not found" }, 404);
+    }
     if (urlStr.startsWith("/api/folders")) {
-      return jsonResponse([]);
+      const folders = (demoDataset && demoDataset.folders) ? demoDataset.folders : [];
+      return jsonResponse(folders);
     }
 
     // 9. Split Text / Auto Director
@@ -238,7 +303,6 @@
     try {
       return await originalFetch(resource, init);
     } catch (err) {
-      // In static demo mode, prevent network crash for missing backend endpoints
       if (urlStr.startsWith("/api/")) {
         console.warn(`[DemoBridge] Handled unmocked API: ${urlStr}`);
         return jsonResponse({ ok: true });

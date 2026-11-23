@@ -2,11 +2,16 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0; url=/app/">
-  <script>window.location.replace("/app/");</script>
+  <script>
+    const search = window.location.search || "";
+    window.location.replace("/app/studio/" + search);
+  </script>
   <title>Opening Kashva Voice Studio...</title>
 </head>
 <body style="background: #06080d; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-  <p>Opening Kashva Voice Studio... <a href="/app/" style="color: #60a5fa;">Click here if not redirected automatically</a></p>
+  <p>Opening Kashva Voice Studio... <a href="/app/studio/" id="fl" style="color: #60a5fa;">Click here if not redirected automatically</a></p>
+  <script>
+    document.getElementById("fl").href = "/app/studio/" + (window.location.search || "");
+  </script>
 </body>
 </html>

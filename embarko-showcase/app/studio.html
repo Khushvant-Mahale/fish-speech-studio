@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script>
+    const search = window.location.search || "";
+    window.location.replace("/app/studio/" + search);
+  </script>
+</head>
+<body style="background: #06080d; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
+  <p>Launching Studio... <a href="/app/studio/" id="fl" style="color: #60a5fa;">Click here if not redirected automatically</a></p>
+  <script>
+    document.getElementById("fl").href = "/app/studio/" + (window.location.search || "");
+  </script>
+</body>
+</html>

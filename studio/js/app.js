@@ -345,10 +345,14 @@ async function initApp() {
     // Check URL parameters for direct studio deep-linking
     const urlParams = new URLSearchParams(window.location.search);
     const projectId = urlParams.get("project") || urlParams.get("id");
-    const isStudioPath = window.location.pathname.startsWith("/studio");
+    const isStudioPath = window.location.pathname.includes("/studio");
 
     if (projectId) {
       await openProject(projectId, false);
+    } else if (isStudioPath) {
+      // Direct navigation to /app/studio without project param -> open default project in studio
+      const targetId = (state.projects && state.projects.length > 0) ? state.projects[0].id : "proj_eb9ab585";
+      await openProject(targetId, false);
     } else {
       switchToView("dashboard", false);
     }
@@ -357,11 +361,15 @@ async function initApp() {
     window.addEventListener("popstate", (e) => {
       const params = new URLSearchParams(window.location.search);
       const pid = params.get("project") || params.get("id");
+      const isStudio = window.location.pathname.includes("/studio");
       if (!state.currentUser) {
         switchToView("auth", false);
       } else if (pid && (!state.currentProject || state.currentProject.id !== pid)) {
         openProject(pid, false);
-      } else if (!pid) {
+      } else if (isStudio && (!state.currentProject || state.currentView !== "studio")) {
+        const targetId = (state.projects && state.projects.length > 0) ? state.projects[0].id : "proj_eb9ab585";
+        openProject(targetId, false);
+      } else if (!pid && !isStudio) {
         switchToView("dashboard", false);
       }
     });
@@ -1102,8 +1110,7 @@ function switchToView(viewName, updateUrl = true) {
     if (studioEl) studioEl.style.display = "none";
     document.title = "Story Projects — Kashva Voice";
     if (updateUrl) {
-      const appBase = window.location.pathname.startsWith("/app") ? "/app/" : (window.location.pathname.startsWith("/studio") ? "/studio/" : "/");
-      history.pushState({ view: "dashboard" }, "", appBase);
+      history.pushState({ view: "dashboard" }, "", "/app/");
     }
     loadProjectsList();
   } else {
@@ -1113,8 +1120,7 @@ function switchToView(viewName, updateUrl = true) {
     const projTitle = state.currentProject?.title || "Story Studio";
     document.title = `${projTitle} — Kashva Voice`;
     if (updateUrl && state.currentProject?.id) {
-      const appBase = window.location.pathname.startsWith("/app") ? "/app" : (window.location.pathname.startsWith("/studio") ? "/studio" : "/studio");
-      const studioUrl = `${appBase}?project=${encodeURIComponent(state.currentProject.id)}`;
+      const studioUrl = `/app/studio?project=${encodeURIComponent(state.currentProject.id)}`;
       history.pushState({ view: "studio", projectId: state.currentProject.id }, "", studioUrl);
     }
   }
@@ -1897,7 +1903,7 @@ function renderSingleProjectCard(p, isFolderView = false, chIdx = 0, totalInFold
 
   const durationStr = formatAudioDuration(p.total_duration);
   const dateStr = formatTimeAgo(p.updated_at ? p.updated_at * 1000 : null);
-  const studioUrl = `/studio?project=${encodeURIComponent(p.id)}`;
+  const studioUrl = `/app/studio?project=${encodeURIComponent(p.id)}`;
   const isPlaying = activePreviewProjectId === p.id && currentDashboardAudio && !currentDashboardAudio.paused;
 
   // Build cast voice badges
@@ -1980,7 +1986,7 @@ function renderSingleProjectCard(p, isFolderView = false, chIdx = 0, totalInFold
 
     <div class="project-card-footer">
       <div class="footer-left-actions">
-        <a href="${studioUrl}" target="_blank" class="open-proj-btn" style="${p.is_stub ? 'background: linear-gradient(135deg, #0284c7, #2563eb); border: none; font-weight: 700;' : ''}">${p.is_stub ? 'Direct in Studio ↗' : 'Open in Studio ↗'}</a>
+        <a href="${studioUrl}" onclick="event.preventDefault(); openProject('${p.id}');" class="open-proj-btn" style="${p.is_stub ? 'background: linear-gradient(135deg, #0284c7, #2563eb); border: none; font-weight: 700;' : ''}">${p.is_stub ? 'Direct in Studio ↗' : 'Open in Studio ↗'}</a>
         ${p.preview_audio ? `<button class="preview-audio-btn ${isPlaying ? 'playing' : ''}" title="Quick audition of rendered dialogue">${isPlaying ? '⏸ Pause' : '▶ Preview'}</button>` : `<button class="preview-audio-btn disabled" disabled title="Render sentences in studio to audition audio">🔇 No Audio</button>`}
       </div>
       <div class="footer-right-actions">
@@ -2000,7 +2006,7 @@ function renderSingleProjectCard(p, isFolderView = false, chIdx = 0, totalInFold
   // Click card body to open in studio
   card.addEventListener("click", (e) => {
     if (e.target.closest("button") || e.target.closest("a")) return;
-    window.open(studioUrl, "_blank");
+    openProject(p.id);
   });
 
   // Reorder buttons
