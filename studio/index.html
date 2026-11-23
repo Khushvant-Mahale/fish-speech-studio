@@ -276,12 +276,22 @@
         <input type="text" class="project-title-input" id="project-title" value="The Endless Eclipse">
       </div>
 
-      <div class="nav-center">
+      <div class="nav-center" style="display: flex; align-items: center; gap: 10px;">
         <button class="engine-badge-btn" id="btn-engine-status" onclick="openColabModal()" title="View Audio Plan & Voice Quota">
           <span class="engine-dot"></span>
           <span class="engine-label" id="studio-engine-label">⭐ Author Plan</span>
           <span class="engine-config-tag" id="studio-quota-tag">100K words</span>
         </button>
+
+        <!-- Fast Draft vs Studio Master Switch -->
+        <div id="draft-master-toggle-wrapper" style="display: flex; align-items: center; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 2px; gap: 2px;">
+          <button type="button" id="btn-mode-master" onclick="setStudioDraftMode('master')" class="draft-toggle-btn active" style="padding: 4px 11px; font-size: 11px; font-weight: 700; border-radius: 16px; border: none; cursor: pointer; transition: all 0.2s; background: linear-gradient(135deg, #8b5cf6, #3b82f6); color: #fff;" title="Studio Master Mode: Renders with assigned character engines (Drama 3, ElevenLabs, Edge TTS, etc.)">
+            🎭 Studio Master
+          </button>
+          <button type="button" id="btn-mode-draft" onclick="setStudioDraftMode('draft')" class="draft-toggle-btn" style="padding: 4px 11px; font-size: 11px; font-weight: 600; border-radius: 16px; border: none; cursor: pointer; transition: all 0.2s; background: transparent; color: var(--text-muted);" title="Fast Draft Mode: Renders instantly on client WebGPU (Kokoro 82M • 100% Free &amp; 0s queue) to check dialogue and pacing">
+            ⚡ Fast Draft (WebGPU)
+          </button>
+        </div>
       </div>
 
       <div class="nav-right">
@@ -1102,8 +1112,17 @@
           <button type="button" class="drawer-tab-btn" id="tab-nav-kokoro" onclick="switchDrawerMode('kokoro')" title="Kokoro 82M On-Device WebGPU Voices">
             ⚡ Kokoro 82M (44)
           </button>
-          <button type="button" class="drawer-tab-btn" id="tab-nav-fish-speech" onclick="switchDrawerMode('fish_speech')" title="Fish Speech Drama 3 Built-in Voices (30)">
-            🌟 Fish Speech (30)
+          <button type="button" class="drawer-tab-btn" id="tab-nav-fish-speech" onclick="switchDrawerMode('fish_speech')" title="Fish Speech Drama 3 Built-in Voices (28)">
+            🎭 Fish Speech (28)
+          </button>
+          <button type="button" class="drawer-tab-btn" id="tab-nav-elevenlabs" onclick="switchDrawerMode('elevenlabs')" title="ElevenLabs Premier Voices (v4 / Flash)">
+            🌟 ElevenLabs (8)
+          </button>
+          <button type="button" class="drawer-tab-btn" id="tab-nav-cartesia" onclick="switchDrawerMode('cartesia')" title="Cartesia Sonic Ultra-Fast Voices (Sonic 3.6/4)">
+            ⚡ Cartesia (5)
+          </button>
+          <button type="button" class="drawer-tab-btn" id="tab-nav-openai" onclick="switchDrawerMode('openai')" title="OpenAI Audio Natural Voices (gpt-4o-mini / tts-1)">
+            🤖 OpenAI (6)
           </button>
           <button type="button" class="drawer-tab-btn active" id="tab-nav-fish" onclick="switchDrawerMode('fish')" title="Fish Audio 2M+ Community AI Models">
             ☁️ Fish Audio (2M+)

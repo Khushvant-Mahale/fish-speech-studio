@@ -764,6 +764,27 @@ async function openProject(projectId, updateUrl = true) {
     state.redoStack = [];
     updateUndoRedoUI();
     loadSavedCharactersForCurrentProject();
+
+    // Multi-Engine Character Continuity Auto-Healing:
+    // Ensure every block has an engine and voice aligned to its character, preventing any orphaned or mismatched blocks
+    if (state.currentProject && state.currentProject.blocks) {
+      const charMap = {};
+      (state.savedCharacters || []).forEach(c => { if (c.id) charMap[c.id] = c; });
+      state.currentProject.blocks.forEach(block => {
+        const char = block.character_id ? charMap[block.character_id] : (block.speaker ? (state.savedCharacters || []).find(c => c.name === block.speaker) : null);
+        if (char) {
+          if (!block.character_id) block.character_id = char.id;
+          if (!block.engine && char.engine) block.engine = char.engine;
+          if (!block.is_custom_edited) {
+            if (char.engine && block.engine !== char.engine) block.engine = char.engine;
+            if (char.voice_id && block.voice_id !== char.voice_id) block.voice_id = char.voice_id;
+          }
+        } else if (!block.engine) {
+          block.engine = state.currentProject.engine || "fish_s2";
+        }
+      });
+    }
+
     if (state.currentProject && state.currentProject.blocks) {
       state.currentProject.blocks.forEach(block => {
         // Sanitize any stale blob: URLs from previous browser sessions
@@ -846,10 +867,51 @@ function debouncedSave() {
   saveTimeout = setTimeout(saveCurrentProject, 600);
 }
 
+function setStudioDraftMode(mode = "master") {
+  state.studioMode = (mode === "draft") ? "draft" : "master";
+  const btnMaster = document.getElementById("btn-mode-master");
+  const btnDraft = document.getElementById("btn-mode-draft");
+
+  if (state.studioMode === "draft") {
+    if (btnDraft) {
+      btnDraft.classList.add("active");
+      btnDraft.style.background = "linear-gradient(135deg, #10b981, #059669)";
+      btnDraft.style.color = "#fff";
+      btnDraft.style.fontWeight = "700";
+    }
+    if (btnMaster) {
+      btnMaster.classList.remove("active");
+      btnMaster.style.background = "transparent";
+      btnMaster.style.color = "var(--text-muted)";
+      btnMaster.style.fontWeight = "600";
+    }
+    if (window.KokoroClient && typeof window.KokoroClient.setClientKokoroEnabled === "function") {
+      window.KokoroClient.setClientKokoroEnabled(true);
+    }
+    showToast("⚡ Fast Draft Mode Active: Rendering dialogue instantly on WebGPU (Kokoro 82M) • 100% Free & 0s queue");
+  } else {
+    if (btnMaster) {
+      btnMaster.classList.add("active");
+      btnMaster.style.background = "linear-gradient(135deg, #8b5cf6, #3b82f6)";
+      btnMaster.style.color = "#fff";
+      btnMaster.style.fontWeight = "700";
+    }
+    if (btnDraft) {
+      btnDraft.classList.remove("active");
+      btnDraft.style.background = "transparent";
+      btnDraft.style.color = "var(--text-muted)";
+      btnDraft.style.fontWeight = "600";
+    }
+    showToast("🎭 Studio Master Mode Active: Rendering with character cast engines (Drama 3, ElevenLabs, Edge TTS)");
+  }
+}
+window.setStudioDraftMode = setStudioDraftMode;
+
 function createBlockSynthesizePayload(block, forceRefresh = false) {
-  const activeEng = block.engine || state.activeEngine || "fish_s2";
+  const isDraft = (state.studioMode === "draft");
   const char = getCharacterById(block.character_id || block.speaker);
-  let chosenVoiceId = block.voice_id || (char && (char.voice_id || char.assigned_voice_id));
+  let activeEng = isDraft ? "kokoro" : (block.engine || (char && char.engine) || state.activeEngine || "fish_s2");
+  let chosenVoiceId = isDraft ? "af_bella" : (block.voice_id || (char && (char.voice_id || char.assigned_voice_id)));
 
   // Voice compatibility guard per engine
   if (activeEng === "edge_tts") {
@@ -859,6 +921,18 @@ function createBlockSynthesizePayload(block, forceRefresh = false) {
   } else if (activeEng === "kokoro") {
     if (!chosenVoiceId || chosenVoiceId.startsWith("fish_") || chosenVoiceId.includes("Neural")) {
       chosenVoiceId = "af_bella";
+    }
+  } else if (activeEng === "elevenlabs") {
+    if (!chosenVoiceId || chosenVoiceId.includes("Neural") || chosenVoiceId.startsWith("af_") || chosenVoiceId.startsWith("am_")) {
+      chosenVoiceId = "21m00Tcm4TlvDq8ikWAM";
+    }
+  } else if (activeEng === "cartesia") {
+    if (!chosenVoiceId || chosenVoiceId.includes("Neural") || chosenVoiceId.startsWith("af_") || chosenVoiceId.startsWith("am_")) {
+      chosenVoiceId = "a0e99841-438c-4a64-b679-ae501e7d6091";
+    }
+  } else if (activeEng === "openai") {
+    if (!chosenVoiceId || chosenVoiceId.includes("Neural") || chosenVoiceId.startsWith("af_") || chosenVoiceId.startsWith("am_")) {
+      chosenVoiceId = "alloy";
     }
   } else if (activeEng === "fish_s2") {
     if (chosenVoiceId && (chosenVoiceId.includes("Neural") || chosenVoiceId.startsWith("af_") || chosenVoiceId.startsWith("am_"))) {
@@ -8115,10 +8189,11 @@ function renderInspector() {
   }
   const block = state.currentProject.blocks[state.activeBlockIndex];
   if (!block) return;
-  const voice = getVoiceById(block.voice_id);
 
   // Multi-Engine Contextual Adaptation - resolves block's character/engine cleanly
-  const char = block.character_id ? getCharacterById(block.character_id) : null;
+  const char = block.character_id ? getCharacterById(block.character_id) : (block.speaker ? getCharacterById(block.speaker) : null);
+  const targetVoiceId = block.voice_id || (char && (char.voice_id || char.assigned_voice_id));
+  const voice = getVoiceById(targetVoiceId);
   const blockEngine = block.engine || (char && char.engine) || (voice && voice.engine) || state.currentProject?.engine || "fish_s2";
 
   // Update Cast Tab Model Selection Dropdown Trigger & Tags
@@ -8176,10 +8251,20 @@ function renderInspector() {
   }
 
   const nameEl = document.getElementById("inspector-voice-name");
-  if (nameEl) nameEl.textContent = voice.name || "Voice";
+  if (nameEl) {
+    if (char && (!voice.name || voice.name === voice.id || (typeof voice.name === 'string' && voice.name.startsWith("fish_")))) {
+      nameEl.textContent = `${char.name} (${voice.timbre || 'Cast Voice'})`;
+    } else {
+      nameEl.textContent = voice.name || "Voice";
+    }
+  }
 
   const subEl = document.getElementById("inspector-voice-sub");
-  if (subEl) subEl.textContent = `${voice.gender || ''} • ${voice.accent || ''} • ${voice.timbre || ''}`;
+  if (subEl) {
+    const engLabel = (engineDefs[blockEngine] || {}).name || blockEngine;
+    const metaParts = [engLabel, voice.gender, voice.accent, voice.timbre].filter(Boolean);
+    subEl.textContent = metaParts.join(" • ");
+  }
 
   // Sliders
   const volSlider = document.getElementById("slider-volume");
@@ -9630,10 +9715,24 @@ function openVoiceDrawer(targetBlockIdx = null, preferredMode = null) {
       preferredMode = "kokoro";
     } else if (eng === "edge_tts") {
       preferredMode = "edge";
+    } else if (eng === "elevenlabs") {
+      preferredMode = "elevenlabs";
+    } else if (eng === "cartesia") {
+      preferredMode = "cartesia";
+    } else if (eng === "openai") {
+      preferredMode = "openai";
     } else {
       preferredMode = "fish_speech";
     }
   }
+
+  // Filter drawer tabs according to project tier
+  const isPro = (state.currentProject?.tier === "cinema_pro");
+  const proTabs = ["tab-nav-elevenlabs", "tab-nav-cartesia", "tab-nav-openai"];
+  proTabs.forEach(tabId => {
+    const el = document.getElementById(tabId);
+    if (el) el.style.display = isPro ? "inline-flex" : "none";
+  });
 
   switchDrawerMode(preferredMode);
 }
@@ -9641,8 +9740,13 @@ function openVoiceDrawer(targetBlockIdx = null, preferredMode = null) {
 function openVoiceDrawerForCharacter(preferredMode = null) {
   state.selectingVoiceForChar = true;
   if (!preferredMode) {
-    const eng = state.activeEngine || "fish_s2";
-    preferredMode = eng === "kokoro" ? "kokoro" : (eng === "edge_tts" ? "edge" : "fish_speech");
+    const eng = state.editingCharModalEngine || state.activeEngine || "fish_s2";
+    if (eng === "kokoro") preferredMode = "kokoro";
+    else if (eng === "edge_tts") preferredMode = "edge";
+    else if (eng === "elevenlabs") preferredMode = "elevenlabs";
+    else if (eng === "cartesia") preferredMode = "cartesia";
+    else if (eng === "openai") preferredMode = "openai";
+    else preferredMode = "fish_speech";
   }
   openVoiceDrawer(null, preferredMode);
 }
@@ -9737,7 +9841,22 @@ function switchDrawerMode(mode = "fish") {
     renderVoiceList();
   } else if (mode === "fish_speech") {
     if (viewBrowse) viewBrowse.classList.add("active");
-    if (titleEl) titleEl.textContent = "🌟 Fish Speech Drama 3 Library";
+    if (titleEl) titleEl.textContent = "🎭 Fish Speech Drama 3 Library";
+    if (backBtn) backBtn.style.display = "none";
+    renderVoiceList();
+  } else if (mode === "elevenlabs") {
+    if (viewBrowse) viewBrowse.classList.add("active");
+    if (titleEl) titleEl.textContent = "🌟 ElevenLabs Premier Voices (v4 / Flash)";
+    if (backBtn) backBtn.style.display = "none";
+    renderVoiceList();
+  } else if (mode === "cartesia") {
+    if (viewBrowse) viewBrowse.classList.add("active");
+    if (titleEl) titleEl.textContent = "⚡ Cartesia Sonic Ultra-Fast Voices (Sonic 3.6/4)";
+    if (backBtn) backBtn.style.display = "none";
+    renderVoiceList();
+  } else if (mode === "openai") {
+    if (viewBrowse) viewBrowse.classList.add("active");
+    if (titleEl) titleEl.textContent = "🤖 OpenAI Audio Voices (gpt-4o-mini / tts-1)";
     if (backBtn) backBtn.style.display = "none";
     renderVoiceList();
   } else if (mode === "fish") {
@@ -10373,6 +10492,12 @@ function renderVoiceList() {
     baseVoices = (state.voices || []).filter(v => (v.engine === "kokoro") || (v.id && (v.id.startsWith("am_") || v.id.startsWith("af_") || v.id.startsWith("bm_") || v.id.startsWith("bf_") || v.id.startsWith("blend_") || v.id.startsWith("jf_") || v.id.startsWith("jm_") || v.id.startsWith("zf_") || v.id.startsWith("zm_"))));
   } else if (_drawerCurrentMode === "fish_speech" || _drawerCurrentMode === "fish_drama") {
     baseVoices = (state.voices || []).filter(v => (v.engine === "fish_s2") || (!v.engine && !v.id?.startsWith("am_") && !v.id?.startsWith("af_") && !v.id?.startsWith("bm_") && !v.id?.startsWith("bf_") && !v.id?.includes("Neural") && !v.is_custom));
+  } else if (_drawerCurrentMode === "elevenlabs") {
+    baseVoices = (state.voices || []).filter(v => v.engine === "elevenlabs");
+  } else if (_drawerCurrentMode === "cartesia") {
+    baseVoices = (state.voices || []).filter(v => v.engine === "cartesia");
+  } else if (_drawerCurrentMode === "openai") {
+    baseVoices = (state.voices || []).filter(v => v.engine === "openai");
   } else if (_drawerCurrentMode === "browse") {
     // Saved / Custom Library voices
     baseVoices = (state.voices || []).filter(v => v.is_custom || v.is_custom_ref || (v.id && (v.id.startsWith("custom_") || v.id.startsWith("custom_lib_"))) || (v.genre && v.genre.includes("Library")));
@@ -10457,6 +10582,12 @@ function renderVoiceList() {
       countBadge.textContent = `${list.length} WebGPU Voices`;
     } else if (_drawerCurrentMode === "fish_speech") {
       countBadge.textContent = `${list.length} Drama Voices`;
+    } else if (_drawerCurrentMode === "elevenlabs") {
+      countBadge.textContent = `${list.length} ElevenLabs Voices`;
+    } else if (_drawerCurrentMode === "cartesia") {
+      countBadge.textContent = `${list.length} Cartesia Sonic Voices`;
+    } else if (_drawerCurrentMode === "openai") {
+      countBadge.textContent = `${list.length} OpenAI Voices`;
     } else if (_drawerCurrentMode === "browse") {
       countBadge.textContent = `${list.length} Saved Voices`;
     } else {
@@ -10475,13 +10606,22 @@ function renderVoiceList() {
     const sampleUrl = v.sample_url || (v.reference_audio ? (v.reference_audio.startsWith("/") ? v.reference_audio : "/" + v.reference_audio) : `/api/audio/sample_${v.id}.wav`);
     const isCustomVoice = v.is_custom || v.is_custom_ref || (v.id && (v.id.startsWith("custom_") || v.id.startsWith("custom_lib_")));
 
+    const isEleven = (v.engine === "elevenlabs");
+    const isCartesia = (v.engine === "cartesia");
+    const isOpenAI = (v.engine === "openai");
     const isEdge = (v.engine === "edge_tts") || (v.id && v.id.includes("Neural"));
     const isKokoro = (v.engine === "kokoro") || (v.id && (v.id.startsWith("am_") || v.id.startsWith("af_") || v.id.startsWith("bm_") || v.id.startsWith("bf_") || v.id.startsWith("blend_")));
-    const engineBadge = isEdge
-      ? `<span class="badge-mini" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; font-size: 10px; margin-left: 5px; font-weight: 700;">🌐 EDGE TTS</span>`
-      : (isKokoro
-        ? `<span class="badge-mini" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; font-size: 10px; margin-left: 5px; font-weight: 700;">⚡ KOKORO 82M</span>`
-        : `<span class="badge-mini" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 10px; margin-left: 5px; font-weight: 700;">🌟 FISH DRAMA 3</span>`);
+    const engineBadge = isEleven
+      ? `<span class="badge-mini" style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd; font-size: 10px; margin-left: 5px; font-weight: 700;">🌟 ELEVENLABS</span>`
+      : (isCartesia
+        ? `<span class="badge-mini" style="background: rgba(236, 72, 153, 0.2); color: #f472b6; font-size: 10px; margin-left: 5px; font-weight: 700;">⚡ CARTESIA</span>`
+        : (isOpenAI
+          ? `<span class="badge-mini" style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; font-size: 10px; margin-left: 5px; font-weight: 700;">🤖 OPENAI</span>`
+          : (isEdge
+            ? `<span class="badge-mini" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; font-size: 10px; margin-left: 5px; font-weight: 700;">🌐 EDGE TTS</span>`
+            : (isKokoro
+              ? `<span class="badge-mini" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; font-size: 10px; margin-left: 5px; font-weight: 700;">⚡ KOKORO 82M</span>`
+              : `<span class="badge-mini" style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; font-size: 10px; margin-left: 5px; font-weight: 700;">🎭 FISH DRAMA 3</span>`))));
 
     card.innerHTML = `
       <div class="voice-card-left">
@@ -10642,6 +10782,10 @@ async function playPreRenderedSample(sampleUrl, btnEl, voiceObj = null) {
 
 function assignVoiceToTarget(voice) {
   if (state.selectingVoiceForChar) {
+    const vEngine = voice.engine || (voice.id?.includes("Neural") ? "edge_tts" : (voice.id?.startsWith("af_") || voice.id?.startsWith("am_") ? "kokoro" : "fish_s2"));
+    if (typeof handleCharModalEngineChange === "function") {
+      handleCharModalEngineChange(vEngine);
+    }
     const select = document.getElementById("char-modal-voice-select");
     if (select) {
       let opt = Array.from(select.options).find(o => o.value === voice.id);
@@ -10655,7 +10799,7 @@ function assignVoiceToTarget(voice) {
     }
     updateCharModalVoiceDetails(voice.id);
     closeVoiceDrawer();
-    showToast(`✓ Selected "${voice.name}" for character!`);
+    showToast(`✓ Selected "${voice.name}" (${vEngine}) for character!`);
     return;
   }
 
