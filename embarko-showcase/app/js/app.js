@@ -9229,6 +9229,16 @@ async function playBlockAudio(idx, targetOffset = 0, isAutoContinuation = false,
       }
     }
 
+    state.storyAudioPlayer.onerror = (e) => {
+      console.warn("[AudioPlayer] Error playing audio:", targetUrl, e);
+      if (!targetUrl.includes("demo_clip.wav")) {
+        console.log("[AudioPlayer] Falling back to demo_clip.wav");
+        startPlayback("/api/audio/demo_clip.wav", 2.4, true);
+      } else {
+        updatePlaybackUI(idx, false);
+      }
+    };
+
     state.isPlayingStory = true;
     const playPromise = state.storyAudioPlayer.play();
     if (playPromise !== undefined) {
@@ -14336,12 +14346,41 @@ async function switchGlobalActiveEngine(engineChoice = "fish_s2") {
   if (zeroShotSection) zeroShotSection.style.display = "block";
 }
 
+function updateEngineModelDropdownUI() {
+  const targetIdx = (typeof state.activeBlockIndex === "number" && state.activeBlockIndex >= 0) ? state.activeBlockIndex : 0;
+  const targetBlock = state.currentProject?.blocks?.[targetIdx];
+  const curEngine = targetBlock?.engine || state.activeEngine || state.currentProject?.engine || "fish_s2";
+  const defaultModels = {
+    fish_s2: "drama3",
+    elevenlabs: "v4",
+    cartesia: "sonic_4",
+    openai: "gpt-4o-mini-tts",
+    edge_tts: "edge_neural",
+    kokoro: "kokoro_webgpu"
+  };
+  let curModel = targetBlock?.model || state.activeModel || state.currentProject?.model || defaultModels[curEngine] || "drama3";
+  if (curModel === "drama-3") curModel = "drama3";
+  if (curModel === "s2-pro") curModel = "s2_pro";
+
+  document.querySelectorAll("#engine-model-dropdown .engine-model-subitem").forEach(item => {
+    const itemEng = item.dataset.engine;
+    const itemModel = item.dataset.model;
+    const isThis = (itemEng === curEngine) && (itemModel === curModel);
+    item.classList.toggle("active", isThis);
+    const checkEl = item.querySelector(".engine-model-check");
+    if (checkEl) checkEl.style.display = isThis ? "inline" : "none";
+  });
+}
+
 function toggleEngineModelDropdown(force) {
   const dd = document.getElementById("engine-model-dropdown");
   if (!dd) return;
   const isCurrentlyOpen = dd.style.display === "block";
   const shouldOpen = typeof force === "boolean" ? force : !isCurrentlyOpen;
   dd.style.display = shouldOpen ? "block" : "none";
+  if (shouldOpen) {
+    updateEngineModelDropdownUI();
+  }
 }
 
 function selectEngineOption(newEngine, newModel = null) {

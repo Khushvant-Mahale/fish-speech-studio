@@ -18,6 +18,15 @@
   let defaultProject = null;
   let demoDataset = null;
 
+  // Register audio mock Service Worker to seamlessly intercept any <audio src="..."> 404s
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    });
+  }
+
   // Generate a valid in-memory PCM 16-bit WAV file so browser <audio> plays smoothly with 0 console 404s
   function createDummyWav(durationSeconds = 1.8, sampleRate = 24000) {
     const numSamples = Math.floor(sampleRate * durationSeconds);
@@ -67,7 +76,7 @@
         task_count: 24500,
         score: 4.95,
         is_official: true,
-        sample_audio: "/api/audio/sample_freeman.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "In the depth of winter, I finally learned that within me there lay an invincible summer."
       },
       {
@@ -81,7 +90,7 @@
         task_count: 18200,
         score: 4.88,
         is_official: false,
-        sample_audio: "/api/audio/sample_vex.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "Jack in, keep your head down, and don't look back."
       },
       {
@@ -95,7 +104,7 @@
         task_count: 15400,
         score: 4.92,
         is_official: true,
-        sample_audio: "/api/audio/sample_alastair.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "History is not merely recorded; it is whispered by the stones themselves."
       }
     ],
@@ -111,7 +120,7 @@
         task_count: 31000,
         score: 4.97,
         is_official: true,
-        sample_audio: "/api/audio/sample_atticus.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "The city was bleeding neon, and midnight was just getting started."
       },
       {
@@ -125,7 +134,7 @@
         task_count: 19800,
         score: 4.89,
         is_official: false,
-        sample_audio: "/api/audio/sample_seraphina.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "The ancient runes still remember the songs of starlight."
       }
     ],
@@ -141,7 +150,7 @@
         task_count: 12200,
         score: 4.85,
         is_official: true,
-        sample_audio: "/api/audio/sample_hastings.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "Let us turn our attention to the second law of thermodynamics."
       },
       {
@@ -155,7 +164,7 @@
         task_count: 16500,
         score: 4.91,
         is_official: false,
-        sample_audio: "/api/audio/sample_clara.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "Once upon a time, far beyond the sleepy hills, the little owl took flight."
       }
     ],
@@ -171,7 +180,7 @@
         task_count: 22100,
         score: 4.93,
         is_official: true,
-        sample_audio: "/api/audio/sample_ren.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "You think that's enough to stop me? We're just warming up!"
       },
       {
@@ -185,7 +194,7 @@
         task_count: 17400,
         score: 4.87,
         is_official: false,
-        sample_audio: "/api/audio/sample_yuki.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "It's not like I waited around for you or anything, idiot!"
       }
     ],
@@ -201,7 +210,7 @@
         task_count: 14100,
         score: 4.90,
         is_official: false,
-        sample_audio: "/api/audio/sample_krag.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "Sound the war horns! Today, we break their gates!"
       },
       {
@@ -215,7 +224,7 @@
         task_count: 27900,
         score: 4.98,
         is_official: true,
-        sample_audio: "/api/audio/sample_titan.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "In a world without heroes, one choice changes everything."
       }
     ],
@@ -231,7 +240,7 @@
         task_count: 11200,
         score: 4.82,
         is_official: false,
-        sample_audio: "/api/audio/sample_garrick.wav",
+        sample_audio: "/api/audio/demo_clip.wav",
         sample_text: "Got some rare treasures from the southern wastes, stranger!"
       }
     ]
@@ -334,11 +343,27 @@
   }
 
   window.fetch = async function(resource, init = {}) {
-    const urlStr = typeof resource === "string" ? resource : (resource ? resource.url : "");
+    const rawUrl = typeof resource === "string" ? resource : (resource ? resource.url : "");
+    let path = rawUrl;
+    try {
+      const parsed = new URL(rawUrl, window.location.origin);
+      if (parsed.origin === window.location.origin) {
+        path = parsed.pathname + parsed.search;
+      }
+    } catch (e) {}
     const method = (init.method || "GET").toUpperCase();
 
-    // 1. WAV Audio files mock: return in-memory playable PCM audio directly without 404
-    if (urlStr.includes("/api/audio/") || urlStr.endsWith(".wav")) {
+    // 1. WAV Audio files mock: return in-memory playable PCM audio if static file isn't found
+    if ((path.includes("/api/audio/") || rawUrl.includes("/api/audio/")) || (path.endsWith(".wav") || rawUrl.endsWith(".wav"))) {
+      try {
+        const res = await originalFetch(resource, init);
+        if (res.ok) return res;
+      } catch (e) {}
+      // Fallback: return demo_clip.wav or in-memory generated PCM buffer
+      try {
+        const fallbackRes = await originalFetch("/api/audio/demo_clip.wav");
+        if (fallbackRes.ok) return fallbackRes;
+      } catch (e) {}
       const wavBuffer = createDummyWav(2.0);
       return new Response(wavBuffer, {
         status: 200,
@@ -347,7 +372,7 @@
     }
 
     // Pass through non-API resources immediately (scripts, stylesheets, fonts, icons)
-    if (!urlStr.startsWith("/api/")) {
+    if (!path.startsWith("/api/")) {
       return originalFetch.apply(window, arguments);
     }
 
@@ -355,7 +380,7 @@
     await dataReadyPromise;
 
     // 2. Auth check -> Always logged in as Contest Judge (Pro Tier)
-    if (urlStr.startsWith("/api/auth/me")) {
+    if (path.startsWith("/api/auth/me")) {
       return jsonResponse({
         logged_in: true,
         user: {
@@ -369,7 +394,7 @@
     }
 
     // 3. Tier status
-    if (urlStr.startsWith("/api/tier/status")) {
+    if (path.startsWith("/api/tier/status")) {
       return jsonResponse({
         tier: "pro",
         active_tier: "pro",
@@ -380,8 +405,8 @@
     }
 
     // 4. Voices catalogue: returns all unified voices (Fish + Kokoro + Edge + ElevenLabs + Cartesia + OpenAI)
-    if (urlStr.startsWith("/api/voices")) {
-      const url = new URL(urlStr, window.location.origin);
+    if (path.startsWith("/api/voices")) {
+      const url = new URL(path, window.location.origin);
       const engineParam = (url.searchParams.get("engine") || "").toLowerCase();
 
       const allVoices = (cachedUnifiedVoices && cachedUnifiedVoices.length > 0)
@@ -411,7 +436,7 @@
     }
 
     // 5. Config
-    if (urlStr.startsWith("/api/config")) {
+    if (path.startsWith("/api/config")) {
       if (method === "POST") {
         try {
           const body = typeof init.body === "string" ? JSON.parse(init.body) : {};
@@ -427,14 +452,14 @@
     }
 
     // 6. Projects list
-    if (urlStr.startsWith("/api/projects")) {
+    if (path.startsWith("/api/projects")) {
       const projs = getStoredProjects();
       return jsonResponse(projs);
     }
 
     // 7. Single Project GET
-    if (urlStr.startsWith("/api/project?") || urlStr.startsWith("/api/project/")) {
-      const url = new URL(urlStr, window.location.origin);
+    if (path.startsWith("/api/project?") || path.startsWith("/api/project/")) {
+      const url = new URL(path, window.location.origin);
       const id = url.searchParams.get("id");
 
       // Check user customized version in localStorage
@@ -465,7 +490,7 @@
     }
 
     // 8. Project Save (POST)
-    if (urlStr === "/api/project" && method === "POST") {
+    if (path === "/api/project" && method === "POST") {
       try {
         const body = typeof init.body === "string" ? JSON.parse(init.body) : {};
         if (demoDataset && demoDataset.projects && body.id) {
@@ -481,20 +506,20 @@
     }
 
     // 9. Folders (Audiobook series)
-    if (urlStr.startsWith("/api/folder/master_cast")) {
-      const url = new URL(urlStr, window.location.origin);
+    if (path.startsWith("/api/folder/master_cast")) {
+      const url = new URL(path, window.location.origin);
       const folderId = url.searchParams.get("folder_id") || url.searchParams.get("id");
       const folder = (demoDataset && demoDataset.folders) ? demoDataset.folders.find(f => f.id === folderId) : null;
       return jsonResponse(folder ? (folder.characters || []) : []);
     }
-    if (urlStr.startsWith("/api/folder/director_settings")) {
-      const url = new URL(urlStr, window.location.origin);
+    if (path.startsWith("/api/folder/director_settings")) {
+      const url = new URL(path, window.location.origin);
       const folderId = url.searchParams.get("folder_id") || url.searchParams.get("id");
       const folder = (demoDataset && demoDataset.folders) ? demoDataset.folders.find(f => f.id === folderId) : null;
       return jsonResponse(folder ? (folder.director_settings || {}) : {});
     }
-    if (urlStr.startsWith("/api/folder?") || urlStr.startsWith("/api/folder/")) {
-      const url = new URL(urlStr, window.location.origin);
+    if (path.startsWith("/api/folder?") || path.startsWith("/api/folder/")) {
+      const url = new URL(path, window.location.origin);
       const id = url.searchParams.get("id");
       const folders = (demoDataset && demoDataset.folders) ? demoDataset.folders : [];
       const folder = folders.find(f => f.id === id);
@@ -503,20 +528,20 @@
       }
       return jsonResponse({ error: "Folder not found" }, 404);
     }
-    if (urlStr.startsWith("/api/folders")) {
+    if (path.startsWith("/api/folders")) {
       const folders = (demoDataset && demoDataset.folders) ? demoDataset.folders : [];
       return jsonResponse(folders);
     }
 
     // 10. Fish Audio Discovery (2M+ Models) Explore & Search
-    if (urlStr.startsWith("/api/fish_library/explore")) {
+    if (path.startsWith("/api/fish_library/explore")) {
       return jsonResponse(fishExploreData);
     }
-    if (urlStr.startsWith("/api/fish_library/search")) {
-      const url = new URL(urlStr, window.location.origin);
+    if (path.startsWith("/api/fish_library/search")) {
+      const url = new URL(path, window.location.origin);
       const q = (url.searchParams.get("q") || url.searchParams.get("title") || "").toLowerCase();
       const tag = (url.searchParams.get("tag") || "").toLowerCase();
-      
+
       const allItems = [
         ...fishExploreData.trending,
         ...fishExploreData.recommended,
@@ -547,7 +572,7 @@
 
       return jsonResponse({ items: filtered, total: filtered.length });
     }
-    if (urlStr.startsWith("/api/fish_library/install_voice")) {
+    if (path.startsWith("/api/fish_library/install_voice")) {
       try {
         const body = typeof init.body === "string" ? JSON.parse(init.body) : {};
         const modelId = body.model_id || body.id || "mod_custom";
@@ -570,7 +595,7 @@
     }
 
     // 11. AI Director Agent Settings & Direct
-    if (urlStr.startsWith("/api/ai_director/config")) {
+    if (path.startsWith("/api/ai_director/config")) {
       if (method === "POST") return jsonResponse({ ok: true, message: "AI Director settings saved." });
       return jsonResponse({
         default_provider: "gemini",
@@ -582,7 +607,7 @@
         openai_masked_key: ""
       });
     }
-    if (urlStr.startsWith("/api/ai_director/chat") || urlStr.startsWith("/api/ai_director/direct")) {
+    if (path.startsWith("/api/ai_director/chat") || path.startsWith("/api/ai_director/direct")) {
       return jsonResponse({
         ok: true,
         reply: "I've reviewed the dialogue pace and emotional arc. The cast balance is well structured, and dynamic acting tags have been optimized for cinematic playback.",
@@ -591,37 +616,46 @@
     }
 
     // 12. Audio Cache Check
-    if (urlStr.startsWith("/api/check_cache") && method === "POST") {
+    if (path.startsWith("/api/check_cache") && method === "POST") {
       try {
         const body = typeof init.body === "string" ? JSON.parse(init.body) : {};
         const raw_blocks = body.blocks || (body.block ? [body.block] : []);
-        const results = raw_blocks.map(b => ({
-          index: b.index,
-          cached: true,
-          audio_url: b.cachedAudioUrl || b.audio_url || `/api/audio/${b.hash || 'demo_clip'}.wav`,
-          hash: b.hash || "demo_clip",
-          engine: b.engine || "fish_s2",
-          duration: b.duration || 2.4
-        }));
+        const results = raw_blocks.map(b => {
+          const rawUrl = b.cachedAudioUrl || b.audio_url || "";
+          let finalUrl = rawUrl;
+          if (!finalUrl && b.hash) {
+            finalUrl = `/api/audio/${b.hash}.wav`;
+          }
+          if (!finalUrl) {
+            finalUrl = `/api/audio/demo_clip.wav`;
+          }
+          return {
+            index: b.index,
+            cached: true,
+            audio_url: finalUrl,
+            hash: b.hash || "demo_clip",
+            engine: b.engine || "fish_s2",
+            duration: b.duration || 2.4
+          };
+        });
         return jsonResponse({ results });
       } catch (e) {
         return jsonResponse({ results: [] });
       }
     }
 
-    // 13. Synthesis Mock
-    if (urlStr.startsWith("/api/synthesize_block") && method === "POST") {
-      const hash = `synth_${Date.now()}`;
+    // 13. Synthesis Mock -> Returns real demo_clip.wav
+    if (path.startsWith("/api/synthesize_block") && method === "POST") {
       return jsonResponse({
         ok: true,
-        audio_url: `/api/audio/${hash}.wav`,
-        hash: hash,
+        audio_url: "/api/audio/demo_clip.wav",
+        hash: "demo_clip",
         duration: 2.4
       });
     }
 
     // 14. Split Text / Auto Director
-    if (urlStr.startsWith("/api/split_text") && method === "POST") {
+    if (path.startsWith("/api/split_text") && method === "POST") {
       try {
         const body = typeof init.body === "string" ? JSON.parse(init.body) : {};
         const text = body.text || "";
@@ -655,12 +689,12 @@
     }
 
     // 15. Cloud & Heartbeat checks
-    if (urlStr.includes("kaggle") || urlStr.includes("remote_worker") || urlStr.includes("heartbeat")) {
+    if (path.includes("kaggle") || path.includes("remote_worker") || path.includes("heartbeat")) {
       return jsonResponse({ running: false, active: false, connected: false });
     }
 
     // 16. Local GPU status check
-    if (urlStr.startsWith("/api/gpu/local/status")) {
+    if (path.startsWith("/api/gpu/local/status")) {
       return jsonResponse({ running: false, available: false });
     }
 
@@ -668,8 +702,8 @@
     try {
       return await originalFetch(resource, init);
     } catch (err) {
-      if (urlStr.startsWith("/api/")) {
-        console.warn(`[DemoBridge] Handled unmocked API: ${urlStr}`);
+      if (path.startsWith("/api/")) {
+        console.warn(`[DemoBridge] Handled unmocked API: ${path}`);
         return jsonResponse({ ok: true });
       }
       throw err;
