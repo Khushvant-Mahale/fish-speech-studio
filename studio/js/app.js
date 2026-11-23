@@ -4052,15 +4052,44 @@ function renderBlocks() {
     const blockBadge = (char && char.badge) ? char.badge : (voice ? (voice.badge || voice.id.slice(0, 2).toUpperCase()) : "VO");
     const isCustom = Boolean(char && block.is_custom_edited);
     const bEngine = block.engine || (char && char.engine) || (voice && voice.engine) || (state.currentProject?.tier === "cinema_pro" ? "fish_s2" : "edge_tts");
-    const engineBadges = {
-      edge_tts: { text: "Edge TTS", bg: "rgba(16, 185, 129, 0.15)", color: "#34d399", icon: "🌐" },
-      kokoro: { text: "Kokoro 82M", bg: "rgba(59, 130, 246, 0.15)", color: "#93c5fd", icon: "⚡" },
-      fish_s2: { text: "Drama 3", bg: "rgba(245, 158, 11, 0.15)", color: "#fcd34d", icon: "🎭" },
-      elevenlabs: { text: "ElevenLabs", bg: "rgba(139, 92, 246, 0.15)", color: "#c4b5fd", icon: "🌟" },
-      cartesia: { text: "Cartesia", bg: "rgba(236, 72, 153, 0.15)", color: "#f472b6", icon: "⚡" },
-      openai: { text: "OpenAI", bg: "rgba(16, 185, 129, 0.15)", color: "#6ee7b7", icon: "🤖" }
-    };
-    const bEngBadge = engineBadges[bEngine] || { text: bEngine.toUpperCase(), bg: "rgba(255,255,255,0.08)", color: "#ccc", icon: "🎙️" };
+    const bModel = block.model || (char && char.model);
+    let badgeText = "Drama 3";
+    let badgeIcon = "🎭";
+    let badgeBg = "rgba(245, 158, 11, 0.15)";
+    let badgeColor = "#fcd34d";
+
+    if (bEngine === "fish_s2") {
+      badgeText = (bModel === "s2_pro") ? "S2.1 Pro" : "Drama 3";
+      badgeIcon = "🎭";
+      badgeBg = "rgba(245, 158, 11, 0.15)";
+      badgeColor = "#fcd34d";
+    } else if (bEngine === "elevenlabs") {
+      badgeText = (bModel === "v3") ? "Eleven v3" : (bModel === "flash_v2.5" ? "Flash v2.5" : "Eleven v4");
+      badgeIcon = "🌟";
+      badgeBg = "rgba(139, 92, 246, 0.15)";
+      badgeColor = "#c4b5fd";
+    } else if (bEngine === "cartesia") {
+      badgeText = (bModel === "sonic_3.6") ? "Sonic 3.6" : "Sonic 4";
+      badgeIcon = "⚡";
+      badgeBg = "rgba(236, 72, 153, 0.15)";
+      badgeColor = "#f472b6";
+    } else if (bEngine === "openai") {
+      badgeText = (bModel === "tts-1") ? "tts-1" : "gpt-4o";
+      badgeIcon = "🤖";
+      badgeBg = "rgba(16, 185, 129, 0.15)";
+      badgeColor = "#6ee7b7";
+    } else if (bEngine === "edge_tts") {
+      badgeText = "Edge TTS";
+      badgeIcon = "🌐";
+      badgeBg = "rgba(16, 185, 129, 0.15)";
+      badgeColor = "#34d399";
+    } else if (bEngine === "kokoro") {
+      badgeText = "Kokoro 82M";
+      badgeIcon = "⚡";
+      badgeBg = "rgba(59, 130, 246, 0.15)";
+      badgeColor = "#93c5fd";
+    }
+    const bEngBadge = { text: badgeText, bg: badgeBg, color: badgeColor, icon: badgeIcon };
 
     const blockTitle = char
       ? `Character: ${char.name} (${voice ? voice.name : 'Voice'}) • Engine: ${bEngBadge.text}${isCustom ? ' • Customized for this sentence' : ' • Synced'}`
@@ -8196,7 +8225,21 @@ function renderInspector() {
   const castTierTag = document.getElementById("cast-engine-tier-tag");
 
   // Multi-Engine & Model Contextual Adaptation - resolves block's character/engine/model
-  const modelName = block.model;
+  const defaultModels = {
+    fish_s2: "drama3",
+    elevenlabs: "v4",
+    cartesia: "sonic_4",
+    openai: "gpt-4o-mini-tts",
+    edge_tts: "edge_neural",
+    kokoro: "kokoro_webgpu"
+  };
+
+  let rawModel = block.model || (char && char.model) || state.currentProject?.model || defaultModels[blockEngine] || "drama3";
+  if (rawModel === "gpt-4o-mini") rawModel = "gpt-4o-mini-tts";
+  if (rawModel === "drama-3") rawModel = "drama3";
+  if (rawModel === "s2-pro") rawModel = "s2_pro";
+  const effectiveModel = rawModel;
+
   let engDisplayName = "Fish Speech (Drama 3)";
   let engSubName = "Cinema emotion acting • Voice cloning";
   let engTag = "Drama 3";
@@ -8208,7 +8251,7 @@ function renderInspector() {
     engIcon = "🎭";
     engTagBg = "rgba(245, 158, 11, 0.15)";
     engTagColor = "#fcd34d";
-    if (modelName === "s2_pro") {
+    if (effectiveModel === "s2_pro") {
       engDisplayName = "Fish Speech (S2.1 Pro)";
       engSubName = "Multi-speaker dialogue acting";
       engTag = "S2.1 Pro";
@@ -8221,11 +8264,11 @@ function renderInspector() {
     engIcon = "🌟";
     engTagBg = "rgba(139, 92, 246, 0.2)";
     engTagColor = "#c4b5fd";
-    if (modelName === "v3") {
+    if (effectiveModel === "v3") {
       engDisplayName = "ElevenLabs (v3 Multilingual)";
       engSubName = "Multilingual expressive narration";
       engTag = "v3";
-    } else if (modelName === "flash_v2.5") {
+    } else if (effectiveModel === "flash_v2.5") {
       engDisplayName = "ElevenLabs (Flash v2.5)";
       engSubName = "Fast commercial narration";
       engTag = "Flash";
@@ -8238,7 +8281,7 @@ function renderInspector() {
     engIcon = "⚡";
     engTagBg = "rgba(236, 72, 153, 0.2)";
     engTagColor = "#f472b6";
-    if (modelName === "sonic_3.6") {
+    if (effectiveModel === "sonic_3.6") {
       engDisplayName = "Cartesia Sonic (3.6)";
       engSubName = "Ultra-high-speed streaming speech";
       engTag = "Sonic 3.6";
@@ -8251,7 +8294,7 @@ function renderInspector() {
     engIcon = "🤖";
     engTagBg = "rgba(16, 185, 129, 0.2)";
     engTagColor = "#6ee7b7";
-    if (modelName === "tts-1") {
+    if (effectiveModel === "tts-1") {
       engDisplayName = "OpenAI Audio (tts-1)";
       engSubName = "High-definition neural audio";
       engTag = "tts-1";
@@ -8285,11 +8328,11 @@ function renderInspector() {
     castTierTag.style.color = engTagColor;
   }
 
-  // Update checkmarks and active states in #engine-model-dropdown
+  // Update checkmarks and active states in #engine-model-dropdown: exactly ONE subitem matches
   document.querySelectorAll("#engine-model-dropdown .engine-model-subitem").forEach(item => {
     const itemEng = item.dataset.engine;
     const itemModel = item.dataset.model;
-    const isThis = (itemEng === blockEngine) && (!itemModel || !block.model || itemModel === block.model || (itemEng === "fish_s2" && itemModel === "drama3" && !block.model));
+    const isThis = (itemEng === blockEngine) && (itemModel === effectiveModel);
     item.classList.toggle("active", isThis);
     const checkEl = item.querySelector(".engine-model-check");
     if (checkEl) checkEl.style.display = isThis ? "inline" : "none";
@@ -14237,6 +14280,14 @@ function selectEngineOption(newEngine, newModel = null) {
       if (!block || block.type === "heading" || block.is_spoken === false) return;
       block.engine = newEngine;
       if (newModel) block.model = newModel;
+      block.is_custom_edited = true;
+
+      const char = block.character_id ? getCharacterById(block.character_id) : (block.speaker ? getCharacterById(block.speaker) : null);
+      if (char) {
+        char.engine = newEngine;
+        if (newModel) char.model = newModel;
+      }
+
       const currentVoice = getVoiceById(block.voice_id);
       if (!currentVoice || (currentVoice.engine || "fish_s2") !== newEngine) {
         const isFemale = Boolean(
@@ -14256,6 +14307,10 @@ function selectEngineOption(newEngine, newModel = null) {
         } else {
           block.voice_id = isFemale ? "fish_9f508743280b46788d64de199cbb5093" : "fish_71804f0aa9e8457e92e9e49c26691514";
         }
+        if (char) {
+          char.voice_id = block.voice_id;
+          char.assigned_voice_id = block.voice_id;
+        }
       }
       delete block.cachedAudioUrl;
       delete block.audio_url;
@@ -14263,7 +14318,9 @@ function selectEngineOption(newEngine, newModel = null) {
       delete block.duration;
       delete block.audio_hash;
     });
-    showToast(`⚡ Set ${newEngine.toUpperCase()}${newModel ? ' (' + newModel + ')' : ''} for ${targets.length} sentence${targets.length > 1 ? 's' : ''}`);
+    saveSavedCharactersToStorage();
+    const modelLabel = newModel ? ` (${newModel})` : "";
+    showToast(`⚡ Set ${newEngine.toUpperCase()}${modelLabel} for ${targets.length} sentence${targets.length > 1 ? 's' : ''}`);
   } else {
     state.activeEngine = newEngine;
     if (state.currentProject) {
