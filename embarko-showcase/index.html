@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kashva Voice — AI Audio Drama Studio | Fish Audio S2 Pro</title>
+  <meta name="description" content="Transform written manuscripts into cinematic multi-voice audio dramas with zero-shot voice cloning, 15,000+ emotion tags, and free GPU acceleration.">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #06080d;
+      --surface: #0d1117;
+      --surface2: #161b22;
+      --border: rgba(255,255,255,0.08);
+      --text: #e6edf3;
+      --text-dim: #8b949e;
+      --accent: #3b82f6;
+      --accent2: #34d399;
+      --accent3: #a78bfa;
+      --danger: #f97316;
+      --glow: rgba(59, 130, 246, 0.15);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ---- Animated background ---- */
+    .bg-grid {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+    .bg-glow {
+      position: fixed; top: -40%; left: -20%; width: 140%; height: 140%;
+      background: radial-gradient(ellipse at 30% 20%, rgba(59,130,246,0.08) 0%, transparent 60%),
+                  radial-gradient(ellipse at 70% 80%, rgba(52,211,153,0.05) 0%, transparent 50%);
+      z-index: 0; pointer-events: none;
+      animation: glowDrift 20s ease-in-out infinite alternate;
+    }
+    @keyframes glowDrift {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(40px, -30px) scale(1.05); }
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* ---- Nav ---- */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(6,8,13,0.85); backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    nav .container {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-bars { display: flex; gap: 3px; align-items: center; height: 24px; }
+    .logo-bars span { width: 4px; border-radius: 2px; }
+    .logo-bars span:nth-child(1) { height: 12px; background: var(--accent); }
+    .logo-bars span:nth-child(2) { height: 24px; background: #60a5fa; }
+    .logo-bars span:nth-child(3) { height: 16px; background: var(--accent2); }
+    .logo-bars span:nth-child(4) { height: 8px; background: var(--accent); }
+    .logo-text { font-size: 18px; font-weight: 800; color: #f8fafc; letter-spacing: -0.5px; }
+    .nav-tag {
+      font-size: 10px; font-weight: 700; color: var(--accent2); background: rgba(52,211,153,0.12);
+      padding: 2px 8px; border-radius: 20px; letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    .nav-links { display: flex; align-items: center; gap: 28px; }
+    .nav-links a { color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .btn-nav {
+      padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      background: var(--accent); color: white; border: none; cursor: pointer;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .btn-nav:hover { background: #2563eb; transform: translateY(-1px); }
+
+    /* ---- Hero ---- */
+    .hero {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 120px 24px 80px;
+    }
+    .hero-inner { max-width: 800px; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2);
+      padding: 6px 16px; border-radius: 50px; font-size: 12px; font-weight: 600;
+      color: #60a5fa; margin-bottom: 32px; letter-spacing: 0.5px;
+    }
+    .hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .hero h1 { font-size: clamp(36px, 6vw, 64px); font-weight: 900; letter-spacing: -2px; line-height: 1.1; margin-bottom: 24px; }
+    .hero h1 .gradient {
+      background: linear-gradient(135deg, #60a5fa 0%, #34d399 50%, #a78bfa 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p { font-size: 18px; color: var(--text-dim); max-width: 600px; margin: 0 auto 40px; line-height: 1.7; }
+    .hero-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      padding: 14px 32px; border-radius: 12px; font-size: 15px; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent) 0%, #2563eb 100%);
+      color: white; border: none; cursor: pointer; text-decoration: none;
+      transition: all 0.3s; box-shadow: 0 4px 24px rgba(59,130,246,0.3);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(59,130,246,0.4); }
+    .btn-secondary {
+      padding: 14px 32px; border-radius: 12px; font-size: 15px; font-weight: 600;
+      background: transparent; color: var(--text); border: 1px solid var(--border);
+      cursor: pointer; text-decoration: none; transition: all 0.3s;
+    }
+    .btn-secondary:hover { background: var(--surface); border-color: rgba(255,255,255,0.15); }
+
+    /* ---- Stats ---- */
+    .stats {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px;
+      background: var(--border); border-radius: 16px; overflow: hidden;
+      margin: 80px auto; max-width: 900px;
+    }
+    .stat {
+      background: var(--surface); padding: 32px 24px; text-align: center;
+    }
+    .stat-num { font-size: 32px; font-weight: 900; letter-spacing: -1px; }
+    .stat-num.blue { color: #60a5fa; }
+    .stat-num.green { color: var(--accent2); }
+    .stat-num.purple { color: var(--accent3); }
+    .stat-num.orange { color: var(--danger); }
+    .stat-label { font-size: 12px; color: var(--text-dim); margin-top: 6px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ---- Sections ---- */
+    section { padding: 100px 0; }
+    .section-label {
+      font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 1.5px;
+      text-transform: uppercase; margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(28px, 4vw, 42px); font-weight: 800; letter-spacing: -1px;
+      margin-bottom: 20px; line-height: 1.2;
+    }
+    .section-desc { font-size: 16px; color: var(--text-dim); max-width: 600px; line-height: 1.7; margin-bottom: 48px; }
+
+    /* ---- Feature Grid ---- */
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+    .feature-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px; transition: all 0.3s;
+      position: relative; overflow: hidden;
+    }
+    .feature-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .feature-card:hover { border-color: rgba(59,130,246,0.3); transform: translateY(-4px); }
+    .feature-card:hover::before { opacity: 1; }
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center;
+      justify-content: center; font-size: 24px; margin-bottom: 20px;
+    }
+    .feature-icon.blue { background: rgba(59,130,246,0.12); }
+    .feature-icon.green { background: rgba(52,211,153,0.12); }
+    .feature-icon.purple { background: rgba(167,139,250,0.12); }
+    .feature-icon.orange { background: rgba(249,115,22,0.12); }
+    .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+    .feature-card p { font-size: 14px; color: var(--text-dim); line-height: 1.6; }
+
+    /* ---- Emotion Tags Showcase ---- */
+    .emotion-showcase {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px; padding: 48px; margin-top: 60px; position: relative; overflow: hidden;
+    }
+    .emotion-showcase::after {
+      content: ''; position: absolute; bottom: -100px; right: -100px;
+      width: 300px; height: 300px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(167,139,250,0.08), transparent 70%);
+    }
+    .tags-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+    .tag {
+      padding: 8px 16px; border-radius: 50px; font-size: 12px; font-weight: 500;
+      border: 1px solid; white-space: nowrap; transition: all 0.3s;
+      cursor: default;
+    }
+    .tag:hover { transform: scale(1.05); }
+    .tag.terror { color: #f87171; border-color: rgba(248,113,113,0.3); background: rgba(248,113,113,0.08); }
+    .tag.whisper { color: #60a5fa; border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.08); }
+    .tag.scream { color: #fbbf24; border-color: rgba(251,191,36,0.3); background: rgba(251,191,36,0.08); }
+    .tag.demon { color: #a78bfa; border-color: rgba(167,139,250,0.3); background: rgba(167,139,250,0.08); }
+    .tag.calm { color: #34d399; border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.08); }
+    .tag.sad { color: #f472b6; border-color: rgba(244,114,182,0.3); background: rgba(244,114,182,0.08); }
+
+    /* ---- Architecture ---- */
+    .arch-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 40px; }
+    .arch-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px; text-align: center; transition: all 0.3s;
+    }
+    .arch-card:hover { border-color: rgba(52,211,153,0.3); }
+    .arch-card .arch-icon { font-size: 36px; margin-bottom: 16px; }
+    .arch-card h4 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+    .arch-card p { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+
+    /* ---- Code Preview ---- */
+    .code-block {
+      background: #0d1117; border: 1px solid var(--border); border-radius: 12px;
+      padding: 24px; font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 13px; line-height: 1.8; overflow-x: auto; margin-top: 32px;
+    }
+    .code-block .comment { color: #6e7681; }
+    .code-block .keyword { color: #ff7b72; }
+    .code-block .string { color: #a5d6ff; }
+    .code-block .tag-hl { color: #ffa657; }
+    .code-block .func { color: #d2a8ff; }
+
+    /* ---- Waveform animation ---- */
+    .waveform { display: flex; align-items: center; gap: 3px; height: 50px; margin: 32px auto; justify-content: center; }
+    .waveform .bar {
+      width: 4px; border-radius: 4px; background: linear-gradient(to top, var(--accent), var(--accent2));
+      animation: wave 1.5s ease-in-out infinite;
+    }
+    @keyframes wave {
+      0%, 100% { height: 10px; opacity: 0.4; }
+      50% { height: 44px; opacity: 1; }
+    }
+
+    /* ---- Tech Stack ---- */
+    .tech-pills { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px; justify-content: center; }
+    .tech-pill {
+      padding: 10px 20px; border-radius: 50px; font-size: 13px; font-weight: 600;
+      background: var(--surface); border: 1px solid var(--border); color: var(--text-dim);
+      transition: all 0.3s;
+    }
+    .tech-pill:hover { border-color: rgba(59,130,246,0.3); color: var(--text); }
+
+    /* ---- CTA ---- */
+    .cta-section {
+      text-align: center; padding: 100px 24px;
+      background: linear-gradient(to bottom, transparent, rgba(59,130,246,0.03));
+    }
+    .cta-section h2 { font-size: clamp(28px, 4vw, 40px); font-weight: 800; margin-bottom: 20px; letter-spacing: -1px; }
+    .cta-section p { color: var(--text-dim); font-size: 16px; max-width: 500px; margin: 0 auto 36px; }
+
+    /* ---- Footer ---- */
+    footer {
+      border-top: 1px solid var(--border); padding: 40px 24px; text-align: center;
+      color: var(--text-dim); font-size: 13px;
+    }
+    footer .heart { color: #f87171; }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 768px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .arch-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+      .features { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      .stats { grid-template-columns: 1fr; }
+      .hero-actions { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <!-- Nav -->
+  <nav>
+    <div class="container">
+      <a href="#" class="logo">
+        <div class="logo-bars"><span></span><span></span><span></span><span></span></div>
+        <span class="logo-text">Kashva Voice</span>
+        <span class="nav-tag">S2 Pro</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#emotions">Emotions</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#tech">Tech Stack</a>
+        <a href="/studio" class="btn-nav" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">🎙️ Open Studio Demo</a>★ Star on GitHub</a>
+      </div>
+    </div>
+  </nav>
+  <!-- Judge Banner -->
+  <div style="background: linear-gradient(90deg, rgba(30,58,138,0.95), rgba(6,95,70,0.95)); color: #fff; text-align: center; padding: 12px 20px; font-size: 14px; font-weight: 600; margin-top: 64px; border-bottom: 1px solid rgba(255,255,255,0.12); position: relative; z-index: 10;">
+    <span style="display: inline-block; background: rgba(52,211,153,0.25); border: 1px solid rgba(52,211,153,0.4); border-radius: 4px; padding: 2px 8px; font-size: 11px; margin-right: 8px; text-transform: uppercase;">Judge Live Demo</span>
+    The interactive multi-voice studio editor is running live!
+    <a href="/studio" style="color: #6ee7b7; font-weight: 700; text-decoration: underline; margin-left: 10px;">Launch Studio Demo (/studio) →</a>
+  </div>
+
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        POWERED BY FISH AUDIO S2 PRO — DUAL-AR 4.4B NEURAL ENGINE
+      </div>
+      <h1>
+        Turn Scripts into<br>
+        <span class="gradient">Cinematic Audio Dramas</span>
+      </h1>
+      <p>
+        A professional multi-voice audio drama studio with zero-shot voice cloning,
+        15,000+ emotion tags, and free Google Colab GPU acceleration.
+        Built for authors, YouTube storytellers, and audio drama creators.
+      </p>
+      <div class="hero-actions">
+        <a href="/studio" class="btn-primary" style="background: linear-gradient(135deg, #2563eb 0%, #059669 100%); font-size: 16px; padding: 16px 36px; box-shadow: 0 4px 25px rgba(16,185,129,0.35);">🎙️ Launch Studio Demo (/studio) →</a>
+        <a href="#features" class="btn-secondary">Explore Features ↓</a>
+        <a href="#architecture" class="btn-secondary">View Architecture</a>
+      </div>
+
+      <!-- Waveform -->
+      <div class="waveform">
+        <div class="bar" style="animation-delay: 0s;"></div>
+        <div class="bar" style="animation-delay: 0.1s;"></div>
+        <div class="bar" style="animation-delay: 0.2s;"></div>
+        <div class="bar" style="animation-delay: 0.3s;"></div>
+        <div class="bar" style="animation-delay: 0.15s;"></div>
+        <div class="bar" style="animation-delay: 0.35s;"></div>
+        <div class="bar" style="animation-delay: 0.05s;"></div>
+        <div class="bar" style="animation-delay: 0.25s;"></div>
+        <div class="bar" style="animation-delay: 0.4s;"></div>
+        <div class="bar" style="animation-delay: 0.12s;"></div>
+        <div class="bar" style="animation-delay: 0.28s;"></div>
+        <div class="bar" style="animation-delay: 0.08s;"></div>
+        <div class="bar" style="animation-delay: 0.32s;"></div>
+        <div class="bar" style="animation-delay: 0.18s;"></div>
+        <div class="bar" style="animation-delay: 0.38s;"></div>
+        <div class="bar" style="animation-delay: 0.22s;"></div>
+        <div class="bar" style="animation-delay: 0.02s;"></div>
+        <div class="bar" style="animation-delay: 0.3s;"></div>
+        <div class="bar" style="animation-delay: 0.14s;"></div>
+        <div class="bar" style="animation-delay: 0.36s;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <div class="container">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num blue">15,000+</div>
+        <div class="stat-label">Emotion Tags</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num green">0.3s</div>
+        <div class="stat-label">Per Sentence (T4)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num purple">4.4B</div>
+        <div class="stat-label">Model Parameters</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num orange">3–10s</div>
+        <div class="stat-label">Voice Clone Ref</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <section id="features">
+    <div class="container">
+      <div class="section-label">Core Features</div>
+      <div class="section-title">Everything you need for<br>cinematic voice production</div>
+      <div class="section-desc">
+        From zero-shot voice cloning to AI-powered story direction,
+        Kashva Voice handles every step of multi-voice audio drama creation.
+      </div>
+      <div class="features">
+        <div class="feature-card">
+          <div class="feature-icon blue">🎭</div>
+          <h3>Zero-Shot Voice Cloning</h3>
+          <p>Clone any voice from a brief 3–10 second reference clip. Create unique characters instantly — no training data, no fine-tuning, no waiting.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green">🎬</div>
+          <h3>Context-Aware StoryDirector</h3>
+          <p>AI automatically identifies speaker gender, character quotes, whisper tags, scream climaxes, and scene transitions, assigning appropriate acting directions.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon purple">⚡</div>
+          <h3>Dual-Engine Flexibility</h3>
+          <p>Fish Audio S2 Pro for cinematic fidelity via Colab GPU, plus Kokoro ONNX for instant CPU draft inference. Switch engines per-sentence.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon orange">🎧</div>
+          <h3>Master WAV Stitcher</h3>
+          <p>Render 500+ sentences with sample-accurate pauses between dialogue turns. Export full master WAV or individual ZIP archives.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon blue">☁️</div>
+          <h3>Free Cloud GPU</h3>
+          <p>One-click Google Colab T4 GPU tunnel. Paste a Cloudflare URL and get cinematic-quality synthesis at 0.3s per sentence — completely free.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green">📚</div>
+          <h3>Manuscript-to-Audio Pipeline</h3>
+          <p>Paste an entire book chapter or screenplay. Auto-split into directed sentences with character detection, emotion assignment, and breath pauses.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Emotion Tags -->
+  <section id="emotions">
+    <div class="container">
+      <div class="section-label">Emotion Engine</div>
+      <div class="section-title">15,000+ natural-language<br>acting directions</div>
+      <div class="section-desc">
+        Type any acting instruction in plain English. No codes, no presets — just describe the emotion and S2 Pro performs it.
+      </div>
+
+      <div class="emotion-showcase">
+        <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Sample Emotion & Acting Tags</h3>
+        <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 24px;">Click-free direction chips — type anything you imagine</p>
+        <div class="tags-grid">
+          <span class="tag terror">[whispering in breathy terror]</span>
+          <span class="tag whisper">[tense, breathless, urgent whisper]</span>
+          <span class="tag scream">[screaming frantically in sheer panic]</span>
+          <span class="tag demon">[cold, guttural, sinister demonic whisper]</span>
+          <span class="tag calm">[warm, reassuring, gentle narration]</span>
+          <span class="tag sad">[voice cracking with grief]</span>
+          <span class="tag terror">[gasping, ragged breath, trembling]</span>
+          <span class="tag whisper">[slow, deep dramatic horror narration]</span>
+          <span class="tag scream">[hysterical laughter turning to sobs]</span>
+          <span class="tag demon">[ancient, echoing, otherworldly presence]</span>
+          <span class="tag calm">[confident, commanding military tone]</span>
+          <span class="tag sad">[choking back tears, barely audible]</span>
+          <span class="tag terror">[hyperventilating, voice shaking]</span>
+          <span class="tag whisper">[soft, intimate pillow talk]</span>
+          <span class="tag scream">[battle cry, full adrenaline]</span>
+          <span class="tag demon">[mechanical, robotic monotone]</span>
+        </div>
+      </div>
+
+      <!-- Code Example -->
+      <div class="code-block">
+        <span class="comment">// Example: Directing a horror scene with S2 Pro tags</span><br><br>
+        <span class="tag-hl">[whispering in breathy terror]</span> <span class="string">"Did you hear that? Something's moving in the walls..."</span><br><br>
+        <span class="tag-hl">[gasping, ragged breath, trembling]</span> <span class="string">"Run. We need to run. NOW."</span><br><br>
+        <span class="tag-hl">[cold, guttural, sinister demonic whisper]</span> <span class="string">"You cannot escape what lives beneath."</span><br><br>
+        <span class="tag-hl">[screaming frantically in sheer panic]</span> <span class="string">"IT'S BEHIND THE DOOR! DON'T OPEN IT!"</span><br><br>
+        <span class="comment">// → Each line rendered with the exact vocal performance described</span><br>
+        <span class="comment">// → Sample-accurate pauses between dialogue turns</span><br>
+        <span class="comment">// → Full master WAV stitched automatically</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture -->
+  <section id="architecture">
+    <div class="container">
+      <div class="section-label">System Design</div>
+      <div class="section-title">Built for real production</div>
+      <div class="section-desc">
+        A complete audio production pipeline from manuscript to mastered WAV,
+        with cloud GPU acceleration and local fallback.
+      </div>
+      <div class="arch-grid">
+        <div class="arch-card">
+          <div class="arch-icon">🎙️</div>
+          <h4>Fish S2 Pro Engine</h4>
+          <p>Dual-Autoregressive architecture (4B + 400M params). Zero-shot voice cloning from 3–10s reference clips via Colab T4/A100 GPU.</p>
+        </div>
+        <div class="arch-card">
+          <div class="arch-icon">⚡</div>
+          <h4>Kokoro ONNX Fallback</h4>
+          <p>Local CPU inference for instant script pacing and timing verification. No GPU required — draft your audio before committing to the full render.</p>
+        </div>
+        <div class="arch-card">
+          <div class="arch-icon">🧠</div>
+          <h4>StoryDirector AI</h4>
+          <p>Context-aware sentence splitting with automatic speaker detection, gender identification, emotion assignment, and inter-sentence pause calibration.</p>
+        </div>
+        <div class="arch-card">
+          <div class="arch-icon">🌐</div>
+          <h4>Aiohttp Web Studio</h4>
+          <p>Full-featured REST API backend with real-time synthesis, project management, voice library, and batch rendering capabilities.</p>
+        </div>
+        <div class="arch-card">
+          <div class="arch-icon">☁️</div>
+          <h4>Cloudflare Tunnel</h4>
+          <p>Free Colab GPU acceleration via secure Cloudflare tunnels. One-click setup — paste URL and go. No port forwarding, no ngrok.</p>
+        </div>
+        <div class="arch-card">
+          <div class="arch-icon">🎵</div>
+          <h4>Audio DSP Pipeline</h4>
+          <p>Post-processing filters, master WAV stitching with custom inter-dialogue pauses, and ZIP archive export for individual sentence files.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- API -->
+  <section id="api" style="padding-bottom: 60px;">
+    <div class="container">
+      <div class="section-label">REST API</div>
+      <div class="section-title">Full API for automation</div>
+      <div class="section-desc">Every studio function exposed as a clean REST endpoint. Build your own workflows, integrate with your pipeline.</div>
+      <div class="code-block">
+        <span class="keyword">POST</span> <span class="func">/api/synthesize_block</span>  <span class="comment">— Synthesize sentence with S2 Pro emotion tag</span><br>
+        <span class="keyword">POST</span> <span class="func">/api/auto_direct</span>       <span class="comment">— Auto-detect characters, whispers, screams</span><br>
+        <span class="keyword">POST</span> <span class="func">/api/split_text</span>        <span class="comment">— Split manuscript into directed sentences</span><br>
+        <span class="keyword">POST</span> <span class="func">/api/export_master</span>     <span class="comment">— Compile full story into stitched master WAV</span><br>
+        <span class="keyword">POST</span> <span class="func">/api/export_zip</span>        <span class="comment">— Package sentence audio files into ZIP</span><br>
+        <span class="keyword">GET </span> <span class="func">/api/voices</span>            <span class="comment">— List active engine voices</span><br>
+        <span class="keyword">POST</span> <span class="func">/api/voices/upload_reference</span> <span class="comment">— Upload reference for voice cloning</span><br>
+        <span class="keyword">POST</span> <span class="func">/api/merge_short</span>       <span class="comment">— Merge consecutive ultra-short fragments</span><br>
+        <span class="keyword">GET </span> <span class="func">/api/config</span>            <span class="comment">— Manage Colab GPU tunnel & API keys</span><br>
+        <span class="keyword">POST</span> <span class="func">/api/test_remote</span>       <span class="comment">— Verify remote Colab GPU connection</span><br>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech Stack -->
+  <section id="tech" style="text-align: center;">
+    <div class="container">
+      <div class="section-label" style="text-align: center;">Technology</div>
+      <div class="section-title" style="text-align: center;">Built with modern tools</div>
+      <div class="tech-pills">
+        <span class="tech-pill">🐍 Python 3.10+</span>
+        <span class="tech-pill">🔊 Fish Audio S2 Pro</span>
+        <span class="tech-pill">🧠 Dual-AR 4.4B</span>
+        <span class="tech-pill">⚡ Kokoro ONNX</span>
+        <span class="tech-pill">🌐 Aiohttp</span>
+        <span class="tech-pill">☁️ Google Colab</span>
+        <span class="tech-pill">🔒 Cloudflare Tunnel</span>
+        <span class="tech-pill">🎵 24kHz High-Fidelity</span>
+        <span class="tech-pill">📦 REST API</span>
+        <span class="tech-pill">🎭 Zero-Shot Cloning</span>
+        <span class="tech-pill">📝 MIT License</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="container">
+      <h2>Ready to bring your stories to life?</h2>
+      <p>Clone voices, direct emotions, render cinematic audio — all from your browser.</p>
+      <a href="/studio" class="btn-primary" style="display: inline-block;">🎙️ Launch Studio Demo (/studio) →</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p style="margin-bottom: 8px;">
+        <strong>Kashva Voice</strong> — Fish Audio S2 Pro Story Studio
+      </p>
+      <p>Built with <span class="heart">♥</span> for the Embarko Student Challenge · #DeployWithEmbarko</p>
+      <p style="margin-top: 12px; font-size: 11px; color: #484f58;">
+        © 2026 Kashva Voice. MIT License.
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    // Smooth scroll for nav links
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const t = document.querySelector(a.getAttribute('href'));
+        if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    // Animate elements on scroll
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.style.opacity = '1';
+          e.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.feature-card, .arch-card, .stat, .emotion-showcase').forEach(el => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(20px)';
+      el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+      observer.observe(el);
+    });
+  </script>
+</body>
+</html>
