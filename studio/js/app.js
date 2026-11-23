@@ -3984,9 +3984,20 @@ function renderBlocks() {
     const blockColor = (char && char.color) ? char.color : (voice ? voice.color : "#6366f1");
     const blockBadge = (char && char.badge) ? char.badge : (voice ? (voice.badge || voice.id.slice(0, 2).toUpperCase()) : "VO");
     const isCustom = Boolean(char && block.is_custom_edited);
+    const bEngine = block.engine || (char && char.engine) || (voice && voice.engine) || (state.currentProject?.tier === "cinema_pro" ? "fish_s2" : "edge_tts");
+    const engineBadges = {
+      edge_tts: { text: "Edge TTS", bg: "rgba(16, 185, 129, 0.15)", color: "#34d399", icon: "🌐" },
+      kokoro: { text: "Kokoro 82M", bg: "rgba(59, 130, 246, 0.15)", color: "#93c5fd", icon: "⚡" },
+      fish_s2: { text: "Drama 3", bg: "rgba(245, 158, 11, 0.15)", color: "#fcd34d", icon: "🎭" },
+      elevenlabs: { text: "ElevenLabs", bg: "rgba(139, 92, 246, 0.15)", color: "#c4b5fd", icon: "🌟" },
+      cartesia: { text: "Cartesia", bg: "rgba(236, 72, 153, 0.15)", color: "#f472b6", icon: "⚡" },
+      openai: { text: "OpenAI", bg: "rgba(16, 185, 129, 0.15)", color: "#6ee7b7", icon: "🤖" }
+    };
+    const bEngBadge = engineBadges[bEngine] || { text: bEngine.toUpperCase(), bg: "rgba(255,255,255,0.08)", color: "#ccc", icon: "🎙️" };
+
     const blockTitle = char
-      ? `Character: ${char.name} (${voice ? voice.name : 'Voice'})${isCustom ? ' • Customized for this sentence' : ' • Synced'}`
-      : `Standalone Voice: ${voice ? voice.name : (block.speaker || 'Voice')} (Click to change)`;
+      ? `Character: ${char.name} (${voice ? voice.name : 'Voice'}) • Engine: ${bEngBadge.text}${isCustom ? ' • Customized for this sentence' : ' • Synced'}`
+      : `Standalone Voice: ${voice ? voice.name : (block.speaker || 'Voice')} • Engine: ${bEngBadge.text} (Click to change)`;
 
     // SENTENCE BLOCK WITH AUDIO SCRUBBER, DRAG HANDLE & SLEEK CUSTOM CHECKBOX
     row.innerHTML = `
@@ -4020,6 +4031,9 @@ function renderBlocks() {
               🎙️ ${escapeHtml(block.speaker || (voice ? voice.name : 'Voice'))}
             </span>
           ` : ''}
+          <span class="block-engine-pill" style="font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: ${bEngBadge.bg}; color: ${bEngBadge.color}; border: 1px solid ${bEngBadge.color}33; display: inline-flex; align-items: center; gap: 3px;" title="Engine: ${bEngBadge.text}">
+            <span>${bEngBadge.icon}</span> ${bEngBadge.text}
+          </span>
           ${block.emotion_tag ? `<span class="block-emotion-pill" onclick="handleFocusEmotionInput(${idx})" title="Fish S2 Pro Emotion: ${escapeHtml(block.emotion_tag)}">${escapeHtml(block.emotion_tag)}</span>` : ''}
         </div>
         <textarea class="block-textarea" placeholder="Type sentence here...">${block.text || ""}</textarea>
@@ -8103,54 +8117,41 @@ function renderInspector() {
   if (!block) return;
   const voice = getVoiceById(block.voice_id);
 
-  // Multi-Engine Contextual Adaptation - Always unified to chapter/project engine
-  const blockEngine = state.currentProject?.engine || state.activeEngine || block.engine || "kokoro";
+  // Multi-Engine Contextual Adaptation - resolves block's character/engine cleanly
+  const char = block.character_id ? getCharacterById(block.character_id) : null;
+  const blockEngine = block.engine || (char && char.engine) || (voice && voice.engine) || state.currentProject?.engine || "fish_s2";
 
-  // Update Cast Tab Model Selection Dropdown Trigger & Tags (Image 3 & 4)
+  // Update Cast Tab Model Selection Dropdown Trigger & Tags
   const engineIcon = document.getElementById("selected-engine-icon");
   const engineName = document.getElementById("selected-engine-name");
   const engineSub = document.getElementById("selected-engine-sub");
   const castTierTag = document.getElementById("cast-engine-tier-tag");
 
-  if (blockEngine === "fish_s2") {
-    if (engineIcon) engineIcon.textContent = "🌟";
-    if (engineName) engineName.textContent = "Fish Speech (Cinema Drama 3)";
-    if (engineSub) engineSub.textContent = "Cinema emotion acting • Voice cloning";
-    if (castTierTag) {
-      castTierTag.textContent = "Drama 3";
-      castTierTag.style.background = "rgba(16, 185, 129, 0.15)";
-      castTierTag.style.color = "#34d399";
-    }
-  } else if (blockEngine === "kokoro") {
-    if (engineIcon) engineIcon.textContent = "⚡";
-    if (engineName) engineName.textContent = "Kokoro 82M (On-Device WebGPU)";
-    if (engineSub) engineSub.textContent = "Renders on your CPU/GPU • 0s queue • Free";
-    if (castTierTag) {
-      castTierTag.textContent = "On-Device WebGPU";
-      castTierTag.style.background = "rgba(99, 102, 241, 0.15)";
-      castTierTag.style.color = "#a5b4fc";
-    }
-  } else if (blockEngine === "edge_tts") {
-    if (engineIcon) engineIcon.textContent = "🌐";
-    if (engineName) engineName.textContent = "Microsoft Edge TTS";
-    if (engineSub) engineSub.textContent = "300+ natural voices across 80+ languages";
-    if (castTierTag) {
-      castTierTag.textContent = "300+ Voices";
-      castTierTag.style.background = "rgba(14, 165, 233, 0.15)";
-      castTierTag.style.color = "#38bdf8";
-    }
+  const engineDefs = {
+    fish_s2: { icon: "🎭", name: "Fish Speech (Cinema Drama 3)", sub: "Cinema emotion acting • Voice cloning", tag: "Drama 3", tagBg: "rgba(245, 158, 11, 0.15)", tagColor: "#fcd34d" },
+    elevenlabs: { icon: "🌟", name: "ElevenLabs Premier", sub: "v4 / v3 Multilingual • Flash v2.5", tag: "v4 / Flash", tagBg: "rgba(139, 92, 246, 0.2)", tagColor: "#c4b5fd" },
+    cartesia: { icon: "⚡", name: "Cartesia Sonic", sub: "Ultra-fast neural speech (Sonic 3.6/4)", tag: "Sonic 4", tagBg: "rgba(236, 72, 153, 0.2)", tagColor: "#f472b6" },
+    openai: { icon: "🤖", name: "OpenAI Audio", sub: "Natural clarity • gpt-4o-mini-tts", tag: "gpt-4o", tagBg: "rgba(16, 185, 129, 0.2)", tagColor: "#6ee7b7" },
+    edge_tts: { icon: "🌐", name: "Microsoft Edge TTS", sub: "300+ clean cloud voices • Free", tag: "300+ Voices", tagBg: "rgba(14, 165, 233, 0.15)", tagColor: "#38bdf8" },
+    kokoro: { icon: "⚡", name: "Kokoro 82M (On-Device WebGPU)", sub: "Renders on your CPU/GPU • 0s queue • Free", tag: "WebGPU", tagBg: "rgba(99, 102, 241, 0.15)", tagColor: "#a5b4fc" }
+  };
+  const engInfo = engineDefs[blockEngine] || engineDefs.fish_s2;
+  if (engineIcon) engineIcon.textContent = engInfo.icon;
+  if (engineName) engineName.textContent = engInfo.name;
+  if (engineSub) engineSub.textContent = engInfo.sub;
+  if (castTierTag) {
+    castTierTag.textContent = engInfo.tag;
+    castTierTag.style.background = engInfo.tagBg;
+    castTierTag.style.color = engInfo.tagColor;
   }
 
   // Update checkmarks and active states in #engine-model-dropdown
   document.querySelectorAll("#engine-model-dropdown .engine-model-item").forEach(item => {
-    item.classList.toggle("active", item.dataset.engine === blockEngine);
+    const isThis = item.dataset.engine === blockEngine;
+    item.classList.toggle("active", isThis);
+    const checkEl = item.querySelector(".engine-model-check");
+    if (checkEl) checkEl.style.display = isThis ? "inline" : "none";
   });
-  const checkFish = document.getElementById("check-engine-fish_s2");
-  const checkKokoro = document.getElementById("check-engine-kokoro");
-  const checkEdge = document.getElementById("check-engine-edge_tts");
-  if (checkFish) checkFish.style.display = blockEngine === "fish_s2" ? "inline" : "none";
-  if (checkKokoro) checkKokoro.style.display = blockEngine === "kokoro" ? "inline" : "none";
-  if (checkEdge) checkEdge.style.display = blockEngine === "edge_tts" ? "inline" : "none";
 
   // Toggle Context-Sensitive Sections
   const isFish = blockEngine === "fish_s2";
@@ -8164,9 +8165,8 @@ function renderInspector() {
   updateActiveCharacterStatusBanner();
   updateOverriddenCastButtonUI();
 
-  const char = getCharacterById(block.character_id);
-  const cardColor = voice.color || (char && char.color) || "#6366f1";
-  const cardBadge = voice.badge || (voice.name ? voice.name.slice(0, 2).toUpperCase() : (char && char.badge ? char.badge : "VO"));
+  const cardColor = (voice && voice.color) || (char && char.color) || "#6366f1";
+  const cardBadge = (voice && voice.badge) || (voice && voice.name ? voice.name.slice(0, 2).toUpperCase() : (char && char.badge ? char.badge : "VO"));
 
   // Inspector voice card
   const avatar = document.getElementById("inspector-voice-avatar");
@@ -14012,77 +14012,47 @@ function selectEngineOption(newEngine) {
     window.KokoroClient.setClientKokoroEnabled(true);
   }
 
-  // Unify ALL blocks in the current chapter to the new engine!
-  const allBlocks = state.currentProject.blocks || [];
-  allBlocks.forEach(block => {
-    if (!block) return;
-    block.engine = newEngine;
+  // Target active block or selected blocks rather than blindly wiping the whole chapter!
+  const targets = (state.selectedBlockIndices && state.selectedBlockIndices.size > 0)
+    ? Array.from(state.selectedBlockIndices)
+    : (typeof state.activeBlockIndex === "number" && state.activeBlockIndex >= 0 ? [state.activeBlockIndex] : []);
 
-    // Smart voice compatibility migration:
-    // When changing engine, adapt the underlying voice_id to a compatible voice on the new engine.
-    // NEVER overwrite block.speaker or alter block.character_id — the character remains the story character!
-    const currentChar = block.character_id ? getCharacterById(block.character_id) : null;
-    const currentVoice = getVoiceById(block.voice_id);
-    
-    // Determine gender preference from existing voice or character name/persona
-    const isFemale = Boolean(
-      (currentVoice && (currentVoice.gender === "female" || (currentVoice.name && currentVoice.name.toLowerCase().includes("female")))) ||
-      (currentChar && (currentChar.gender === "female" || /lucy|bella|she|her|girl|mother|woman|queen|princess|lady|sarah/i.test(currentChar.name || ""))) ||
-      /lucy|bella|she|her|girl|mother|woman/i.test(block.speaker || "")
-    );
-
-    if (newEngine === "edge_tts") {
-      if (!block.voice_id || !block.voice_id.includes("Neural")) {
-        block.voice_id = isFemale ? "en-US-JennyNeural" : "en-US-GuyNeural";
-        delete block.reference_audio;
-        delete block.reference_text;
-      }
-    } else if (newEngine === "kokoro") {
-      if (!block.voice_id || block.voice_id.startsWith("fish_") || block.voice_id.includes("Neural")) {
-        block.voice_id = isFemale ? "af_bella" : "am_adam";
-        delete block.reference_audio;
-        delete block.reference_text;
-      }
-    } else if (newEngine === "fish_s2") {
-      if (block.voice_id && (block.voice_id.includes("Neural") || block.voice_id.startsWith("af_") || block.voice_id.startsWith("am_"))) {
-        block.voice_id = isFemale ? "fish_9f508743280b46788d64de199cbb5093" : "fish_71804f0aa9e8457e92e9e49c26691514";
-      }
-    }
-
-    // Invalidate audio cache for changed engine
-    delete block.cachedAudioUrl;
-    delete block.audio_url;
-    delete block.cachedSig;
-    delete block.duration;
-    delete block.audio_hash;
-    delete block.rawAudioUrl;
-    delete block.raw_audio_url;
-  });
-
-  // Also migrate Chapter Cast characters to compatible voices on newEngine
-  if (Array.isArray(state.savedCharacters)) {
-    state.savedCharacters.forEach(c => {
-      const isFemale = Boolean(
-        /lucy|bella|she|her|girl|mother|woman|queen|princess|lady|sarah|emma/i.test(c.name || "") ||
-        (c.gender === "female")
-      );
-      if (newEngine === "edge_tts") {
-        if (!c.voice_id || !c.voice_id.includes("Neural")) {
-          c.voice_id = isFemale ? "en-US-JennyNeural" : "en-US-GuyNeural";
-        }
-      } else if (newEngine === "kokoro") {
-        if (!c.voice_id || c.voice_id.startsWith("fish_") || c.voice_id.includes("Neural")) {
-          c.voice_id = isFemale ? "af_bella" : "am_adam";
-        }
-      } else if (newEngine === "fish_s2") {
-        if (c.voice_id && (c.voice_id.includes("Neural") || c.voice_id.startsWith("af_") || c.voice_id.startsWith("am_"))) {
-          c.voice_id = isFemale ? "fish_9f508743280b46788d64de199cbb5093" : "fish_71804f0aa9e8457e92e9e49c26691514";
+  if (targets.length > 0) {
+    targets.forEach(idx => {
+      const block = state.currentProject.blocks[idx];
+      if (!block || block.type === "heading" || block.is_spoken === false) return;
+      block.engine = newEngine;
+      const currentVoice = getVoiceById(block.voice_id);
+      if (!currentVoice || (currentVoice.engine || "fish_s2") !== newEngine) {
+        const isFemale = Boolean(
+          (currentVoice && (currentVoice.gender === "female" || (currentVoice.name && currentVoice.name.toLowerCase().includes("female")))) ||
+          /lucy|bella|she|her|girl|mother|woman/i.test(block.speaker || "")
+        );
+        if (newEngine === "edge_tts") {
+          block.voice_id = isFemale ? "en-US-JennyNeural" : "en-US-GuyNeural";
+        } else if (newEngine === "kokoro") {
+          block.voice_id = isFemale ? "af_bella" : "am_adam";
+        } else if (newEngine === "elevenlabs") {
+          block.voice_id = isFemale ? "EXAVITQu4vr4xnSDxMaL" : "pNInz6obpgDQGcFmaJgB";
+        } else if (newEngine === "cartesia") {
+          block.voice_id = isFemale ? "79a125e8-cd45-4c13-8a67-188112f4dd22" : "a0e99841-438c-4a64-b679-ae501e7d6091";
+        } else if (newEngine === "openai") {
+          block.voice_id = isFemale ? "nova" : "onyx";
+        } else {
+          block.voice_id = isFemale ? "fish_9f508743280b46788d64de199cbb5093" : "fish_71804f0aa9e8457e92e9e49c26691514";
         }
       }
+      delete block.cachedAudioUrl;
+      delete block.audio_url;
+      delete block.cachedSig;
+      delete block.duration;
+      delete block.audio_hash;
     });
-    if (state.currentProject) {
-      state.currentProject.characters = [...state.savedCharacters];
-    }
+    showToast(`⚡ Switched engine for ${targets.length} sentence${targets.length > 1 ? 's' : ''}`);
+  } else {
+    state.activeEngine = newEngine;
+    if (state.currentProject) state.currentProject.engine = newEngine;
+    showToast(`⚡ Set default engine to ${newEngine.toUpperCase()}`);
   }
 
   renderBlocks();
