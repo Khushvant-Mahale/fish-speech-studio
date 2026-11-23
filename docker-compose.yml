@@ -1,0 +1,28 @@
+services:
+  kashva-voice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kashva-voice:latest
+    container_name: kashva-voice
+    restart: unless-stopped
+    ports:
+      - "${PORT:-7865}:7865"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=7865
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - CARTESIA_API_KEY=${CARTESIA_API_KEY:-}
+      - FISH_API_KEY=${FISH_API_KEY:-}
+    volumes:
+      - ./projects:/app/projects
+      - ./voices/reference:/app/voices/reference
+      - ./cache:/app/cache
+      - ./output:/app/output
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:7865/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

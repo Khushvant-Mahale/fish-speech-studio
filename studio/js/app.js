@@ -1095,7 +1095,7 @@ function switchToView(viewName, updateUrl = true) {
     if (authEl) authEl.style.display = "flex";
     if (dashEl) dashEl.style.display = "none";
     if (studioEl) studioEl.style.display = "none";
-    document.title = "Sign In — Fish Speech Studio";
+    document.title = "Sign In — Kashva Voice";
     if (updateUrl) {
       history.pushState({ view: "auth" }, "", "/login");
     }
@@ -1103,7 +1103,7 @@ function switchToView(viewName, updateUrl = true) {
     if (authEl) authEl.style.display = "none";
     if (dashEl) dashEl.style.display = "flex";
     if (studioEl) studioEl.style.display = "none";
-    document.title = "Story Projects — Kashva Studio TTS";
+    document.title = "Story Projects — Kashva Voice";
     if (updateUrl) {
       history.pushState({ view: "dashboard" }, "", "/");
     }
@@ -1113,7 +1113,7 @@ function switchToView(viewName, updateUrl = true) {
     if (dashEl) dashEl.style.display = "none";
     if (studioEl) studioEl.style.display = "flex";
     const projTitle = state.currentProject?.title || "Story Studio";
-    document.title = `${projTitle} — Kashva Studio TTS`;
+    document.title = `${projTitle} — Kashva Voice`;
     if (updateUrl && state.currentProject?.id) {
       const studioUrl = `/studio?project=${encodeURIComponent(state.currentProject.id)}`;
       history.pushState({ view: "studio", projectId: state.currentProject.id }, "", studioUrl);
@@ -1530,15 +1530,15 @@ function renderDashboard() {
   const projects = state.projects || [];
   state.activeEngine = "fish_s2";
 
-  // Update header branding badge & title to match Fish Speech S2 Pro Studio
+  // Update header branding badge & title to match Kashva Voice
   const brandBadge = document.getElementById("dashboard-brand-badge");
   const brandTitle = document.getElementById("dashboard-brand-title");
   if (brandBadge) {
-    brandBadge.textContent = "Fish Speech";
-    brandBadge.style.background = "linear-gradient(135deg, #10b981, #059669)";
+    brandBadge.textContent = "Kashva";
+    brandBadge.style.background = "linear-gradient(135deg, #6366f1, #4f46e5)";
   }
   if (brandTitle) {
-    brandTitle.textContent = "S2 Pro Studio";
+    brandTitle.textContent = "Voice";
   }
 
   // 1. Calculate top metrics strip stats

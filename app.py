@@ -93,9 +93,9 @@ async def init_engine():
     fish_model = (cfg.get("fish_api_model") or "drama-3").strip()
     try:
         fish_engine = FishEngine(remote_url=fish_remote, api_key=active_fish_key, model=fish_model)
-        print(f"[Fish Speech Studio] Fish Audio engine ready (Worker: {fish_remote or 'None'}, Active Tier: {tier_mgr.get_tier()}, Model: {fish_model})")
+        print(f"[Kashva Voice] Fish Audio engine ready (Worker: {fish_remote or 'None'}, Active Tier: {tier_mgr.get_tier()}, Model: {fish_model})")
     except Exception as e:
-        print(f"[Fish Speech Studio] Warning: FishEngine init error: {e}")
+        print(f"[Kashva Voice] Warning: FishEngine init error: {e}")
 
     # Initialize Kokoro Engine
     kokoro_remote = (cfg.get("kokoro_remote_worker_url") or cfg.get("remote_worker_url", "")).strip()
@@ -123,6 +123,23 @@ async def init_engine():
 
 
 @web.middleware
+async def cors_middleware(request, handler):
+    if request.method == "OPTIONS":
+        resp = web.Response(status=204)
+    else:
+        try:
+            resp = await handler(request)
+        except web.HTTPException as ex:
+            resp = ex
+    origin = request.headers.get("Origin", "*")
+    resp.headers["Access-Control-Allow-Origin"] = origin
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, HEAD"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+    resp.headers["Access-Control-Allow-Credentials"] = "true"
+    return resp
+
+
+@web.middleware
 async def no_cache_middleware(request, handler):
     resp = await handler(request)
     if request.path.startswith(("/studio", "/kokoro", "/projects")) or request.path == "/":
@@ -130,6 +147,17 @@ async def no_cache_middleware(request, handler):
         resp.headers["Pragma"] = "no-cache"
         resp.headers["Expires"] = "0"
     return resp
+
+
+async def handle_health(request):
+    """Production health check probe for Docker, Kubernetes, and Cloud PaaS."""
+    return web.json_response({
+        "status": "healthy",
+        "service": "Kashva Voice",
+        "version": "1.0.0",
+        "active_tier": tier_mgr.get_tier(),
+        "timestamp": time.time()
+    })
 
 
 # ---------------- API HANDLERS ---------------- #
@@ -1490,9 +1518,11 @@ def sync_synthesize_block_for_export(b: dict, active_engine_name: str) -> Option
         cached_filename = Path(clean_url).name
         cached_path = CACHE_DIR / cached_filename
         if not cached_path.exists():
-            edge_cache = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/cache") / cached_filename
+            edge_cache = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/cache")
             if edge_cache.exists():
-                cached_path = edge_cache
+                alt_cache = edge_cache / cached_filename
+                if alt_cache.exists():
+                    cached_path = alt_cache
         if cached_path.exists():
             try:
                 samples, sr = sf.read(str(cached_path))
@@ -2836,16 +2866,18 @@ async def handle_merge_short(request):
 
 async def handle_get_audio(request):
     filename = request.match_info["filename"]
-    edge_cache = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/cache")
-    edge_output = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/output")
     candidates = [
         CACHE_DIR / filename,
         OUTPUT_DIR / filename,
         SAMPLES_DIR / filename,
         VOICES_DIR / filename,
-        edge_cache / filename,
-        edge_output / filename
     ]
+    edge_cache = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/cache")
+    if edge_cache.exists():
+        candidates.append(edge_cache / filename)
+    edge_output = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/output")
+    if edge_output.exists():
+        candidates.append(edge_output / filename)
     if filename.startswith("dsp_"):
         stem = Path(filename).stem[4:]
         parts = stem.split("_")
@@ -3611,7 +3643,9 @@ async def handle_get_colab_script(request):
     is_kokoro = ("/kokoro" in referer) or (request.query.get("engine") == "kokoro")
     colab_file = (BASE_DIR / "colab_worker.py") if is_kokoro else (BASE_DIR / "colab_fish_worker.py")
     if not colab_file.exists():
-        colab_file = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/colab_worker.py")
+        alt_colab = Path("c:/Users/ADMIN/Documents/Project Folder/edge tts/colab_worker.py")
+        if alt_colab.exists():
+            colab_file = alt_colab
     if colab_file.exists():
         with open(colab_file, "r", encoding="utf-8") as f:
             content = f.read()
@@ -3643,7 +3677,12 @@ async def handle_favicon(request):
 # ---------------- APP FACTORY ---------------- #
 
 def create_app():
-    app = web.Application(middlewares=[no_cache_middleware])
+    app = web.Application(middlewares=[cors_middleware, no_cache_middleware], client_max_size=100 * 1024 * 1024)
+
+    # Production Health Check probes
+    app.router.add_get("/health", handle_health)
+    app.router.add_get("/api/health", handle_health)
+
     app.router.add_get("/", handle_index)
     app.router.add_get("/login", handle_index)
     app.router.add_get("/studio", handle_index)
@@ -3763,8 +3802,11 @@ def create_app():
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Fish Speech Studio Server")
-    parser.add_argument("--port", type=int, default=7865, help="Port to listen on (default 7865)")
+    parser = argparse.ArgumentParser(description="Kashva Voice — AI Speech & Voice Drama Studio Server")
+    default_host = os.environ.get("HOST", "0.0.0.0")
+    default_port = int(os.environ.get("PORT", "7865"))
+    parser.add_argument("--host", type=str, default=default_host, help=f"Host to listen on (default {default_host})")
+    parser.add_argument("--port", type=int, default=default_port, help=f"Port to listen on (default {default_port})")
     parser.add_argument("--test", action="store_true", help="Initialize and exit for testing")
     args = parser.parse_args()
 
@@ -3773,11 +3815,12 @@ if __name__ == "__main__":
     loop.run_until_complete(init_engine())
 
     if args.test:
-        print("[Fish Speech Studio] Self-test passed successfully.")
+        print("[Kashva Voice] Self-test passed successfully.")
         exit(0)
 
     app = create_app()
+    display_host = "localhost" if args.host in ("0.0.0.0", "127.0.0.1") else args.host
     print("\n=======================================================")
-    print(f"  [Fish Audio S2 Pro Studio] running at: http://localhost:{args.port}")
+    print(f"  🎙️ [Kashva Voice] running at: http://{display_host}:{args.port} (bound to {args.host}:{args.port})")
     print("=======================================================\n")
-    web.run_app(app, host="127.0.0.1", port=args.port)
+    web.run_app(app, host=args.host, port=args.port)

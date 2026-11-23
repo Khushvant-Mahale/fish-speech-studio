@@ -1,0 +1,34 @@
+# Git
+.git
+.gitignore
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Local cache, outputs, scratch files
+cache/*
+!cache/.gitkeep
+output/*
+!output/.gitkeep
+scratch/*
+scratch_*.wav
+
+# Local environment configuration
+.env
+.env.local
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
