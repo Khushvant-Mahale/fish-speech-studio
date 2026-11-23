@@ -3806,7 +3806,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Kashva Voice — AI Speech & Voice Drama Studio Server")
     default_host = os.environ.get("HOST", "0.0.0.0")
-    default_port = int(os.environ.get("PORT", "7865"))
+    default_port = int(os.environ.get("PORT", "7860"))
     parser.add_argument("--host", type=str, default=default_host, help=f"Host to listen on (default {default_host})")
     parser.add_argument("--port", type=int, default=default_port, help=f"Port to listen on (default {default_port})")
     parser.add_argument("--test", action="store_true", help="Initialize and exit for testing")

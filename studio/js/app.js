@@ -9427,7 +9427,7 @@ async function playBlockAudio(idx, targetOffset = 0, isAutoContinuation = false,
 
   const activeEng = block.engine || state.currentProject?.engine || state.activeEngine || "fish_s2";
   if (activeEng === "kokoro") {
-    if (window.KokoroClient && window.KokoroClient.isClientKokoroEnabled()) {
+    if (window.KokoroClient && typeof window.KokoroClient.isClientKokoroEnabled === "function" && window.KokoroClient.isClientKokoroEnabled()) {
       try {
         const char = getCharacterById(block.character_id || block.speaker);
         let chosenVoiceId = block.voice_id || (char && (char.voice_id || char.assigned_voice_id)) || "af_bella";
@@ -9466,17 +9466,8 @@ async function playBlockAudio(idx, targetOffset = 0, isAutoContinuation = false,
       } catch (clientErr) {
         console.warn("[KokoroClient] Browser WebGPU synthesis fallback to server:", clientErr);
       }
-    } else {
-      // Model not downloaded -> DO NOT download automatically. Show alert & reveal button in inspector.
-      stopBlockProgress(idx, false);
-      showToast("⚡ Kokoro 82M model (~80MB) is not downloaded. Click 'Download In-Browser Model' in Speech Controls on the left, or switch to Edge TTS (Free / Instant)!", 5000);
-      const kokoroSec = document.getElementById("inspector-kokoro-section");
-      if (kokoroSec) {
-        kokoroSec.style.display = "block";
-        kokoroSec.scrollIntoView({ behavior: "smooth" });
-      }
-      return;
     }
+    // Seamless fallback to server synthesis on Hugging Face / backend
   }
 
   try {
@@ -14658,38 +14649,17 @@ async function handleDownloadKokoroModel() {
 }
 
 function updateKokoroInspectorUI() {
-  const btn = document.getElementById("btn-kokoro-download");
-  const progWrap = document.getElementById("kokoro-download-progress-wrap");
   const badge = document.getElementById("kokoro-status-badge");
-  if (!window.KokoroClient) return;
-
-  const isLoaded = window.KokoroClient.isModelLoaded && window.KokoroClient.isModelLoaded();
-  if (isLoaded) {
-    if (badge) {
-      badge.textContent = "✓ Ready (Cached)";
+  const isLoaded = window.KokoroClient && typeof window.KokoroClient.isModelLoaded === "function" && window.KokoroClient.isModelLoaded();
+  if (badge) {
+    if (isLoaded) {
+      badge.textContent = "✓ Client WebGPU (Cached)";
       badge.style.background = "rgba(16, 185, 129, 0.2)";
       badge.style.color = "#34d399";
-    }
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "✓ Model Ready in Browser";
-      btn.style.background = "rgba(16, 185, 129, 0.15)";
-      btn.style.color = "#34d399";
-      btn.style.border = "1px solid rgba(16, 185, 129, 0.3)";
-    }
-    if (progWrap) progWrap.style.display = "none";
-  } else {
-    if (badge) {
-      badge.textContent = "Not Downloaded";
-      badge.style.background = "rgba(255, 255, 255, 0.1)";
-      badge.style.color = "#94a3b8";
-    }
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "📥 Download In-Browser Model (~80MB)";
-      btn.style.background = "";
-      btn.style.color = "";
-      btn.style.border = "";
+    } else {
+      badge.textContent = "✓ Server Ready • 0 MB Download";
+      badge.style.background = "rgba(16, 185, 129, 0.2)";
+      badge.style.color = "#34d399";
     }
   }
 }

@@ -1,6 +1,16 @@
+---
+title: Kashva Voice Studio
+emoji: 🎙️
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 🎙️ Kashva Voice — AI Speech & Voice Drama Studio
 
-> **Production-ready, multi-engine audio drama and voice synthesis studio featuring granular sentence-level model routing, zero-shot voice cloning, cinematic emotion acting, on-device WebGPU rendering, and cloud GPU acceleration.**
+> **Production-ready, multi-engine audio drama and voice synthesis studio featuring granular sentence-level model routing, zero-shot voice cloning, cinematic emotion acting, server-side Kokoro 82M neural engine, and cloud GPU acceleration.**
 
 ![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![Docker Ready](https://img.shields.io/badge/docker-ready-2496ED.svg?logo=docker&logoColor=white)
@@ -18,7 +28,7 @@
 
 * **Multi-Engine Ecosystem**:
   * 🐟 **Fish Speech**: Cinematic voice acting (`Drama 3 Cinema` & `S2.1 Pro`) with zero-shot voice cloning and natural language emotion tags (`[whisper]`, `[screaming in sheer panic]`, `[cold sinister whisper]`).
-  * ⚡ **Kokoro 82M**: 100% on-device WebGPU instant rendering with zero queue and zero cloud cost.
+  * ⚡ **Kokoro 82M**: Server-side neural engine with zero queue and 0 MB client download. Instant, natural speech synthesis across 40+ voices.
   * 🌐 **Microsoft Edge TTS**: 300+ free high-fidelity cloud voices across 80+ languages.
   * ✨ **ElevenLabs**: Industry-standard premier studio narration (`v4 Cinematic`, `v3 Multilingual`, `Flash v2.5`).
   * ⚡ **Cartesia Sonic**: Ultra-low-latency real-time voice synthesis (`Sonic 3.6`, `Sonic 4`).
@@ -123,7 +133,7 @@ Configure these variables via `.env` or your cloud provider's dashboard:
 | Variable | Default | Description |
 | :--- | :--- | :--- |
 | `HOST` | `0.0.0.0` | IP interface to bind to |
-| `PORT` | `7865` | Server port (auto-mapped by cloud providers via `$PORT`) |
+| `PORT` | `7860` | Server port (auto-mapped by Hugging Face / cloud providers via `$PORT`) |
 | `STUDIO_TIER` | `free` | Tier setting (`free` or `pro`) |
 | `ELEVENLABS_API_KEY` | *(optional)* | ElevenLabs API key for v3/v4 commercial voices |
 | `OPENAI_API_KEY` | *(optional)* | OpenAI API key for gpt-4o-mini-tts voices |

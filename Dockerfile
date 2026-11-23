@@ -6,15 +6,21 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive \
     HOST=0.0.0.0 \
-    PORT=7865
+    PORT=7860
 
-# Install system dependencies (libsndfile for soundfile, ffmpeg for audio processing, curl for health checks)
+# Install system dependencies (libsndfile for soundfile, ffmpeg for audio processing, curl for health checks, espeak-ng for kokoro phonemization)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     ffmpeg \
     curl \
     ca-certificates \
+    espeak-ng \
     && rm -rf /var/lib/apt/lists/*
+
+# Set up non-root user for Hugging Face Spaces (UID 1000)
+RUN useradd -m -u 1000 user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
 
 WORKDIR /app
 
@@ -38,15 +44,20 @@ COPY studio/ studio/
 COPY voices/ voices/
 COPY cli/ cli/
 
-# Create persistent runtime data directories
-RUN mkdir -p /app/cache /app/output /app/projects /app/data /app/voices/reference
+# Create persistent runtime data directories & set permissions for user 1000
+RUN mkdir -p /app/cache /app/output /app/projects /app/data /app/voices/reference && \
+    chown -R user:user /app && \
+    chmod -R 775 /app
 
-# Expose default studio port
-EXPOSE 7865
+# Switch to non-root user
+USER user
+
+# Expose default HF Spaces port
+EXPOSE 7860
 
 # Container health check probe
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://127.0.0.1:${PORT:-7865}/health || exit 1
+    CMD curl -f http://127.0.0.1:${PORT:-7860}/health || exit 1
 
 # Start Kashva Voice server
-CMD ["sh", "-c", "python app.py --host ${HOST:-0.0.0.0} --port ${PORT:-7865}"]
+CMD ["sh", "-c", "python app.py --host ${HOST:-0.0.0.0} --port ${PORT:-7860}"]
