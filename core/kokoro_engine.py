@@ -19,7 +19,9 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 class KokoroEngine:
     def __init__(self, remote_url: Optional[str] = None):
-        model_path = MODELS_DIR / "kokoro-v0_19.onnx"
+        model_path = MODELS_DIR / "kokoro-v0_19.int8.onnx"
+        if not model_path.exists():
+            model_path = MODELS_DIR / "kokoro-v0_19.onnx"
         voices_path = MODELS_DIR / "voices-v1.0.bin"
 
         if not model_path.exists():
@@ -30,9 +32,10 @@ class KokoroEngine:
         import onnxruntime as rt
         import psutil
 
-        physical_cores = psutil.cpu_count(logical=False) or 4
-        print(f"[KokoroEngine] Loading model weights from {model_path.name} with {physical_cores} CPU threads...")
+        physical_cores = min(psutil.cpu_count(logical=False) or 2, 2)
+        print(f"[KokoroEngine] Loading model weights from {model_path.name} with {physical_cores} CPU threads (arena disabled for low-RAM efficiency)...")
         sess_options = rt.SessionOptions()
+        sess_options.enable_cpu_mem_arena = False
         sess_options.intra_op_num_threads = physical_cores
         sess_options.inter_op_num_threads = 1
         sess_options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_ALL
