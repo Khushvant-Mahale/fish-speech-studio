@@ -754,7 +754,10 @@ setInterval(() => {
 async function openProject(projectId, updateUrl = true) {
   try {
     const res = await fetch(`/api/project?id=${encodeURIComponent(projectId)}&t=${Date.now()}`);
-    if (!res.ok) throw new Error("Project not found");
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `HTTP ${res.status}: Project not found`);
+    }
     state.currentProject = await res.json();
     state.activeEngine = state.currentProject?.engine || "fish_s2";
     state.activeBlockIndex = 0;
@@ -767,11 +770,12 @@ async function openProject(projectId, updateUrl = true) {
 
     // Multi-Engine Character Continuity Auto-Healing:
     // Ensure every block has an engine and voice aligned to its character, preventing any orphaned or mismatched blocks
-    if (state.currentProject && state.currentProject.blocks) {
+    if (state.currentProject && Array.isArray(state.currentProject.blocks)) {
       const charMap = {};
-      (state.savedCharacters || []).forEach(c => { if (c.id) charMap[c.id] = c; });
+      (state.savedCharacters || []).forEach(c => { if (c && c.id) charMap[c.id] = c; });
       state.currentProject.blocks.forEach(block => {
-        const char = block.character_id ? charMap[block.character_id] : (block.speaker ? (state.savedCharacters || []).find(c => c.name === block.speaker) : null);
+        if (!block) return;
+        const char = block.character_id ? charMap[block.character_id] : (block.speaker ? (state.savedCharacters || []).find(c => c && c.name === block.speaker) : null);
         if (char) {
           if (!block.character_id) block.character_id = char.id;
           if (!block.engine && char.engine) block.engine = char.engine;
@@ -785,8 +789,9 @@ async function openProject(projectId, updateUrl = true) {
       });
     }
 
-    if (state.currentProject && state.currentProject.blocks) {
+    if (state.currentProject && Array.isArray(state.currentProject.blocks)) {
       state.currentProject.blocks.forEach(block => {
+        if (!block) return;
         // Sanitize any stale blob: URLs from previous browser sessions
         if (block.audio_url && block.audio_url.startsWith("blob:")) {
           block.audio_url = block.hash ? `/api/audio/${block.hash}.wav` : "";
@@ -833,17 +838,32 @@ async function openProject(projectId, updateUrl = true) {
     if (zeroShotSection) zeroShotSection.style.display = isFish ? "block" : "none";
 
     switchToView("studio", updateUrl);
-    renderStudio();
-    syncProjectAudioCache();
-    initAIAgentSessions();
-    updateAIAgentContextUI();
+
+    try {
+      renderStudio();
+    } catch (renderErr) {
+      console.error("renderStudio error:", renderErr);
+    }
+
+    try {
+      syncProjectAudioCache();
+    } catch (syncErr) {
+      console.warn("syncProjectAudioCache warning:", syncErr);
+    }
+
+    try {
+      initAIAgentSessions();
+      updateAIAgentContextUI();
+    } catch (agentErr) {
+      console.warn("initAIAgentSessions warning:", agentErr);
+    }
 
     if (state.currentProject && (state.currentProject.is_stub || (!state.currentProject.blocks?.length && state.currentProject.source_epub))) {
       setTimeout(() => openStubDirectModal(), 150);
     }
   } catch (err) {
     console.error("Failed to load project: " + err);
-    showToast("⚠️ Could not load project. Returning to dashboard.");
+    showToast(`⚠️ Could not load project: ${err.message || 'Unknown error'}`);
     switchToView("dashboard", true);
   }
 }
@@ -3886,7 +3906,21 @@ function renderBlocks() {
   const container = document.getElementById("story-container");
   const canvas = document.querySelector(".editor-canvas");
   const savedScrollTop = canvas ? canvas.scrollTop : 0;
+  if (!container) return;
   container.innerHTML = "";
+
+  if (!state.currentProject?.blocks || state.currentProject.blocks.length === 0) {
+    const emptyState = document.createElement("div");
+    emptyState.className = "dashboard-empty-state";
+    emptyState.style.margin = "40px auto";
+    emptyState.innerHTML = `
+      <div class="empty-icon">📝</div>
+      <div class="empty-title">No dialogue lines yet</div>
+      <div class="empty-desc">Type your script above or click "Import Text" to populate sentences.</div>
+    `;
+    container.appendChild(emptyState);
+    return;
+  }
 
   if (activeCharacterFilter) {
     const filterBanner = document.createElement("div");
@@ -8294,7 +8328,7 @@ function renderInspector() {
 
   const subEl = document.getElementById("inspector-voice-sub");
   if (subEl) {
-    const engLabel = (engineDefs[blockEngine] || {}).name || blockEngine;
+    const engLabel = engDisplayName || blockEngine;
     const metaParts = [engLabel, voice.gender, voice.accent, voice.timbre].filter(Boolean);
     subEl.textContent = metaParts.join(" • ");
   }

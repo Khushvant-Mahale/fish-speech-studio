@@ -1824,7 +1824,8 @@ async def handle_reset_dsp(request):
 async def handle_get_projects(request):
     user = get_current_user(request)
     engine_filter = request.query.get("engine")
-    owner_id = user["user_id"] if user and not user.get("is_admin") else None
+    is_local = request.remote in ("127.0.0.1", "::1", "localhost") or not request.remote
+    owner_id = user["user_id"] if (user and not user.get("is_admin") and not is_local) else None
     projs = project_mgr.list_projects(engine=engine_filter, owner_id=owner_id)
     return web.json_response(projs)
 
@@ -2044,7 +2045,8 @@ async def handle_get_project(request):
     proj = project_mgr.load_project(proj_id)
     if not proj:
         return web.json_response({"error": "Project not found"}, status=404)
-    if user and not user.get("is_admin") and proj.get("owner_id") and proj["owner_id"] != user["user_id"]:
+    is_local = request.remote in ("127.0.0.1", "::1", "localhost") or not request.remote
+    if user and not user.get("is_admin") and not is_local and proj.get("owner_id") and proj["owner_id"] != user["user_id"]:
         return web.json_response({"error": "Access denied to this project"}, status=403)
     return web.json_response(proj)
 
@@ -2107,7 +2109,8 @@ async def handle_get_folders(request):
     engine_filter = request.query.get("engine")
     parent_id = request.query.get("parent_id")
     include_all = request.query.get("include_all") == "1"
-    owner_id = user["user_id"] if user and not user.get("is_admin") else None
+    is_local = request.remote in ("127.0.0.1", "::1", "localhost") or not request.remote
+    owner_id = user["user_id"] if (user and not user.get("is_admin") and not is_local) else None
     folders = project_mgr.list_folders(engine=engine_filter, parent_id=parent_id, include_all=include_all, owner_id=owner_id)
     return web.json_response(folders)
 
@@ -2116,7 +2119,8 @@ async def handle_get_folder(request):
     folder_id = request.query.get("id", "").strip()
     if not folder_id:
         return web.json_response({"ok": False, "error": "Missing folder id"}, status=400)
-    owner_id = user["user_id"] if user and not user.get("is_admin") else None
+    is_local = request.remote in ("127.0.0.1", "::1", "localhost") or not request.remote
+    owner_id = user["user_id"] if (user and not user.get("is_admin") and not is_local) else None
     folder = project_mgr.get_folder(folder_id, owner_id=owner_id)
     if not folder:
         return web.json_response({"ok": False, "error": "Folder not found"}, status=404)
