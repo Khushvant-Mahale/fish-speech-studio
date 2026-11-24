@@ -264,7 +264,8 @@ class FishEngine:
         clarity: float,
         reverb: float,
         fx_filter: str,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        voice_id: Optional[str] = None
     ) -> str:
         """Computes deterministic MD5 hash for audio caching."""
         ref_sig = "noref"
@@ -276,8 +277,9 @@ class FishEngine:
                 ref_sig = ref_audio_path.name
 
         norm_model = "s2.1-pro" if model in ("s2_pro", "s2-pro", "s2.1-pro") else ("drama-3" if model in ("drama3", "drama-3") else (getattr(self, "model", "drama-3") or "drama-3"))
+        clean_vid = str(voice_id or "").strip()
         cache_str = (
-            f"fish_{norm_model}__{formatted_text}__{ref_sig}__{ref_text or ''}__"
+            f"fish_{norm_model}__{clean_vid}__{formatted_text}__{ref_sig}__{ref_text or ''}__"
             f"{speed:.2f}__{temperature:.2f}__{top_p:.2f}__{gain:.2f}__"
             f"{pitch_shift:.1f}__{warmth:.1f}__{clarity:.1f}__{reverb:.2f}__{fx_filter}"
         )
@@ -342,7 +344,8 @@ class FishEngine:
         cache_hash = self.compute_cache_hash(
             formatted_text, ref_path, ref_text, speed_f, temp_f, top_p_f,
             gain_f, pitch_shift_f, warmth_f, clarity_f, reverb_f, fx_filter_s,
-            model=model_name
+            model=model_name,
+            voice_id=voice_id
         )
         cache_file = CACHE_DIR / f"{cache_hash}.wav"
 
@@ -364,7 +367,8 @@ class FishEngine:
         raw_cache_hash = self.compute_cache_hash(
             formatted_text, ref_path, ref_text, 1.0, temp_f, top_p_f,
             1.0, 0.0, 0.0, 0.0, 0.0, "none",
-            model=model_name
+            model=model_name,
+            voice_id=voice_id
         )
         raw_cache_file = CACHE_DIR / f"raw_{raw_cache_hash}.wav"
 

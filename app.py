@@ -1597,6 +1597,7 @@ async def handle_demo_synthesize(request):
     voice_id = data.get("voice_id") or "voice_morgan_freeman"
     speed = max(0.5, min(2.0, float(data.get("speed") or 1.0)))
     pitch_shift = max(-12.0, min(12.0, float(data.get("pitch_shift") or 0.0)))
+    force_refresh = bool(data.get("force_refresh", False))
 
     # Map friendly IDs to official Fish Audio hex models
     HEX_VOICE_MAP = {
@@ -1624,7 +1625,8 @@ async def handle_demo_synthesize(request):
                 voice_id=resolved_voice_id,
                 speed=speed,
                 pitch_shift=pitch_shift,
-                model="drama-3"
+                model="drama-3",
+                force_refresh=force_refresh
             )
             if isinstance(res, dict) and not res.get("error"):
                 return web.json_response(res)
