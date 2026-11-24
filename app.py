@@ -1598,7 +1598,11 @@ def _check_demo_origin_allowed(request) -> bool:
     referer = request.headers.get("Referer", "")
     target = origin or referer
     if not target:
-        # Allow internal server or local requests
+        # If forwarded exists, request came from external internet without Origin/Referer (bot/curl) -> block
+        forwarded = request.headers.get("X-Forwarded-For", "")
+        if forwarded:
+            return False
+        # Allow internal server or local requests only
         remote = request.remote or ""
         return remote in ("127.0.0.1", "::1", "localhost")
     return any(host in target.lower() for host in DEMO_ALLOWED_HOSTS)
