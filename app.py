@@ -54,19 +54,41 @@ tier_mgr = TierManager()
 
 
 def load_config() -> dict:
+    cfg = {}
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                cfg = json.load(f)
         except Exception:
-            pass
-    return {
+            cfg = {}
+    defaults = {
         "remote_worker_url": "",
         "fish_remote_worker_url": "",
         "fish_api_key": "",
         "fish_api_model": "drama-3",
-        "active_engine": "fish_s2"
+        "active_engine": "fish_s2",
+        "default_llm_provider": "gemini",
+        "gemini_model": "gemini-2.5-flash",
+        "google_client_id": ""
     }
+    for k, v in defaults.items():
+        if k not in cfg:
+            cfg[k] = v
+
+    # Fallback to environment variables if not explicitly provided in config.json
+    env_mappings = {
+        "google_client_id": "GOOGLE_CLIENT_ID",
+        "gemini_api_key": "GEMINI_API_KEY",
+        "groq_api_key": "GROQ_API_KEY",
+        "fish_api_key": "FISH_API_KEY",
+        "kaggle_username": "KAGGLE_USERNAME",
+        "kaggle_key": "KAGGLE_KEY",
+    }
+    for cfg_key, env_var in env_mappings.items():
+        if not cfg.get(cfg_key) and os.environ.get(env_var):
+            cfg[cfg_key] = os.environ.get(env_var).strip()
+
+    return cfg
 
 
 def save_config(cfg: dict):
@@ -80,14 +102,14 @@ async def init_engine():
     cfg = load_config()
 
     # Load master platform key for SaaS subscriptions (env var takes top priority, config fallback)
-    platform_key = (os.environ.get("FISH_PLATFORM_API_KEY") or cfg.get("fish_api_key", "")).strip()
+    platform_key = (os.environ.get("FISH_PLATFORM_API_KEY") or os.environ.get("FISH_API_KEY") or cfg.get("fish_api_key", "")).strip()
     if platform_key:
         tier_mgr.state["platform_fish_api_key"] = platform_key
         print("[SaaS Engine] Platform master Drama 3 API key loaded successfully.")
 
     # Initialize Fish Audio S2 Pro / Drama 3 Engine
     fish_remote = (cfg.get("fish_remote_worker_url") or cfg.get("remote_worker_url", "")).strip()
-    fish_key = cfg.get("fish_api_key", "").strip()
+    fish_key = (os.environ.get("FISH_API_KEY") or cfg.get("fish_api_key", "")).strip()
     # If in BYOK mode, use user's explicit key; otherwise resolve via TierManager
     active_fish_key = tier_mgr.resolve_api_key() or fish_key
     fish_model = (cfg.get("fish_api_model") or "drama-3").strip()
