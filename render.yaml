@@ -1,3 +1,10 @@
+databases:
+  - name: kashva-db
+    databaseName: kashva
+    user: kashva_user
+    plan: free
+    region: oregon
+
 services:
   - type: web
     name: kashva-voice
@@ -9,6 +16,10 @@ services:
         value: 0.0.0.0
       - key: PORT
         value: "7860"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kashva-db
+          property: connectionString
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GEMINI_API_KEY

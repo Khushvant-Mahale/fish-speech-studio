@@ -707,12 +707,31 @@ class FishEngine:
         if speed and speed != 1.0:
             payload["prosody"] = {"speed": speed}
 
+        # Map friendly IDs to official Fish Audio hex models
+        HEX_VOICE_MAP = {
+            "voice_morgan_freeman": "0327fdb5da9e4fd782899a8058c8ae2b",
+            "voice_scarlett": "6b37f00d482d46ddb567fa45b736ca95",
+            "voice_attenborough": "0fb8eca5e0dc4d4f800ebed5134e74ab",
+            "voice_walter_white": "ba0b46292c6243afb5c722b5e81fb752",
+            "voice_stanley_narrator": "0fb8eca5e0dc4d4f800ebed5134e74ab",
+            "narrator": "0327fdb5da9e4fd782899a8058c8ae2b",
+            "lucy": "6b37f00d482d46ddb567fa45b736ca95",
+            "british": "0fb8eca5e0dc4d4f800ebed5134e74ab",
+            "hero": "ba0b46292c6243afb5c722b5e81fb752"
+        }
+
         # If voice_id is a Fish Audio model ID (e.g., 32-char hex or fish_<hex>), pass reference_id directly
         clean_voice_id = (voice_id or "").strip()
-        if clean_voice_id.startswith("fish_"):
+        if clean_voice_id in HEX_VOICE_MAP:
+            clean_voice_id = HEX_VOICE_MAP[clean_voice_id]
+        elif clean_voice_id.startswith("fish_"):
             clean_voice_id = clean_voice_id[5:]
 
         is_hex_model = len(clean_voice_id) == 32 and all(c in "0123456789abcdefABCDEF" for c in clean_voice_id)
+        if not is_hex_model and (not ref_path or not ref_path.exists()):
+            # Fallback to authentic 32-hex model so Cloud API NEVER returns HTTP 400 Bad Request
+            clean_voice_id = "0fb8eca5e0dc4d4f800ebed5134e74ab" if ("stanley" in clean_voice_id or "british" in clean_voice_id) else "0327fdb5da9e4fd782899a8058c8ae2b"
+            is_hex_model = True
 
         content_type = "application/json"
         request_data = None

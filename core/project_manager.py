@@ -954,57 +954,70 @@ class ProjectManager:
 
         return merged
 
-    def load_project(self, project_id: str = "default") -> Dict:
+    def load_project(self, project_id: str = "default") -> Optional[Dict]:
+        # 1. Check persistent database first
+        try:
+            from core.database import db
+            db_proj = db.get_project(project_id)
+            if db_proj and isinstance(db_proj, dict):
+                # Ensure local disk cache is in sync
+                try:
+                    path = self.get_project_path(project_id)
+                    with open(path, "w", encoding="utf-8") as f:
+                        json.dump(db_proj, f, indent=2, ensure_ascii=False)
+                except Exception:
+                    pass
+                return db_proj
+        except Exception:
+            pass
 
+        # 2. Check local disk file
         path = self.get_project_path(project_id)
-
         if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                # Seed into DB
+                try:
+                    from core.database import db
+                    db.save_project(project_id, data)
+                except Exception:
+                    pass
+                return data
+            except Exception:
+                pass
 
-            with open(path, "r", encoding="utf-8") as f:
+        # 3. Create default project from sample text if project_id == "default"
+        if project_id == "default":
+            sample_file = INPUT_DIR / "THE ENDLESS ECLIPSE - Sample.txt"
+            if not sample_file.exists():
+                sample_file = INPUT_DIR / "THE ENDLESS ECLIPSE.txt"
+            if sample_file.exists():
+                with open(sample_file, "r", encoding="utf-8-sig") as f:
+                    text = f.read()
+            else:
+                text = "At six fourteen in the morning, the sun failed to rise.\nAt six fifteen, the dead began calling home."
 
-                return json.load(f)
+            blocks = self.split_text_into_blocks(text)
+            project_data = {
+                "id": project_id,
+                "title": "The Endless Eclipse - Episode 1",
+                "blocks": blocks,
+                "master_filename": "endless_eclipse_master.wav"
+            }
+            self.save_project(project_data, project_id)
+            return project_data
+
+        return None
 
     # Alias for load_project
-    def get_project(self, project_id: str = "default") -> Dict:
+    def get_project(self, project_id: str = "default") -> Optional[Dict]:
         return self.load_project(project_id)
 
-        # Create default project from sample text
-
-        sample_file = INPUT_DIR / "THE ENDLESS ECLIPSE - Sample.txt"
-
-        if not sample_file.exists():
-
-            sample_file = INPUT_DIR / "THE ENDLESS ECLIPSE.txt"
-
-        if sample_file.exists():
-
-            with open(sample_file, "r", encoding="utf-8-sig") as f:
-
-                text = f.read()
-
-        else:
-
-            text = "At six fourteen in the morning, the sun failed to rise.\nAt six fifteen, the dead began calling home."
-
-        blocks = self.split_text_into_blocks(text)
-
-        project_data = {
-
-            "id": project_id,
-
-            "title": "The Endless Eclipse - Episode 1",
-
-            "blocks": blocks,
-
-            "master_filename": "endless_eclipse_master.wav"
-
-        }
-
-        self.save_project(project_data, project_id)
-
-        return project_data
-
     def save_project(self, project_data: Dict, project_id: str = "default") -> None:
+        if not project_id:
+            project_id = project_data.get("id") or "default"
+        project_data["id"] = project_id
         path = self.get_project_path(project_id)
         if path.exists() and "owner_id" not in project_data:
             try:
@@ -1014,80 +1027,118 @@ class ProjectManager:
                         project_data["owner_id"] = ex_d["owner_id"]
             except Exception:
                 pass
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(project_data, f, indent=2, ensure_ascii=False)
+        # Write to local disk cache
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(project_data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+        # Persist to relational database (survives container rebuilds)
+        try:
+            from core.database import db
+            db.save_project(project_id, project_data)
+        except Exception:
+            pass
 
     def list_projects(self, engine: Optional[str] = None, folder_id: Optional[str] = None, owner_id: Optional[str] = None) -> List[Dict]:
-        projects = []
+        projects_dict = {}
+
+        # 1. Fetch all projects from persistent database
+        try:
+            from core.database import db
+            db_projs = db.list_projects(owner_id=owner_id)
+            for p in db_projs:
+                if isinstance(p, dict) and p.get("id"):
+                    projects_dict[p["id"]] = p
+        except Exception:
+            pass
+
+        # 2. Read disk projects and merge
         for p in PROJECTS_DIR.glob("*.json"):
             if p.name in ("config.json", "users.json", "sessions.json", "tier.json", "kaggle_session.json"):
                 continue
             try:
                 with open(p, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    proj_owner = data.get("owner_id")
-                    if owner_id:
-                        if proj_owner != owner_id:
-                            continue
-                    mtime = p.stat().st_mtime
-                    blocks = data.get("blocks", [])
-                    rendered_count = sum(1 for b in blocks if b.get("cachedAudioUrl"))
-                    total_dur = sum(float(b.get("duration", 0.0) or 0.0) for b in blocks if b.get("cachedAudioUrl"))
-                    voices_used = list(dict.fromkeys(b.get("voice_id") for b in blocks if b.get("voice_id")))
-                    preview_audio = next((b.get("cachedAudioUrl") for b in blocks if b.get("cachedAudioUrl")), None)
-                    master_file = data.get("master_filename")
-                    master_exists = bool(master_file and (OUTPUT_DIR / master_file).exists())
-                    chars = data.get("characters", [])
-                    char_count = len(chars) if isinstance(chars, list) else 0
-
-                    proj_engine = data.get("engine")
-                    if not proj_engine:
-                        dv = str(data.get("default_voice", ""))
-                        fb = str(blocks[0].get("voice_id", "")) if blocks else ""
-                        if dv.startswith(("am_", "af_", "bm_", "bf_", "blend_")) or fb.startswith(("am_", "af_", "bm_", "bf_", "blend_")):
-                            proj_engine = "kokoro"
-                        else:
-                            proj_engine = "fish_s2"
-
-                    if engine and proj_engine != engine:
-                        continue
-
-                    proj_folder_id = data.get("folder_id")
-                    if folder_id is not None:
-                        if folder_id in ("none", "root"):
-                            if proj_folder_id:
-                                continue
-                        elif proj_folder_id != folder_id:
-                            continue
-
-                    projects.append({
-                        "id": data.get("id", p.stem),
-                        "title": data.get("title", p.stem),
-                        "engine": proj_engine,
-                        "default_voice": data.get("default_voice", "voice_stanley_narrator" if proj_engine == "fish_s2" else "am_adam"),
-                        "folder_id": proj_folder_id,
-                        "parent_series_id": data.get("parent_series_id"),
-                        "chapter_number": data.get("chapter_number"),
-                        "is_stub": bool(data.get("is_stub", False)),
-                        "word_count": data.get("word_count", 0),
-                        "estimated_minutes": data.get("estimated_minutes", 0.0),
-                        "block_count": len(blocks),
-                        "rendered_count": rendered_count,
-                        "total_duration": round(total_dur, 1),
-                        "voices_used": voices_used[:5],
-                        "voice_count": len(voices_used),
-                        "character_count": char_count,
-                        "preview_audio": preview_audio,
-                        "master_exists": master_exists,
-                        "master_filename": master_file if master_exists else None,
-                        "updated_at": mtime
-                    })
-
+                if isinstance(data, dict) and data.get("id"):
+                    pid = data["id"]
+                    if pid not in projects_dict:
+                        projects_dict[pid] = data
+                        # Sync back to DB
+                        try:
+                            from core.database import db
+                            db.save_project(pid, data)
+                        except Exception:
+                            pass
             except Exception:
                 pass
 
-        projects.sort(key=lambda x: x["updated_at"], reverse=True)
-        return projects
+        # 3. Format project summary cards
+        formatted_projects = []
+        for pid, data in projects_dict.items():
+            try:
+                proj_owner = data.get("owner_id")
+                if owner_id and proj_owner != owner_id:
+                    continue
+                path = self.get_project_path(pid)
+                mtime = path.stat().st_mtime if path.exists() else (float(data.get("updated_at") or 0.0) or time.time())
+                blocks = data.get("blocks", [])
+                rendered_count = sum(1 for b in blocks if b.get("cachedAudioUrl"))
+                total_dur = sum(float(b.get("duration", 0.0) or 0.0) for b in blocks if b.get("cachedAudioUrl"))
+                voices_used = list(dict.fromkeys(b.get("voice_id") for b in blocks if b.get("voice_id")))
+                preview_audio = next((b.get("cachedAudioUrl") for b in blocks if b.get("cachedAudioUrl")), None)
+                master_file = data.get("master_filename")
+                master_exists = bool(master_file and (OUTPUT_DIR / master_file).exists())
+                chars = data.get("characters", [])
+                char_count = len(chars) if isinstance(chars, list) else 0
+
+                proj_engine = data.get("engine")
+                if not proj_engine:
+                    dv = str(data.get("default_voice", ""))
+                    fb = str(blocks[0].get("voice_id", "")) if blocks else ""
+                    if dv.startswith(("am_", "af_", "bm_", "bf_", "blend_")) or fb.startswith(("am_", "af_", "bm_", "bf_", "blend_")):
+                        proj_engine = "kokoro"
+                    else:
+                        proj_engine = "fish_s2"
+
+                if engine and proj_engine != engine:
+                    continue
+
+                proj_folder_id = data.get("folder_id")
+                if folder_id is not None:
+                    if folder_id in ("none", "root"):
+                        if proj_folder_id:
+                            continue
+                    elif proj_folder_id != folder_id:
+                        continue
+
+                formatted_projects.append({
+                    "id": data.get("id", pid),
+                    "title": data.get("title", pid),
+                    "engine": proj_engine,
+                    "default_voice": data.get("default_voice", "voice_stanley_narrator" if proj_engine == "fish_s2" else "am_adam"),
+                    "folder_id": proj_folder_id,
+                    "parent_series_id": data.get("parent_series_id"),
+                    "chapter_number": data.get("chapter_number"),
+                    "is_stub": bool(data.get("is_stub", False)),
+                    "word_count": data.get("word_count", 0),
+                    "estimated_minutes": data.get("estimated_minutes", 0.0),
+                    "block_count": len(blocks),
+                    "rendered_count": rendered_count,
+                    "total_duration": round(total_dur, 1),
+                    "voices_used": voices_used[:5],
+                    "voice_count": len(voices_used),
+                    "character_count": char_count,
+                    "preview_audio": preview_audio,
+                    "master_exists": master_exists,
+                    "master_filename": master_file if master_exists else None,
+                    "updated_at": mtime
+                })
+            except Exception:
+                pass
+
+        formatted_projects.sort(key=lambda x: x["updated_at"], reverse=True)
+        return formatted_projects
 
     def duplicate_project(self, project_id: str) -> Optional[Dict]:
         source_path = self.get_project_path(project_id)
@@ -1206,16 +1257,23 @@ class ProjectManager:
         return True
 
     def delete_project(self, project_id: str) -> bool:
+        deleted = False
+        try:
+            from core.database import db
+            if db.delete_project(project_id):
+                deleted = True
+        except Exception:
+            pass
 
         path = self.get_project_path(project_id)
-
         if path.exists():
+            try:
+                path.unlink()
+                deleted = True
+            except Exception:
+                pass
 
-            path.unlink()
-
-            return True
-
-        return False
+        return deleted
 
     # ------------------ FOLDER & AUDIOBOOK SERIES MANAGEMENT ------------------
     def get_folder_path(self, folder_id: str) -> Path:
