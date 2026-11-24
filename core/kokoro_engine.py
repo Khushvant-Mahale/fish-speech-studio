@@ -32,11 +32,11 @@ class KokoroEngine:
         import onnxruntime as rt
         import psutil
 
-        physical_cores = min(psutil.cpu_count(logical=False) or 2, 2)
-        print(f"[KokoroEngine] Loading model weights from {model_path.name} with {physical_cores} CPU threads (arena disabled for low-RAM efficiency)...")
+        # In low-resource cloud containers (Render Free 0.1-0.5 CPU shares), 1 thread
+        # prevents Linux CFS CPU quota thrashing and keeps event loop / supervisor responsive
         sess_options = rt.SessionOptions()
         sess_options.enable_cpu_mem_arena = False
-        sess_options.intra_op_num_threads = physical_cores
+        sess_options.intra_op_num_threads = 1
         sess_options.inter_op_num_threads = 1
         sess_options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_ALL
         sess_options.execution_mode = rt.ExecutionMode.ORT_SEQUENTIAL
@@ -329,6 +329,7 @@ class KokoroEngine:
                     )
                     all_samples.append(sub_samples)
                     all_samples.append(np.zeros(int(self.sample_rate * 0.08), dtype=np.float32))
+                    time.sleep(0.01)
                 raw_samples = np.concatenate(all_samples)
             else:
                 raw_samples, _ = self.kokoro.create(
