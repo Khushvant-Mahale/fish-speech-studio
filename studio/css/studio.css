@@ -13645,10 +13645,76 @@ input[type="range"]::-webkit-slider-thumb {
     padding: 14px !important;
   }
 
+  .agent-input-footer {
+    padding-bottom: 54px !important;
+  }
+
+  .inspector-tab-pane {
+    padding-bottom: 64px !important;
+  }
+
   .studio-toast {
     right: 12px;
     left: 12px;
     bottom: 72px;
     text-align: center;
+  }
+
+  /* Voice Library & Fish Discovery Mobile Cards */
+  #drawer-toggle-size-btn {
+    display: none !important;
+  }
+
+  .voice-list-body {
+    padding: 12px 12px 64px 12px;
+  }
+
+  .voice-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .voice-card-left {
+    min-width: 0;
+    align-items: flex-start;
+  }
+
+  .voice-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .voice-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    word-break: break-word;
+  }
+
+  .voice-tags-row {
+    flex-wrap: wrap;
+  }
+
+  .voice-card-actions {
+    width: 100%;
+    justify-content: flex-end;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 8px;
+  }
+
+  .fish-voice-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .fish-discovery-hero {
+    padding: 16px 14px;
+  }
+
+  .fish-discovery-content {
+    padding: 12px 12px 64px 12px;
   }
 }
