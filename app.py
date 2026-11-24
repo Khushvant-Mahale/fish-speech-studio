@@ -428,8 +428,8 @@ async def handle_get_voices(request):
     if engine_param in ("openai", "gpt"):
         return web.json_response(openai_voices)
 
-    # Unified voice catalog: Cinema (Drama 3) + Fast (Kokoro) + Free (Edge TTS) + Pro Commercial (ElevenLabs, Cartesia, OpenAI)
-    return web.json_response(voices + k_voices + edge_voices + eleven_voices + cartesia_voices + openai_voices)
+    # Unified voice catalog: Filtered strictly to Fish Speech and Microsoft Edge TTS
+    return web.json_response(voices + edge_voices)
 
 
 async def handle_upload_reference_voice(request):

@@ -465,11 +465,7 @@ function populateVoiceSelects(tier = currentNewProjectTier || "standard") {
 
   const groupDefs = [
     { id: "fish_s2", label: "🎭 Fish Speech Drama 3 (Cinema Emotion Acting)" },
-    { id: "elevenlabs", label: "🌟 ElevenLabs Premier (v4 / v3 / Flash)" },
-    { id: "cartesia", label: "⚡ Cartesia Sonic (Ultra-Fast 3.6 / 4)" },
-    { id: "openai", label: "🤖 OpenAI Audio (gpt-4o-mini / tts-1)" },
-    { id: "edge_tts", label: "🌐 Microsoft Edge TTS (300+ Clean Free Cloud Voices)" },
-    { id: "kokoro", label: "⚡ Kokoro 82M (On-Device WebGPU • Free)" }
+    { id: "edge_tts", label: "🌐 Microsoft Edge TTS (300+ Clean Free Cloud Voices)" }
   ];
 
   let html = "";
@@ -1097,36 +1093,17 @@ function getEngineModelBadge(bEngine, bModel) {
   let badgeBg = "rgba(245, 158, 11, 0.15)";
   let badgeColor = "#fcd34d";
 
-  if (bEngine === "fish_s2") {
-    badgeText = (bModel === "s2_pro" || bModel === "s2.1-pro" || bModel === "s2-pro") ? "S2.1 Pro" : "Drama 3";
-    badgeIcon = "🎭";
-    badgeBg = "rgba(245, 158, 11, 0.15)";
-    badgeColor = "#fcd34d";
-  } else if (bEngine === "elevenlabs") {
-    badgeText = (bModel === "v3") ? "Eleven v3" : (bModel === "flash_v2.5" ? "Flash v2.5" : "Eleven v4");
-    badgeIcon = "🌟";
-    badgeBg = "rgba(139, 92, 246, 0.15)";
-    badgeColor = "#c4b5fd";
-  } else if (bEngine === "cartesia") {
-    badgeText = (bModel === "sonic_3.6") ? "Sonic 3.6" : "Sonic 4";
-    badgeIcon = "⚡";
-    badgeBg = "rgba(236, 72, 153, 0.15)";
-    badgeColor = "#f472b6";
-  } else if (bEngine === "openai") {
-    badgeText = (bModel === "tts-1") ? "tts-1" : "gpt-4o";
-    badgeIcon = "🤖";
-    badgeBg = "rgba(16, 185, 129, 0.15)";
-    badgeColor = "#6ee7b7";
-  } else if (bEngine === "edge_tts") {
+  if (bEngine === "edge_tts" || bEngine === "kokoro") {
     badgeText = "Edge TTS";
     badgeIcon = "🌐";
     badgeBg = "rgba(16, 185, 129, 0.15)";
     badgeColor = "#34d399";
-  } else if (bEngine === "kokoro") {
-    badgeText = "Kokoro 82M";
-    badgeIcon = "⚡";
-    badgeBg = "rgba(59, 130, 246, 0.15)";
-    badgeColor = "#93c5fd";
+  } else {
+    // fish_s2 and default
+    badgeText = (bModel === "s2_pro" || bModel === "s2.1-pro" || bModel === "s2-pro") ? "S2.1 Pro" : "Drama 3";
+    badgeIcon = "🎭";
+    badgeBg = "rgba(245, 158, 11, 0.15)";
+    badgeColor = "#fcd34d";
   }
   return { text: badgeText, bg: badgeBg, color: badgeColor, icon: badgeIcon };
 }
@@ -1185,14 +1162,19 @@ function saveCurrentTakeToBlockCache(block) {
 }
 
 function getVoiceById(voiceId) {
-  const vid = voiceId || "blend_fenrir_onyx";
-  return state.voices.find(v => v.id === vid) || {
+  let vid = voiceId || "en-US-ChristopherNeural";
+  if (vid === "blend_fenrir_onyx") {
+    const found = (state.voices || []).find(v => v.id === "en-US-ChristopherNeural");
+    if (found) return found;
+  }
+  return (state.voices || []).find(v => v.id === vid) || {
     id: vid,
-    name: vid,
+    name: vid.includes("Neural") ? vid : "Edge Narrator",
     badge: (vid || "VO").slice(0, 2).toUpperCase(),
-    color: "#ea580c",
+    color: "#10b981",
     flag: "🎙️",
-    timbre: "Custom Voice"
+    engine: "edge_tts",
+    timbre: "Edge Neural Voice"
   };
 }
 
@@ -5898,20 +5880,12 @@ function renderCharModalEngineSelector(selectedEngine) {
   const container = document.getElementById("char-modal-engine-selector");
   if (!container) return;
 
-  const isPro = (state.currentProject?.tier === "cinema_pro");
-  const engines = isPro ? [
+  const engines = [
     { id: "fish_s2", name: "🎭 Fish Drama 3", color: "#f59e0b" },
-    { id: "elevenlabs", name: "🌟 ElevenLabs", color: "#8b5cf6" },
-    { id: "cartesia", name: "⚡ Cartesia", color: "#ec4899" },
-    { id: "openai", name: "🤖 OpenAI", color: "#10b981" },
-    { id: "edge_tts", name: "🌐 Edge TTS (0 Cr)", color: "#34d399" }
-  ] : [
-    { id: "edge_tts", name: "🌐 Microsoft Edge TTS", color: "#10b981" },
-    { id: "kokoro", name: "⚡ Kokoro 82M", color: "#3b82f6" },
-    { id: "fish_s2", name: "🐟 Fish S2 (Colab)", color: "#f59e0b" }
+    { id: "edge_tts", name: "🌐 Microsoft Edge TTS", color: "#10b981" }
   ];
 
-  state.editingCharModalEngine = selectedEngine || (isPro ? "fish_s2" : "edge_tts");
+  state.editingCharModalEngine = selectedEngine || "fish_s2";
 
   container.innerHTML = engines.map(e => {
     const isSelected = (e.id === state.editingCharModalEngine);
@@ -7757,7 +7731,11 @@ function switchAIDirectorProvider(prov) {
 function toggleAIKeyVisibility() {
   const inp = document.getElementById("ai-director-api-key");
   if (!inp) return;
-  inp.type = (inp.type === "password") ? "text" : "password";
+  if (inp.style.webkitTextSecurity === "none") {
+    inp.style.webkitTextSecurity = "disc";
+  } else {
+    inp.style.webkitTextSecurity = "none";
+  }
 }
 
 async function handleRunAIDirector() {
@@ -8426,7 +8404,10 @@ function renderInspector() {
   const char = block.character_id ? getCharacterById(block.character_id) : (block.speaker ? getCharacterById(block.speaker) : null);
   const targetVoiceId = block.voice_id || (char && (char.voice_id || char.assigned_voice_id));
   const voice = getVoiceById(targetVoiceId);
-  const blockEngine = block.engine || (char && char.engine) || (voice && voice.engine) || state.currentProject?.engine || "fish_s2";
+  let blockEngine = block.engine || (char && char.engine) || (voice && voice.engine) || state.currentProject?.engine || "fish_s2";
+  if (blockEngine !== "fish_s2" && blockEngine !== "edge_tts") {
+    blockEngine = (blockEngine === "kokoro") ? "edge_tts" : "fish_s2";
+  }
 
   // Update Cast Tab Model Selection Dropdown Trigger & Tags
   const engineIcon = document.getElementById("selected-engine-icon");
@@ -10060,24 +10041,20 @@ function openVoiceDrawer(targetBlockIdx = null, preferredMode = null) {
       : state.activeBlockIndex;
     const targetBlock = state.currentProject?.blocks?.[targetIdx];
     const eng = targetBlock?.engine || state.currentProject?.engine || state.activeEngine || "fish_s2";
-    if (eng === "kokoro") {
-      preferredMode = "kokoro";
-    } else if (eng === "edge_tts") {
+    if (eng === "edge_tts") {
       preferredMode = "edge";
-    } else if (eng === "elevenlabs") {
-      preferredMode = "elevenlabs";
-    } else if (eng === "cartesia") {
-      preferredMode = "cartesia";
-    } else if (eng === "openai") {
-      preferredMode = "openai";
     } else {
       preferredMode = "fish_speech";
     }
   }
 
-  // Ensure all drawer tabs are visible and accessible
+  // Keep only Fish and Edge TTS tabs visible in Voice Library, hide other models
   document.querySelectorAll(".drawer-tab-btn").forEach(el => {
-    el.style.display = "inline-flex";
+    if (["tab-nav-elevenlabs", "tab-nav-cartesia", "tab-nav-openai", "tab-nav-kokoro"].includes(el.id)) {
+      el.style.display = "none";
+    } else {
+      el.style.display = "inline-flex";
+    }
   });
 
   switchDrawerMode(preferredMode);
@@ -10087,12 +10064,7 @@ function openVoiceDrawerForCharacter(preferredMode = null) {
   state.selectingVoiceForChar = true;
   if (!preferredMode) {
     const eng = state.editingCharModalEngine || state.activeEngine || "fish_s2";
-    if (eng === "kokoro") preferredMode = "kokoro";
-    else if (eng === "edge_tts") preferredMode = "edge";
-    else if (eng === "elevenlabs") preferredMode = "elevenlabs";
-    else if (eng === "cartesia") preferredMode = "cartesia";
-    else if (eng === "openai") preferredMode = "openai";
-    else preferredMode = "fish_speech";
+    preferredMode = (eng === "edge_tts") ? "edge" : "fish_speech";
   }
   openVoiceDrawer(null, preferredMode);
 }
@@ -18034,7 +18006,11 @@ function selectAgentProvider(prov) {
 function toggleAgentKeyVisibility() {
   const input = document.getElementById("agent-api-key-input") || document.getElementById("agent-modal-api-key");
   if (input) {
-    input.type = (input.type === "password") ? "text" : "password";
+    if (input.style.webkitTextSecurity === "none") {
+      input.style.webkitTextSecurity = "disc";
+    } else {
+      input.style.webkitTextSecurity = "none";
+    }
   }
 }
 
