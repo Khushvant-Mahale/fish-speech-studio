@@ -276,11 +276,11 @@ class AuthManager:
                 name="Contest Judge",
                 auth_provider="contest",
                 active_tier="author",
-                monthly_words_limit=100000,
-                trial_renders_remaining=100
+                monthly_words_limit=100000
             )
+            self.db.update_user(user["user_id"], trial_renders_remaining=100)
+            user = self.db.get_user_by_id(user["user_id"])
         else:
-            # Ensure judge always has Author plan & generous quota
             self.db.update_user(
                 user["user_id"],
                 active_tier="author",

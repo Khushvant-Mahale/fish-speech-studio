@@ -48,6 +48,8 @@ COPY core/ core/
 COPY studio/ studio/
 COPY voices/ voices/
 COPY cli/ cli/
+COPY projects/ projects/
+COPY data/ data/
 
 # Create persistent runtime data directories & set permissions for user 1000
 RUN mkdir -p /app/cache /app/output /app/projects /app/data /app/voices/reference && \
