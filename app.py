@@ -1581,6 +1581,56 @@ async def handle_blend_preview(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
+async def handle_demo_synthesize(request):
+    """Public demo endpoint for landing page playground to synthesize lines via Drama 3."""
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON payload"}, status=400)
+
+    raw_text = (data.get("text") or "").strip()
+    if not raw_text:
+        return web.json_response({"error": "Text is required"}, status=400)
+
+    # Enforce letter limit: max 150 characters
+    text = raw_text[:150]
+    voice_id = data.get("voice_id") or "voice_morgan_freeman"
+    speed = max(0.5, min(2.0, float(data.get("speed") or 1.0)))
+    pitch_shift = max(-12.0, min(12.0, float(data.get("pitch_shift") or 0.0)))
+
+    # Ensure Fish API key from env is applied
+    active_key = os.getenv("FISH_API_KEY")
+    if active_key and fish_engine:
+        fish_engine.api_key = active_key
+
+    try:
+        async with gpu_synthesis_lock:
+            res = await asyncio.to_thread(
+                fish_engine.synthesize_block,
+                text=text,
+                voice_id=voice_id,
+                speed=speed,
+                pitch_shift=pitch_shift,
+                model="drama-3"
+            )
+            return web.json_response(res)
+    except Exception as e:
+        print(f"[Demo Synthesize] Drama 3 error ({e}). Falling back to Edge TTS...", flush=True)
+        try:
+            edge_adapter = engine_registry.get_engine("edge_tts")
+            fallback_voice = "en-US-ChristopherNeural"
+            res = await asyncio.to_thread(
+                edge_adapter.synthesize_block,
+                text=text,
+                voice_id=fallback_voice,
+                speed=speed,
+                pitch_shift=pitch_shift
+            )
+            return web.json_response(res)
+        except Exception as err:
+            return web.json_response({"error": str(err)}, status=500)
+
+
 async def handle_cache_client_audio(request):
     """
     Receives client-side synthesized audio (e.g. from in-browser kokoro-js WebGPU)
@@ -3869,6 +3919,7 @@ def create_app():
     app.router.add_post("/api/project/cache_audio", handle_cache_client_audio)
     app.router.add_post("/api/check_cache", handle_check_cache)
     app.router.add_post("/api/blend_preview", handle_blend_preview)
+    app.router.add_post("/api/demo/synthesize", handle_demo_synthesize)
     app.router.add_post("/api/audio/apply_dsp", handle_apply_dsp)
     app.router.add_post("/api/audio/reset_dsp", handle_reset_dsp)
     app.router.add_post("/api/export_master", handle_export_master)
