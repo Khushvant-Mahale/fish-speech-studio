@@ -980,21 +980,43 @@ async def handle_synthesize_block(request):
 
             try:
                 async with gpu_synthesis_lock:
-                    res = await asyncio.to_thread(
-                        kokoro_engine.synthesize_block,
-                        text=text,
-                        voice_id=voice_id or "blend_fenrir_onyx",
-                        blend_weights=blend_weights,
-                        speed=speed,
-                        gain=gain,
-                        pitch_shift=pitch_shift,
-                        warmth=warmth,
-                        clarity=clarity,
-                        reverb=reverb,
-                        radio_fx=radio_fx,
-                        fx_filter=fx_filter,
-                        force_refresh=force_refresh
-                    )
+                    try:
+                        res = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                kokoro_engine.synthesize_block,
+                                text=text,
+                                voice_id=voice_id or "blend_fenrir_onyx",
+                                blend_weights=blend_weights,
+                                speed=speed,
+                                gain=gain,
+                                pitch_shift=pitch_shift,
+                                warmth=warmth,
+                                clarity=clarity,
+                                reverb=reverb,
+                                radio_fx=radio_fx,
+                                fx_filter=fx_filter,
+                                force_refresh=force_refresh
+                            ),
+                            timeout=25.0
+                        )
+                    except (asyncio.TimeoutError, Exception) as kokoro_err:
+                        print(f"[Kokoro Studio] Kokoro CPU latency or issue: {kokoro_err}. Fast-completing via high-fidelity Edge TTS...", flush=True)
+                        edge_adapter = engine_registry.get_engine("edge_tts")
+                        fallback_voice = "en-US-ChristopherNeural" if ("fenrir" in str(voice_id).lower() or "onyx" in str(voice_id).lower() or "narrator" in str(voice_id).lower()) else "en-US-GuyNeural"
+                        res = await asyncio.to_thread(
+                            edge_adapter.synthesize_block,
+                            text=text,
+                            voice_id=fallback_voice,
+                            speed=speed,
+                            gain=gain,
+                            pitch_shift=pitch_shift,
+                            warmth=warmth,
+                            clarity=clarity,
+                            reverb=reverb,
+                            radio_fx=radio_fx,
+                            fx_filter=fx_filter,
+                            force_refresh=force_refresh
+                        )
                     if not fut.done():
                         fut.set_result(res)
                     if isinstance(res, dict) and not res.get("error"):

@@ -316,7 +316,7 @@ class KokoroEngine:
         print(f"[KokoroEngine] RAM before synthesis: {p.memory_info().rss / 1024 / 1024:.1f} MB", flush=True)
         voice_vec = self.get_voice_vector(voice_id, blend_weights)
         print(f"[KokoroEngine] Voice vector resolved. Calling kokoro.create...", flush=True)
-        if len(clean_text) > 120 and any(p in clean_text for p in [". ", "? ", "! ", "... "]):
+        if len(clean_text) > 80 and any(p in clean_text for p in [". ", "? ", "! ", "... ", "\n"]):
             sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+|\n+', clean_text) if s.strip()]
             if len(sentences) > 1:
                 all_samples = []

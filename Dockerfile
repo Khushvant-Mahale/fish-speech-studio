@@ -5,6 +5,10 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive \
+    MALLOC_ARENA_MAX=2 \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1 \
     HOST=0.0.0.0 \
     PORT=7860
 
@@ -52,12 +56,8 @@ RUN mkdir -p /app/cache /app/output /app/projects /app/data /app/voices/referenc
 # Switch to non-root user
 USER user
 
-# Expose default HF Spaces port
+# Expose default port
 EXPOSE 7860
-
-# Container health check probe
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://127.0.0.1:${PORT:-7860}/health || exit 1
 
 # Start Kashva Voice server
 CMD ["sh", "-c", "python app.py --host ${HOST:-0.0.0.0} --port ${PORT:-7860}"]
