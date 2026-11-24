@@ -43,6 +43,22 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 VOICES_DIR.mkdir(parents=True, exist_ok=True)
 
+# Seed audio cache from showcase audio files if available
+SHOWCASE_CACHE_DIR = BASE_DIR / "data" / "showcase_cache"
+if SHOWCASE_CACHE_DIR.exists():
+    try:
+        import shutil
+        seed_count = 0
+        for sc_file in SHOWCASE_CACHE_DIR.glob("*.wav"):
+            target_wav = CACHE_DIR / sc_file.name
+            if not target_wav.exists():
+                shutil.copy2(sc_file, target_wav)
+                seed_count += 1
+        print(f"[Showcase Cache] Seeded {seed_count} audio files into cache from showcase bundle.")
+    except Exception as e:
+        print(f"[Showcase Cache] Warning seeding audio: {e}")
+
+
 fish_engine: FishEngine = None
 kokoro_engine: KokoroEngine = None
 project_mgr = ProjectManager()
@@ -3352,6 +3368,19 @@ async def handle_auth_login(request: web.Request):
     return resp
 
 
+async def handle_auth_contest_judge(request: web.Request):
+    ok, token, user_dict = tier_mgr.auth_mgr.login_contest_judge()
+    if not ok:
+        return web.json_response({"error": "Could not authenticate contest judge."}, status=500)
+    resp = web.json_response({
+        "success": True,
+        "token": token,
+        "user": user_dict
+    })
+    resp.set_cookie("fish_session", token, max_age=30 * 86400, httponly=False, samesite="Lax")
+    return resp
+
+
 async def handle_auth_google(request: web.Request):
     try:
         data = await request.json()
@@ -3884,6 +3913,7 @@ def create_app():
     # User Accounts & Auth
     app.router.add_post("/api/auth/register", handle_auth_register)
     app.router.add_post("/api/auth/login", handle_auth_login)
+    app.router.add_post("/api/auth/contest_judge", handle_auth_contest_judge)
     app.router.add_post("/api/auth/google", handle_auth_google)
     app.router.add_post("/api/auth/logout", handle_auth_logout)
     app.router.add_get("/api/auth/me", handle_auth_me)

@@ -89,6 +89,15 @@
         <button type="submit" id="gate-auth-submit-btn" style="width: 100%; padding: 12px 16px; border-radius: 8px; background: #3b82f6; color: #ffffff; font-size: 14px; font-weight: 700; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);">
           Sign In
         </button>
+
+        <!-- Contest Judge / Guest Instant Access Button -->
+        <div style="margin-top: 14px; width: 100%;">
+          <button type="button" id="btn-contest-bypass" onclick="bypassAuthForContest()" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px 16px; border-radius: 8px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(5, 150, 105, 0.25)); border: 1.5px solid #10b981; color: #34d399; font-size: 13.5px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);">
+            <span style="font-size: 16px;">⚡</span>
+            <span>Enter as Contest Judge / Guest</span>
+            <span style="font-size: 11px; background: rgba(16, 185, 129, 0.3); color: #a7f3d0; padding: 2px 7px; border-radius: 12px; margin-left: 2px; font-weight: 600;">1-Click Access</span>
+          </button>
+        </div>
       </form>
 
       <!-- Toggle Mode Link -->

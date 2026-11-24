@@ -29,14 +29,20 @@ output/*.zip
 !output/samples/*.wav
 
 # User uploaded media & books
-data/
-data/**
+data/*
+!data/showcase_cache/
 
 # Local user configuration & project data
 projects/config.json
 projects/proj_*.json
-projects/folders/
-projects/folders/**
+!projects/proj_eb9ab585.json
+!projects/proj_4ba6e97b.json
+!projects/proj_603a8cb4.json
+!projects/proj_65feab66.json
+!projects/proj_160b950c.json
+projects/folders/*
+!projects/folders/folder_66b7921a.json
+!projects/folders/folder_2ded7128.json
 projects/*.db
 projects/*.db-shm
 projects/*.db-wal

@@ -261,3 +261,35 @@ class AuthManager:
             self.db.update_user(user_id, trial_renders_remaining=remaining)
 
         self.db.log_usage(user_id=user_id, word_count=word_count, is_trial=is_trial, engine="drama-3")
+
+    def login_contest_judge(self) -> Tuple[bool, str, Optional[Dict]]:
+        """
+        Creates or retrieves a Contest Judge guest session with Author Plan (100k words)
+        and instant full studio access.
+        """
+        judge_email = "judge@contest.kashva.ai"
+        user = self.db.get_user_by_email(judge_email)
+        if not user:
+            user = self.db.create_user(
+                user_id="usr_contest_judge",
+                email=judge_email,
+                name="Contest Judge",
+                auth_provider="contest",
+                active_tier="author",
+                monthly_words_limit=100000,
+                trial_renders_remaining=100
+            )
+        else:
+            # Ensure judge always has Author plan & generous quota
+            self.db.update_user(
+                user["user_id"],
+                active_tier="author",
+                monthly_words_limit=100000,
+                trial_renders_remaining=100
+            )
+            user = self.db.get_user_by_id(user["user_id"])
+
+        token = f"judge_{uuid.uuid4().hex}"
+        self.db.create_session(token=token, user_id=user["user_id"])
+        return True, token, self.get_public_user(user)
+

@@ -1,0 +1,16 @@
+{
+  "id": "folder_66b7921a",
+  "title": "Harry Potter and the Philosopher's Stone",
+  "author": "J.K. Rowling",
+  "description": "Book 1 of Harry Potter (25 chapters)",
+  "engine": "fish_s2",
+  "parent_id": null,
+  "cover_image": null,
+  "characters": [],
+  "chapter_order": [
+    "proj_65feab66"
+  ],
+  "created_at": 1794911084.384193,
+  "updated_at": 1794911095.4616678,
+  "owner_id": null
+}

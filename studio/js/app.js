@@ -497,6 +497,41 @@ async function loadProjectsList() {
       fetch("/api/folders?engine=fish_s2").catch(() => null)
     ]);
     state.projects = await projRes.json();
+    if (!Array.isArray(state.projects)) state.projects = [];
+
+    // Dual persistence: Auto-restore any locally saved user projects from localStorage if missing from server
+    try {
+      const rawIds = localStorage.getItem("kashva_saved_project_ids");
+      const ids = rawIds ? JSON.parse(rawIds) : [];
+      const serverIds = new Set(state.projects.map(p => p.id));
+      for (const pId of ids) {
+        if (!serverIds.has(pId)) {
+          const rawP = localStorage.getItem(`kashva_proj_${pId}`);
+          if (rawP) {
+            const pObj = JSON.parse(rawP);
+            if (pObj && pObj.id && pObj.title) {
+              state.projects.unshift({
+                id: pObj.id,
+                title: pObj.title,
+                engine: pObj.engine || "fish_s2",
+                blocks_count: (pObj.blocks || []).length,
+                rendered_count: (pObj.blocks || []).filter(b => b.audio_url || b.cachedAudioUrl).length,
+                updated_at: pObj.updated_at || Date.now() / 1000
+              });
+              // Re-sync back to server in background
+              fetch("/api/project", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(pObj)
+              }).catch(() => {});
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Dual persistence auto-restore error:", e);
+    }
+
     if (folderRes && folderRes.ok) {
       state.folders = await folderRes.json();
     } else {
@@ -762,10 +797,33 @@ async function openProject(projectId, updateUrl = true) {
   try {
     const res = await fetch(`/api/project?id=${encodeURIComponent(projectId)}&t=${Date.now()}`);
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || `HTTP ${res.status}: Project not found`);
+      // Check localStorage for offline / dual persistence backup
+      const localBackup = localStorage.getItem(`kashva_proj_${projectId}`);
+      if (localBackup) {
+        state.currentProject = JSON.parse(localBackup);
+        showToast("✓ Project restored from local cache!", 3000);
+        // Re-sync back to server in background
+        fetch("/api/project", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(state.currentProject)
+        }).catch(() => {});
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}: Project not found`);
+      }
+    } else {
+      state.currentProject = await res.json();
+      try {
+        localStorage.setItem(`kashva_proj_${projectId}`, JSON.stringify(state.currentProject));
+        const rawIds = localStorage.getItem("kashva_saved_project_ids");
+        const ids = rawIds ? JSON.parse(rawIds) : [];
+        if (!ids.includes(projectId)) {
+          ids.push(projectId);
+          localStorage.setItem("kashva_saved_project_ids", JSON.stringify(ids));
+        }
+      } catch (e) {}
     }
-    state.currentProject = await res.json();
     state.activeEngine = state.currentProject?.engine || "fish_s2";
     state.activeBlockIndex = 0;
     state.selectedBlockIndices = new Set([0]);
@@ -917,6 +975,24 @@ async function openProject(projectId, updateUrl = true) {
 
 async function saveCurrentProject() {
   if (!state.currentProject) return;
+
+  // 1. Dual persistence: Mirror project to browser localStorage
+  try {
+    const pId = state.currentProject.id;
+    if (pId) {
+      localStorage.setItem(`kashva_proj_${pId}`, JSON.stringify(state.currentProject));
+      const rawIds = localStorage.getItem("kashva_saved_project_ids");
+      const ids = rawIds ? JSON.parse(rawIds) : [];
+      if (!ids.includes(pId)) {
+        ids.push(pId);
+        localStorage.setItem("kashva_saved_project_ids", JSON.stringify(ids));
+      }
+    }
+  } catch (e) {
+    console.warn("Dual persistence local mirror warning:", e);
+  }
+
+  // 2. Persist to server backend
   try {
     await fetch("/api/project", {
       method: "POST",
@@ -13752,6 +13828,66 @@ async function handleGateSubmit() {
   }
 }
 
+async function bypassAuthForContest() {
+  const btn = document.getElementById("btn-contest-bypass");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳ Accessing Studio as Contest Judge...</span>';
+  }
+
+  try {
+    const res = await fetch("/api/auth/contest_judge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+    const data = await res.json();
+    if (data && data.user) {
+      state.currentUser = data.user;
+    } else {
+      state.currentUser = {
+        user_id: "usr_contest_judge",
+        email: "judge@contest.kashva.ai",
+        name: "Contest Judge",
+        active_tier: "author",
+        monthly_words_limit: 100000
+      };
+    }
+
+    if (window.google?.accounts?.id) {
+      try { google.accounts.id.cancel(); } catch (e) {}
+    }
+
+    showToast("✨ Welcome, Contest Judge! Author Plan (100k words) unlocked.", 4000);
+    await initAuth();
+    await loadProjectsList();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const pid = urlParams.get("project") || urlParams.get("id");
+    if (pid) {
+      await openProject(pid, true);
+    } else {
+      switchToView("dashboard", true);
+    }
+  } catch (err) {
+    console.warn("Contest bypass fallback:", err);
+    state.currentUser = {
+      user_id: "usr_contest_judge",
+      email: "judge@contest.kashva.ai",
+      name: "Contest Judge",
+      active_tier: "author",
+      monthly_words_limit: 100000
+    };
+    showToast("✨ Welcome, Contest Judge! Studio unlocked.", 4000);
+    await loadProjectsList();
+    switchToView("dashboard", true);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span style="font-size: 16px;">⚡</span><span>Enter as Contest Judge / Guest</span><span style="font-size: 11px; background: rgba(16, 185, 129, 0.3); color: #a7f3d0; padding: 2px 7px; border-radius: 12px; margin-left: 2px; font-weight: 600;">1-Click Access</span>';
+    }
+  }
+}
+
 function initGoogleAuth(retries = 10) {
   // If already logged in, cancel any One-Tap prompt and exit
   if (state.currentUser) {
@@ -17977,6 +18113,7 @@ window.handleSelectPlan = handleSelectPlan;
 window.toggleGateAuthMode = toggleGateAuthMode;
 window.toggleGatePasswordVisibility = toggleGatePasswordVisibility;
 window.handleGateSubmit = handleGateSubmit;
+window.bypassAuthForContest = bypassAuthForContest;
 window.handleGoogleSignIn = handleGoogleSignIn;
 window.handleGoogleJwtResponse = handleGoogleJwtResponse;
 window.initGoogleAuth = initGoogleAuth;
