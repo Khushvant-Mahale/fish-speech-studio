@@ -2041,7 +2041,7 @@
               <a id="ai-key-link" href="https://aistudio.google.com/app/apikey" target="_blank" style="font-size: 11.5px; color: #60a5fa; text-decoration: none;">Get Free Gemini Key (Instant) ↗</a>
             </div>
             <div style="display: flex; gap: 8px;">
-              <input type="password" id="ai-director-api-key" class="search-input" placeholder="AIzaSy..." style="flex: 1; padding: 8px 12px; font-size: 13px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color: #fff;" onkeydown="if(event.key==='Enter') handleVerifyAISaveKey()">
+              <input type="password" id="ai-director-api-key" class="search-input" placeholder="AIzaSy..." autocomplete="off" data-lpignore="true" style="flex: 1; padding: 8px 12px; font-size: 13px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color: #fff;" onkeydown="if(event.key==='Enter') handleVerifyAISaveKey()">
               <button class="btn btn-secondary" onclick="toggleAIKeyVisibility()" style="padding: 6px 12px; font-size: 12px;" title="Show/Hide Key">👁️</button>
               <button class="btn btn-primary" id="btn-verify-ai-key" onclick="handleVerifyAISaveKey()" style="padding: 6px 14px; font-size: 12px; white-space: nowrap; font-weight: 700; background: linear-gradient(135deg, #10b981, #059669); border: none;">💾 Save &amp; Verify Key</button>
             </div>
@@ -2462,7 +2462,7 @@
             <!-- Or Manual Credentials Form -->
             <div style="display: flex; gap: 8px;">
               <input type="text" id="kaggle-username-input" class="search-input" placeholder="Kaggle Username" style="flex: 1; font-size: 12.5px;">
-              <input type="password" id="kaggle-key-input" class="search-input" placeholder="Kaggle API Key (32-character token)" style="flex: 2; font-size: 12.5px;">
+              <input type="password" id="kaggle-key-input" class="search-input" placeholder="Kaggle API Key (32-character token)" autocomplete="off" data-lpignore="true" style="flex: 2; font-size: 12.5px;">
               <button class="btn btn-secondary" id="btn-verify-kaggle" onclick="handleVerifyKaggle()" style="white-space: nowrap;">⚡ Verify Token</button>
             </div>
             <div id="kaggle-verify-status" style="font-size: 12px; min-height: 18px;"></div>
@@ -2861,7 +2861,7 @@
             </div>
 
             <div style="display: flex; gap: 8px; margin-top: 8px;">
-              <input type="password" id="fish-api-key-input" class="search-input" placeholder="Paste your api.fish.audio key (starts with sk-fish-)..." style="flex: 1; font-size: 12.5px;">
+              <input type="password" id="fish-api-key-input" class="search-input" placeholder="Paste your api.fish.audio key (starts with sk-fish-)..." autocomplete="off" data-lpignore="true" style="flex: 1; font-size: 12.5px;">
               <button class="btn btn-secondary" id="btn-test-fish-key" onclick="handleTestFishKey()" style="white-space: nowrap;">🔑 Test Key</button>
               <button class="btn btn-ghost" id="btn-clear-api-key" onclick="handleClearApiKeyInput()" title="Clear API Key" style="padding: 0 10px; color: var(--text-muted); font-size: 13px;">✕</button>
             </div>
@@ -3737,7 +3737,7 @@
             <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" id="agent-key-link" style="font-size: 11px; color: #818cf8; text-decoration: underline;">Get Free Key ↗</a>
           </div>
           <div style="display: flex; gap: 8px;">
-            <input type="password" id="agent-api-key-input" class="input-text" placeholder="AIzaSy..." style="flex: 1; font-family: monospace; font-size: 12.5px;">
+            <input type="password" id="agent-api-key-input" class="input-text" placeholder="AIzaSy..." autocomplete="off" data-lpignore="true" style="flex: 1; font-family: monospace; font-size: 12.5px;">
             <button type="button" class="btn btn-secondary" onclick="toggleAgentKeyVisibility()" title="Show/Hide Key" style="padding: 4px 10px;">👁️</button>
           </div>
         </div>
