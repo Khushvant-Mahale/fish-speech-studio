@@ -13900,10 +13900,11 @@ function initGoogleAuth(retries = 10) {
       });
       if (container) {
         container.innerHTML = "";
+        const gsiBtnWidth = Math.min(380, Math.max(240, (window.innerWidth || 360) - 48));
         google.accounts.id.renderButton(container, {
           theme: "outline",
           size: "large",
-          width: 380,
+          width: gsiBtnWidth,
           text: "signin_with",
           shape: "rectangular"
         });
