@@ -144,6 +144,110 @@ async def init_engine():
             kaggle_mgr._active_session["last_log"] = "Kaggle Tesla T4 GPU Worker is online and connected!" 
 
 
+def map_kokoro_voice_to_edge(voice_id: str) -> str:
+    """Maps Kokoro voice IDs and personas to matching high-fidelity Microsoft Edge TTS neural voices."""
+    v = str(voice_id or "").lower()
+    if any(k in v for k in ["fenrir", "onyx", "narrator", "dark", "gritty", "stanley", "shadow", "horror"]):
+        return "en-US-ChristopherNeural"
+    elif any(k in v for k in ["sarah", "lucy", "bella", "girl", "woman", "ghost", "witch", "female", "af_"]):
+        return "en-US-JennyNeural"
+    elif any(k in v for k in ["aria", "calm", "narrator_f"]):
+        return "en-US-AriaNeural"
+    elif any(k in v for k in ["emma", "isabella", "british_f", "bf_"]):
+        return "en-GB-SoniaNeural"
+    elif any(k in v for k in ["george", "lewis", "british_m", "bm_"]):
+        return "en-GB-RyanNeural"
+    elif any(k in v for k in ["adam", "guy", "michael", "eric", "am_"]):
+        return "en-US-GuyNeural"
+    elif any(k in v for k in ["child", "boy", "kid"]):
+        return "en-US-AnaNeural"
+    return "en-US-ChristopherNeural"
+
+
+def synthesize_kokoro_safely(
+    text: str,
+    voice_id: str = "blend_fenrir_onyx",
+    blend_weights: dict = None,
+    speed: float = 0.90,
+    gain: float = 1.0,
+    pitch_shift: float = 0.0,
+    warmth: float = 0.0,
+    clarity: float = 0.0,
+    reverb: float = 0.0,
+    radio_fx: bool = False,
+    fx_filter: str = "none",
+    force_refresh: bool = False
+):
+    """
+    Safely routes Kokoro synthesis to avoid OOM SIGKILL and 502 Bad Gateway crashes
+    on memory-constrained cloud environments (e.g. Render free tier 512MB RAM).
+    If a remote GPU worker is configured, uses remote Kokoro GPU worker.
+    Otherwise, on Render/low-RAM environment, routes to Microsoft Edge TTS using a matching neural voice.
+    """
+    is_render = bool(os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID"))
+    has_remote_gpu = bool(kokoro_engine and getattr(kokoro_engine, "remote_url", None))
+
+    try:
+        mem_total_mb = psutil.virtual_memory().total / (1024 * 1024)
+    except Exception:
+        mem_total_mb = 512.0
+
+    low_memory_env = is_render or (mem_total_mb < 1500)
+
+    if not has_remote_gpu and low_memory_env:
+        edge_adapter = engine_registry.get_engine("edge_tts")
+        fallback_voice = map_kokoro_voice_to_edge(voice_id)
+        print(f"[Kokoro Safe Router] Render 512MB RAM mode: Synthesizing Kokoro voice '{voice_id}' via Edge TTS '{fallback_voice}' (0.4s, 0MB RAM)...", flush=True)
+        return edge_adapter.synthesize_block(
+            text=text,
+            voice_id=fallback_voice,
+            speed=speed,
+            gain=gain,
+            pitch_shift=pitch_shift,
+            warmth=warmth,
+            clarity=clarity,
+            reverb=reverb,
+            radio_fx=radio_fx,
+            fx_filter=fx_filter,
+            force_refresh=force_refresh
+        )
+
+    # If GPU worker available or on high-spec system with >1.5GB RAM:
+    try:
+        return kokoro_engine.synthesize_block(
+            text=text,
+            voice_id=voice_id or "blend_fenrir_onyx",
+            blend_weights=blend_weights,
+            speed=speed,
+            gain=gain,
+            pitch_shift=pitch_shift,
+            warmth=warmth,
+            clarity=clarity,
+            reverb=reverb,
+            radio_fx=radio_fx,
+            fx_filter=fx_filter,
+            force_refresh=force_refresh
+        )
+    except Exception as e:
+        print(f"[Kokoro Safe Router] Kokoro synthesis error ({e}). Seamlessly recovering with Edge TTS...", flush=True)
+        edge_adapter = engine_registry.get_engine("edge_tts")
+        fallback_voice = map_kokoro_voice_to_edge(voice_id)
+        return edge_adapter.synthesize_block(
+            text=text,
+            voice_id=fallback_voice,
+            speed=speed,
+            gain=gain,
+            pitch_shift=pitch_shift,
+            warmth=warmth,
+            clarity=clarity,
+            reverb=reverb,
+            radio_fx=radio_fx,
+            fx_filter=fx_filter,
+            force_refresh=force_refresh
+        )
+ 
+
+
 @web.middleware
 async def cors_middleware(request, handler):
     if request.method == "OPTIONS":
@@ -980,43 +1084,21 @@ async def handle_synthesize_block(request):
 
             try:
                 async with gpu_synthesis_lock:
-                    try:
-                        res = await asyncio.wait_for(
-                            asyncio.to_thread(
-                                kokoro_engine.synthesize_block,
-                                text=text,
-                                voice_id=voice_id or "blend_fenrir_onyx",
-                                blend_weights=blend_weights,
-                                speed=speed,
-                                gain=gain,
-                                pitch_shift=pitch_shift,
-                                warmth=warmth,
-                                clarity=clarity,
-                                reverb=reverb,
-                                radio_fx=radio_fx,
-                                fx_filter=fx_filter,
-                                force_refresh=force_refresh
-                            ),
-                            timeout=25.0
-                        )
-                    except (asyncio.TimeoutError, Exception) as kokoro_err:
-                        print(f"[Kokoro Studio] Kokoro CPU latency or issue: {kokoro_err}. Fast-completing via high-fidelity Edge TTS...", flush=True)
-                        edge_adapter = engine_registry.get_engine("edge_tts")
-                        fallback_voice = "en-US-ChristopherNeural" if ("fenrir" in str(voice_id).lower() or "onyx" in str(voice_id).lower() or "narrator" in str(voice_id).lower()) else "en-US-GuyNeural"
-                        res = await asyncio.to_thread(
-                            edge_adapter.synthesize_block,
-                            text=text,
-                            voice_id=fallback_voice,
-                            speed=speed,
-                            gain=gain,
-                            pitch_shift=pitch_shift,
-                            warmth=warmth,
-                            clarity=clarity,
-                            reverb=reverb,
-                            radio_fx=radio_fx,
-                            fx_filter=fx_filter,
-                            force_refresh=force_refresh
-                        )
+                    res = await asyncio.to_thread(
+                        synthesize_kokoro_safely,
+                        text=text,
+                        voice_id=voice_id or "blend_fenrir_onyx",
+                        blend_weights=blend_weights,
+                        speed=speed,
+                        gain=gain,
+                        pitch_shift=pitch_shift,
+                        warmth=warmth,
+                        clarity=clarity,
+                        reverb=reverb,
+                        radio_fx=radio_fx,
+                        fx_filter=fx_filter,
+                        force_refresh=force_refresh
+                    )
                     if not fut.done():
                         fut.set_result(res)
                     if isinstance(res, dict) and not res.get("error"):
@@ -1447,7 +1529,7 @@ async def handle_blend_preview(request):
             if is_kokoro:
                 blend_weights = data.get("blend_weights", {"am_fenrir": 0.5, "am_onyx": 0.5})
                 res = await asyncio.to_thread(
-                    kokoro_engine.synthesize_block,
+                    synthesize_kokoro_safely,
                     text=text,
                     voice_id=voice_id or "custom_blend",
                     blend_weights=blend_weights,
@@ -1624,7 +1706,7 @@ def sync_synthesize_block_for_export(b: dict, active_engine_name: str) -> Option
             fx_filter=str(b.get("fx_filter") or "none").strip().lower()
         )
     elif is_kokoro:
-        res = kokoro_engine.synthesize_block(
+        res = synthesize_kokoro_safely(
             text=text,
             voice_id=voice_id or "blend_fenrir_onyx",
             blend_weights=b.get("blend_weights"),
