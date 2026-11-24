@@ -1598,6 +1598,19 @@ async def handle_demo_synthesize(request):
     speed = max(0.5, min(2.0, float(data.get("speed") or 1.0)))
     pitch_shift = max(-12.0, min(12.0, float(data.get("pitch_shift") or 0.0)))
 
+    # Map friendly IDs to official Fish Audio hex models
+    HEX_VOICE_MAP = {
+        "voice_morgan_freeman": "0327fdb5da9e4fd782899a8058c8ae2b",
+        "voice_scarlett": "6b37f00d482d46ddb567fa45b736ca95",
+        "voice_attenborough": "0fb8eca5e0dc4d4f800ebed5134e74ab",
+        "voice_walter_white": "0327fdb5da9e4fd782899a8058c8ae2b",
+        "narrator": "0327fdb5da9e4fd782899a8058c8ae2b",
+        "lucy": "6b37f00d482d46ddb567fa45b736ca95",
+        "british": "0fb8eca5e0dc4d4f800ebed5134e74ab",
+        "hero": "ba0b46292c6243afb5c722b5e81fb752"
+    }
+    resolved_voice_id = HEX_VOICE_MAP.get(voice_id, voice_id)
+
     # Ensure Fish API key from env is applied
     active_key = os.getenv("FISH_API_KEY")
     if active_key and fish_engine:
@@ -1608,12 +1621,15 @@ async def handle_demo_synthesize(request):
             res = await asyncio.to_thread(
                 fish_engine.synthesize_block,
                 text=text,
-                voice_id=voice_id,
+                voice_id=resolved_voice_id,
                 speed=speed,
                 pitch_shift=pitch_shift,
                 model="drama-3"
             )
-            return web.json_response(res)
+            if isinstance(res, dict) and not res.get("error"):
+                return web.json_response(res)
+            # If error returned from fish_engine, trigger fallback
+            raise ValueError(res.get("error", "Fish synthesis error"))
     except Exception as e:
         print(f"[Demo Synthesize] Drama 3 error ({e}). Falling back to Edge TTS...", flush=True)
         try:
