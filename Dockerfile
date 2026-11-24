@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     espeak-ng \
+    espeak-ng-data \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up non-root user for Hugging Face Spaces (UID 1000)

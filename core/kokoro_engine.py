@@ -38,11 +38,30 @@ class KokoroEngine:
         sess_options.enable_cpu_mem_arena = False
         sess_options.intra_op_num_threads = 1
         sess_options.inter_op_num_threads = 1
-        sess_options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_ALL
+        sess_options.graph_optimization_level = rt.GraphOptimizationLevel.ORT_ENABLE_BASIC
         sess_options.execution_mode = rt.ExecutionMode.ORT_SEQUENTIAL
 
         session = rt.InferenceSession(str(model_path), sess_options=sess_options, providers=["CPUExecutionProvider"])
         self.kokoro = Kokoro.from_session(session, str(voices_path))
+
+        # Wrap phonemize and _infer with debug telemetry to isolate exact step
+        orig_infer = self.kokoro._infer
+        def logged_infer(*args, **kwargs):
+            proc = psutil.Process()
+            print(f"[KokoroEngine TELEMETRY] Starting ONNX sess.run (RAM: {proc.memory_info().rss / 1024 / 1024:.1f} MB)...", flush=True)
+            out = orig_infer(*args, **kwargs)
+            print(f"[KokoroEngine TELEMETRY] Finished ONNX sess.run (RAM: {proc.memory_info().rss / 1024 / 1024:.1f} MB)!", flush=True)
+            return out
+        self.kokoro._infer = logged_infer
+
+        orig_phonemize = self.kokoro.tokenizer.phonemize
+        def logged_phonemize(*args, **kwargs):
+            proc = psutil.Process()
+            print(f"[KokoroEngine TELEMETRY] Starting phonemize (RAM: {proc.memory_info().rss / 1024 / 1024:.1f} MB)...", flush=True)
+            res = orig_phonemize(*args, **kwargs)
+            print(f"[KokoroEngine TELEMETRY] Phonemize complete! Result len: {len(res)} (RAM: {proc.memory_info().rss / 1024 / 1024:.1f} MB)", flush=True)
+            return res
+        self.kokoro.tokenizer.phonemize = logged_phonemize
         self.sample_rate = 24000
         self._voice_cache: Dict[str, np.ndarray] = {}
         self.remote_url: Optional[str] = remote_url
