@@ -1581,8 +1581,54 @@ async def handle_blend_preview(request):
         return web.json_response({"error": str(e)}, status=500)
 
 
+# Rate limiting and credit protection for landing page demo endpoint
+_DEMO_IP_HISTORY: Dict[str, List[float]] = {}
+_DEMO_DAILY_STATS = {"count": 0, "date": time.strftime("%Y-%m-%d")}
+MAX_DAILY_DEMO_CLOUD_CALLS = 60  # Maximum 60 Drama 3 cloud renders per day to protect owner credits
+DEMO_ALLOWED_HOSTS = {
+    "kashva-voice.netlify.app",
+    "kashva-voice.embarko.app",
+    "kashva-voice-zsvb.onrender.com",
+    "localhost",
+    "127.0.0.1"
+}
+
+def _check_demo_origin_allowed(request) -> bool:
+    origin = request.headers.get("Origin", "")
+    referer = request.headers.get("Referer", "")
+    target = origin or referer
+    if not target:
+        # Allow internal server or local requests
+        remote = request.remote or ""
+        return remote in ("127.0.0.1", "::1", "localhost")
+    return any(host in target.lower() for host in DEMO_ALLOWED_HOSTS)
+
+def _check_demo_ip_rate_limit(client_ip: str) -> bool:
+    now = time.time()
+    history = _DEMO_IP_HISTORY.get(client_ip, [])
+    # Keep requests from last 10 minutes (600s)
+    history = [t for t in history if now - t < 600]
+    if len(history) >= 10:  # Max 10 demo lines per 10 minutes per IP
+        return False
+    history.append(now)
+    _DEMO_IP_HISTORY[client_ip] = history
+    return True
+
+
 async def handle_demo_synthesize(request):
-    """Public demo endpoint for landing page playground to synthesize lines via Drama 3."""
+    """Public demo endpoint for landing page playground to synthesize lines via Drama 3 with credit shields."""
+    # 1. Origin verification: block unauthorized scrapers & raw curl bots
+    if not _check_demo_origin_allowed(request):
+        return web.json_response({"error": "Forbidden: Request origin unauthorized."}, status=403)
+
+    # 2. Client IP rate limiting
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    client_ip = forwarded.split(",")[0].strip() if forwarded else (request.remote or "unknown")
+    if not _check_demo_ip_rate_limit(client_ip):
+        return web.json_response({
+            "error": "Demo rate limit exceeded (max 10 lines per 10 mins). Please wait a few minutes before trying another line."
+        }, status=429)
+
     try:
         data = await request.json()
     except Exception:
@@ -1598,6 +1644,14 @@ async def handle_demo_synthesize(request):
     speed = max(0.5, min(2.0, float(data.get("speed") or 1.0)))
     pitch_shift = max(-12.0, min(12.0, float(data.get("pitch_shift") or 0.0)))
     force_refresh = bool(data.get("force_refresh", False))
+
+    # 3. Daily circuit breaker: Reset counter each day, cap Drama 3 cloud renders to protect owner credits
+    today = time.strftime("%Y-%m-%d")
+    if _DEMO_DAILY_STATS.get("date") != today:
+        _DEMO_DAILY_STATS["date"] = today
+        _DEMO_DAILY_STATS["count"] = 0
+
+    use_free_fallback = _DEMO_DAILY_STATS["count"] >= MAX_DAILY_DEMO_CLOUD_CALLS
 
     # Map friendly IDs to official Fish Audio hex models
     HEX_VOICE_MAP = {
@@ -1617,36 +1671,39 @@ async def handle_demo_synthesize(request):
     if active_key and fish_engine:
         fish_engine.api_key = active_key
 
-    try:
-        async with gpu_synthesis_lock:
-            res = await asyncio.to_thread(
-                fish_engine.synthesize_block,
-                text=text,
-                voice_id=resolved_voice_id,
-                speed=speed,
-                pitch_shift=pitch_shift,
-                model="drama-3",
-                force_refresh=force_refresh
-            )
-            if isinstance(res, dict) and not res.get("error"):
-                return web.json_response(res)
-            # If error returned from fish_engine, trigger fallback
-            raise ValueError(res.get("error", "Fish synthesis error"))
-    except Exception as e:
-        print(f"[Demo Synthesize] Drama 3 error ({e}). Falling back to Edge TTS...", flush=True)
+    if not use_free_fallback:
         try:
-            edge_adapter = engine_registry.get_engine("edge_tts")
-            fallback_voice = "en-US-ChristopherNeural"
-            res = await asyncio.to_thread(
-                edge_adapter.synthesize_block,
-                text=text,
-                voice_id=fallback_voice,
-                speed=speed,
-                pitch_shift=pitch_shift
-            )
-            return web.json_response(res)
-        except Exception as err:
-            return web.json_response({"error": str(err)}, status=500)
+            async with gpu_synthesis_lock:
+                res = await asyncio.to_thread(
+                    fish_engine.synthesize_block,
+                    text=text,
+                    voice_id=resolved_voice_id,
+                    speed=speed,
+                    pitch_shift=pitch_shift,
+                    model="drama-3",
+                    force_refresh=force_refresh
+                )
+                if isinstance(res, dict) and not res.get("error"):
+                    _DEMO_DAILY_STATS["count"] += 1
+                    return web.json_response(res)
+                raise ValueError(res.get("error", "Fish synthesis error"))
+        except Exception as e:
+            print(f"[Demo Synthesize] Drama 3 error ({e}). Falling back to Edge TTS...", flush=True)
+
+    # Free Neural Fallback (consumes $0 credits)
+    try:
+        edge_adapter = engine_registry.get_engine("edge_tts")
+        fallback_voice = "en-US-ChristopherNeural"
+        res = await asyncio.to_thread(
+            edge_adapter.synthesize_block,
+            text=text,
+            voice_id=fallback_voice,
+            speed=speed,
+            pitch_shift=pitch_shift
+        )
+        return web.json_response(res)
+    except Exception as err:
+        return web.json_response({"error": str(err)}, status=500)
 
 
 async def handle_cache_client_audio(request):
