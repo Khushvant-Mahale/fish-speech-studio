@@ -11,8 +11,8 @@
   <title>Kashva Voice — AI Speech & Voice Drama Studio</title>
   <link rel="icon" type="image/svg+xml" href="/studio/favicon.svg">
   <link rel="alternate icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/studio/css/studio.css?v=656">
-  <link rel="stylesheet" href="/app/css/studio.css?v=656">
+  <link rel="stylesheet" href="/studio/css/studio.css?v=657">
+  <link rel="stylesheet" href="/app/css/studio.css?v=657">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -408,6 +408,9 @@
           <span>Library</span>
         </button>
       </nav>
+
+      <!-- MOBILE DRAWER BACKDROP -->
+      <div class="mobile-panel-backdrop" id="mobile-panel-backdrop" onclick="closeMobileStudioPanels()"></div>
 
       <!-- LEFT INSPECTOR -->
       <aside class="inspector-panel" id="inspector-panel">
@@ -3783,6 +3786,6 @@
     import * as KokoroClient from "/studio/js/kokoro-client.js";
     window.KokoroClient = KokoroClient;
   </script>
-  <script src="/studio/js/app.js?v=656"></script>
+  <script src="/studio/js/app.js?v=657"></script>
 </body>
 </html>

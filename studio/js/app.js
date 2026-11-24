@@ -1219,6 +1219,16 @@ function switchToView(viewName, updateUrl = true) {
     if (authEl) authEl.style.display = "none";
     if (dashEl) dashEl.style.display = "none";
     if (studioEl) studioEl.style.display = "flex";
+    if (window.innerWidth <= 900) {
+      toggleInspectorCollapse(true);
+      if (state.aiAgent?.isOpen) {
+        toggleAIAgentPanel(false);
+      }
+      ["audio", "cast", "fx", "agent"].forEach(tab => {
+        const rb = document.getElementById(`rail-tab-${tab}`);
+        if (rb) rb.classList.remove("active");
+      });
+    }
     const projTitle = state.currentProject?.title || "Story Studio";
     document.title = `${projTitle} — Kashva Voice`;
     if (updateUrl && state.currentProject?.id) {
@@ -16761,6 +16771,32 @@ function toggleInspectorCollapse(forceState = null) {
     btn.textContent = isCollapsed ? "▶" : "◀";
     btn.title = isCollapsed ? "Expand Inspector Panel" : "Collapse Inspector Panel";
   }
+  syncMobileStudioBackdrop();
+}
+
+function syncMobileStudioBackdrop() {
+  const backdrop = document.getElementById("mobile-panel-backdrop");
+  if (!backdrop) return;
+  if (window.innerWidth > 900) {
+    backdrop.classList.remove("active");
+    return;
+  }
+  const insp = document.getElementById("inspector-panel");
+  const agent = document.getElementById("ai-agent-panel");
+  const inspOpen = Boolean(insp && !insp.classList.contains("collapsed"));
+  const agentOpen = Boolean(agent && !agent.classList.contains("collapsed"));
+  backdrop.classList.toggle("active", inspOpen || agentOpen);
+}
+
+function closeMobileStudioPanels() {
+  const insp = document.getElementById("inspector-panel");
+  if (insp && !insp.classList.contains("collapsed")) {
+    toggleInspectorCollapse(true);
+  }
+  if (state.aiAgent?.isOpen) {
+    toggleAIAgentPanel(false);
+  }
+  syncMobileStudioBackdrop();
 }
 
 function resetDspToNeutral() {
@@ -17034,6 +17070,7 @@ function toggleAIAgentPanel(forceOpen = null) {
   if (railTab) {
     railTab.classList.toggle("active", shouldOpen);
   }
+  syncMobileStudioBackdrop();
 
   if (shouldOpen) {
     updateAIAgentContextUI();
